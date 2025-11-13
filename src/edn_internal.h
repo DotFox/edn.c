@@ -1,0 +1,235 @@
+/**
+ * EDN.C - Internal header
+ * 
+ * Internal data structures and helper functions.
+ */
+
+#ifndef EDN_INTERNAL_H
+#define EDN_INTERNAL_H
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "edn.h"
+
+/* Arena allocator constants and structures */
+#define ARENA_BLOCK_SIZE (64 * 1024) /* 64KB blocks */
+
+/* Arena block structure - exposed for inline allocation */
+typedef struct arena_block {
+    struct arena_block* next;
+    size_t used;
+    size_t capacity;
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4200)
+#endif
+    uint8_t data[];
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+} arena_block_t;
+
+/* Arena allocator structure - exposed for inline allocation */
+struct edn_arena {
+    arena_block_t* current;
+    arena_block_t* first;
+};
+
+typedef struct edn_arena edn_arena_t;
+
+/* Map entry structure for key-value pairs */
+typedef struct {
+    edn_value_t* key;
+    edn_value_t* value;
+} edn_map_entry_t;
+
+/* Internal value structure */
+struct edn_value {
+    edn_type_t type;
+    uint64_t cached_hash; /* Cached hash value (0 = not computed yet) */
+    union {
+        bool boolean;
+        int64_t integer;
+        struct {
+            const char* digits; /* Pointer to digit string in input buffer (zero-copy) */
+            size_t length;      /* Number of characters in digit string */
+            bool negative;      /* Sign bit */
+            uint8_t radix;      /* Number base (2-36, default 10) */
+        } bigint;
+        double floating;
+        uint32_t character; /* Unicode codepoint */
+        struct {
+            const char* data; /* Pointer to string content in input buffer (zero-copy) */
+            size_t length;    /* Length of string in bytes (excluding quotes) */
+            bool has_escapes; /* True if string contains escape sequences */
+            char* decoded;    /* Lazy-decoded string (NULL until needed) */
+        } string;
+        struct {
+            const char* namespace; /* NULL if no namespace, points into input (zero-copy) */
+            size_t ns_length;      /* 0 if no namespace */
+            const char* name;      /* Points into input (zero-copy) */
+            size_t name_length;    /* Length of name */
+        } symbol;
+        struct {
+            const char* namespace; /* NULL if no namespace, points into input (zero-copy) */
+            size_t ns_length;      /* 0 if no namespace */
+            const char* name;      /* Points into input (zero-copy) */
+            size_t name_length;    /* Length of name */
+        } keyword;
+        struct {
+            edn_value_t** elements;
+            size_t count;
+        } list;
+        struct {
+            edn_value_t** elements;
+            size_t count;
+        } vector;
+        struct {
+            edn_map_entry_t* entries;
+            size_t count;
+        } map;
+        struct {
+            edn_value_t** elements;
+            size_t count;
+        } set;
+        struct {
+            const char* tag;
+            size_t tag_length;
+            edn_value_t* value;
+        } tagged;
+    } as;
+    edn_arena_t* arena; /* Arena that owns this value */
+};
+
+/* Parser state */
+typedef struct {
+    const char* input;
+    const char* current;
+    const char* end;
+    size_t line;
+    size_t column;
+    size_t depth; /* Current nesting depth for collections */
+    edn_arena_t* arena;
+    edn_error_t error;
+    const char* error_message;
+    /* Reader configuration (optional) */
+    edn_reader_registry_t* reader_registry;
+    edn_default_reader_mode_t default_reader_mode;
+    /* Discard mode - when true, readers are not invoked */
+    bool discard_mode;
+} edn_parser_t;
+
+edn_arena_t* edn_arena_create(void);
+void edn_arena_destroy(edn_arena_t* arena);
+void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size);
+
+static inline void* edn_arena_alloc(edn_arena_t* arena, size_t size) {
+    if (!arena) {
+        return NULL;
+    }
+
+    size = (size + 7) & ~7;
+
+    arena_block_t* block = arena->current;
+
+    if (block->used + size <= block->capacity) {
+        void* ptr = block->data + block->used;
+        block->used += size;
+        return ptr;
+    }
+
+    return edn_arena_alloc_slow(arena, size);
+}
+
+static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
+    edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
+    if (value) {
+        value->cached_hash = 0;
+    }
+    return value;
+}
+
+bool edn_parser_skip_whitespace(edn_parser_t* parser);
+edn_value_t* edn_parser_parse_value(edn_parser_t* parser);
+
+const char* edn_simd_skip_whitespace(const char* ptr, const char* end);
+const char* edn_simd_find_quote(const char* ptr, const char* end);
+bool edn_simd_has_backslash(const char* ptr, size_t length);
+
+/* String parsing functions */
+typedef struct {
+    const char* start; /* Start of string content (after opening quote) */
+    const char* end;   /* End of string content (before closing quote) */
+    bool has_escapes;  /* True if backslash found in string */
+    bool valid;        /* True if string is valid (found closing quote) */
+} edn_string_scan_t;
+
+edn_string_scan_t edn_parse_string_lazy(const char* ptr, const char* end);
+char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length);
+
+/* Number parsing functions */
+typedef enum {
+    EDN_NUMBER_INT64,  /* Fits in int64_t */
+    EDN_NUMBER_BIGINT, /* Overflow, needs BigInt */
+    EDN_NUMBER_DOUBLE, /* Has decimal point or exponent */
+    EDN_NUMBER_INVALID /* Parse error */
+} edn_number_type_t;
+
+typedef struct {
+    const char* start;      /* Start of number in input */
+    const char* end;        /* End of number in input */
+    edn_number_type_t type; /* Detected type */
+    uint8_t radix;          /* Number base (2-36, default 10) */
+    bool negative;          /* Sign */
+    bool valid;             /* True if valid number */
+} edn_number_scan_t;
+
+edn_number_scan_t edn_scan_number(const char* ptr, const char* end);
+bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t radix);
+double edn_parse_double(const char* start, const char* end);
+
+/* SIMD number helper */
+const char* edn_simd_scan_digits(const char* ptr, const char* end);
+
+/* Character parsing function */
+edn_value_t* edn_parse_character(edn_parser_t* parser);
+
+/* Identifier parsing functions */
+typedef struct {
+    const char* end;         /* Pointer to first delimiter (end of identifier) */
+    const char* first_slash; /* Pointer to first '/', or NULL if none found */
+} edn_identifier_scan_result_t;
+
+edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end);
+edn_value_t* edn_parse_identifier(edn_parser_t* parser);
+
+/* Symbolic value parsing function */
+edn_value_t* edn_parse_symbolic_value(edn_parser_t* parser);
+
+/* Value equality and comparison functions */
+bool edn_value_equal(const edn_value_t* a, const edn_value_t* b);
+int edn_value_compare(const void* a, const void* b);
+uint64_t edn_value_hash(const edn_value_t* value);
+
+/* Uniqueness checking (for sets and maps) */
+bool edn_has_duplicates(edn_value_t** elements, size_t count);
+
+/* Collection parsers */
+edn_value_t* edn_parse_list(edn_parser_t* parser);
+edn_value_t* edn_parse_vector(edn_parser_t* parser);
+edn_value_t* edn_parse_set(edn_parser_t* parser);
+edn_value_t* edn_parse_map(edn_parser_t* parser);
+
+/* Tagged literal parser */
+edn_value_t* edn_parse_tagged(edn_parser_t* parser);
+
+/* Discard reader macro parser */
+edn_value_t* edn_parse_discard_value(edn_parser_t* parser);
+
+/* Internal reader lookup (for non-null-terminated tag strings) */
+edn_reader_fn edn_reader_lookup_internal(const edn_reader_registry_t* registry, const char* tag,
+                                         size_t tag_length);
+
+#endif /* EDN_INTERNAL_H */

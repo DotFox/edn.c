@@ -1,0 +1,32 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source code
+*.c text
+*.h text
+*.sh text eol=lf
+
+# Documentation
+*.md text
+*.txt text
+
+# Build files
+Makefile text
+*.mk text
+
+# Git config
+.gitattributes text
+.gitignore text
+
+# Archives
+*.zip binary
+*.tar.gz binary
+*.tgz binary
+
+# Compiled binaries
+*.a binary
+*.o binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.exe binary

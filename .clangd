@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - "-Iinclude"
+    - "-Isrc"
+    - "-std=c11"
+    - "-Wall"
+    - "-Wextra"
+    - "-Wpedantic"
+  # Detect SIMD architecture automatically
+  CompilationDatabase: .

@@ -1,0 +1,204 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    name: Test on Linux (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential clang
+    
+    - name: Build library (${{ matrix.compiler }})
+      run: |
+        make CC=${{ matrix.compiler }}
+    
+    - name: Run tests
+      run: |
+        make test CC=${{ matrix.compiler }}
+    
+    - name: Run tests with sanitizers
+      run: |
+        make clean
+        make DEBUG=1 test CC=${{ matrix.compiler }}
+
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Show architecture
+      run: |
+        uname -m
+        clang --version
+    
+    - name: Build library
+      run: make
+    
+    - name: Run tests
+      run: make test
+    
+    - name: Run tests with sanitizers
+      run: |
+        make clean
+        make DEBUG=1 test
+
+  test-windows:
+    name: Test on Windows (MinGW)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-make
+          make
+    
+    - name: Build library
+      run: make
+    
+    - name: Run tests
+      run: make test
+
+  test-windows-msvc:
+    name: Test on Windows (MSVC + CMake)
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+    
+    - name: Build
+      run: cmake --build build --config Release
+    
+    - name: Run tests
+      run: ctest --test-dir build -C Release --output-on-failure
+
+  benchmark-linux:
+    name: Benchmark on Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build and run benchmarks
+      run: make bench
+
+  benchmark-macos:
+    name: Benchmark on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Show CPU info
+      run: |
+        sysctl -n machdep.cpu.brand_string
+        sysctl -n hw.ncpu
+    
+    - name: Build and run benchmarks
+      run: make bench
+
+  benchmark-windows:
+    name: Benchmark on Windows (MinGW)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-make
+          make
+    
+    - name: Build and run benchmarks
+      run: make bench
+
+  benchmark-windows-msvc:
+    name: Benchmark on Windows (MSVC)
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    
+    - name: Configure and build
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+    
+    - name: Run benchmarks
+      run: |
+        cd build/Release
+        ./bench_integration.exe
+
+  # Code formatting check
+  format-check:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format
+    
+    - name: Check formatting
+      run: |
+        make format-check

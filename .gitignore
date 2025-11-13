@@ -1,0 +1,38 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Test binaries
+test/test_*
+!test/test_*.c
+!test/test_*.h
+
+# Benchmark binaries
+bench/bench_*
+!bench/bench_*.c
+!bench/bench_*.h
+
+# Debug files
+*.dSYM/
+*.su
+
+# Profiling artifacts
+*.trace/
+*.py
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+compile_commands.json
+.cache/
+.clj-kondo/
+.lsp/
+
+# OS files
+.DS_Store
+Thumbs.db
