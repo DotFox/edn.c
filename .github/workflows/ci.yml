@@ -182,8 +182,7 @@ jobs:
     
     - name: Run benchmarks
       run: |
-        cd build/Release
-        ./bench_integration.exe
+        ./build/Release/bench_integration.exe
 
   # Code formatting check
   format-check:

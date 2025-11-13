@@ -67,6 +67,7 @@ static void bench_file(const char* filename, const char* description) {
 
     size_t size;
     char* data = read_file(path, &size);
+
     if (!data) {
         printf("%-40s FAILED (could not read file)\n", description);
         return;

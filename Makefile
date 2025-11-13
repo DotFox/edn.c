@@ -140,7 +140,7 @@ bench-build: $(BENCH_BINS)
 
 bench/%: bench/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 -g $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) -o $@
 
 # Debug build
 .PHONY: debug
