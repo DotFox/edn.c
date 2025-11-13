@@ -105,6 +105,26 @@ bench: bench/bench_integration
 	@echo ""
 	@./bench/bench_integration
 
+# Build and run Clojure benchmarks (clojure.edn and fast-edn)
+.PHONY: bench-clj
+bench-clj:
+	@echo "Running Clojure benchmarks..."
+	@echo ""
+	@clojure -M -m bench-integration
+
+# Build and run comparison benchmarks (C, then Clojure)
+.PHONY: bench-compare
+bench-compare: bench/bench_integration
+	@echo "Running C benchmark..."
+	@echo ""
+	@./bench/bench_integration
+	@echo ""
+	@echo "================================================================================"
+	@echo ""
+	@echo "Running Clojure benchmarks..."
+	@echo ""
+	@clojure -M -m bench-integration
+
 # Build and run all benchmarks
 .PHONY: bench-all
 bench-all: $(BENCH_BINS)
@@ -184,8 +204,10 @@ help:
 	@echo "EDN.C Makefile targets:"
 	@echo "  make                  - Build library ($(LIB))"
 	@echo "  make test             - Build and run all tests"
-	@echo "  make bench            - Build and run quick benchmark (integration)"
-	@echo "  make bench-all        - Build and run all benchmarks"
+	@echo "  make bench            - Build and run quick benchmark (C integration)"
+	@echo "  make bench-clj        - Run Clojure benchmarks (clojure.edn and fast-edn)"
+	@echo "  make bench-compare    - Run C and Clojure benchmarks for comparison"
+	@echo "  make bench-all        - Build and run all C benchmarks"
 	@echo "  make bench-build      - Build benchmarks only (don't run)"
 	@echo "  make debug            - Build with debug symbols and sanitizers"
 	@echo "  make format           - Format all C files with clang-format"

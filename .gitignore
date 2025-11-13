@@ -13,6 +13,7 @@ test/test_*
 bench/bench_*
 !bench/bench_*.c
 !bench/bench_*.h
+!bench/*.clj
 
 # Debug files
 *.dSYM/
@@ -32,6 +33,8 @@ compile_commands.json
 .cache/
 .clj-kondo/
 .lsp/
+.nrepl-port
+.cpcache/
 
 # OS files
 .DS_Store

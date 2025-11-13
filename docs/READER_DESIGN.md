@@ -502,7 +502,6 @@ Add to `bench/bench_reader.c`:
 - [ ] Write `bench/bench_reader.c`
 - [ ] Update `examples/comprehensive.c` with reader usage
 - [ ] Update `README.md` with reader documentation
-- [ ] Update `AGENTS.md` with reader architecture notes
 
 ## Future Enhancements
 

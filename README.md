@@ -49,7 +49,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 **Unix/macOS/Linux:**
 ```bash
 # Clone the repository
-git clone https://github.com/kchernys/edn.c.git
+git clone https://github.com/DotFox/edn.c.git
 cd edn.c
 
 # Build static library (libedn.a)
@@ -62,7 +62,7 @@ make test
 **Windows:**
 ```powershell
 # Clone the repository
-git clone https://github.com/kchernys/edn.c.git
+git clone https://github.com/DotFox/edn.c.git
 cd edn.c
 
 # Build with CMake (works with MSVC, MinGW, Clang)
@@ -891,15 +891,13 @@ See `bench/` directory for detailed benchmarking tools and results.
 
 Contributions are welcome! Please:
 
-1. Read [AGENTS.md](AGENTS.md) for development guidelines and project structure
-2. Run `make format` before committing (auto-formats with clang-format)
-3. Ensure all tests pass with `make test`
-4. Add tests for new features
-5. Follow the existing code style (K&R, 4 spaces, C11, see `.clang-format`)
+1. Run `make format` before committing (auto-formats with clang-format)
+2. Ensure all tests pass with `make test`
+3. Add tests for new features
+4. Follow the existing code style (K&R, 4 spaces, C11, see `.clang-format`)
 
 ## Documentation
 
-- [AGENTS.md](AGENTS.md) - Development guide, build commands, code style
 - [docs/DESIGN.md](docs/DESIGN.md) - Architecture and design philosophy
 - [docs/READER_DESIGN.md](docs/READER_DESIGN.md) - Custom reader implementation
 
