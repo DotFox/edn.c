@@ -111,8 +111,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Install Clojure CLI
+      uses: DeLaGuardo/setup-clojure@13.4
+      with:
+        cli: latest
+
     - name: Build and run benchmarks
-      run: make bench
+      run: make bench-compare
 
   benchmark-macos:
     name: Benchmark on macOS
@@ -121,14 +132,20 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Show CPU info
-      run: |
-        sysctl -n machdep.cpu.brand_string
-        sysctl -n hw.ncpu
-    
+
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Install Clojure CLI
+      uses: DeLaGuardo/setup-clojure@13.4
+      with:
+        cli: latest
+
     - name: Build and run benchmarks
-      run: make bench
+      run: make bench-compare
 
   benchmark-windows:
     name: Benchmark on Windows (MinGW)
@@ -150,9 +167,23 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-make
           make
-    
+
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Install Clojure CLI
+      uses: DeLaGuardo/setup-clojure@13.4
+      with:
+        cli: latest
+
     - name: Build and run benchmarks
-      run: make bench
+      shell: pwsh
+      run: |
+        make bench
+        clojure -M -m bench-integration
 
   benchmark-windows-msvc:
     name: Benchmark on Windows (MSVC)
@@ -161,7 +192,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Prepare java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Install Clojure CLI
+      uses: DeLaGuardo/setup-clojure@13.4
+      with:
+        cli: latest
+
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
     
@@ -173,6 +215,7 @@ jobs:
     - name: Run benchmarks
       run: |
         ./build/Release/bench_integration.exe
+        clojure -M -m bench-integration
 
   # Code formatting check
   format-check:
