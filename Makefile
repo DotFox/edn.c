@@ -46,6 +46,12 @@ ifeq ($(MAP_NAMESPACE_SYNTAX),1)
     CFLAGS += -DEDN_ENABLE_MAP_NAMESPACE_SYNTAX
 endif
 
+# Extended characters (\formfeed, \backspace, \oNNN octal, disabled by default)
+EXTENDED_CHARACTERS ?= 0
+ifeq ($(EXTENDED_CHARACTERS),1)
+    CFLAGS += -DEDN_ENABLE_EXTENDED_CHARACTERS
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -136,6 +142,11 @@ bench/%: bench/%.c $(LIB)
 	@echo "  CC      $@"
 	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) -o $@
 
+# Build examples
+examples/%: examples/%.c $(LIB)
+	@echo "  CC      $@"
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) -o $@
+
 # Debug build
 .PHONY: debug
 debug:
@@ -214,6 +225,7 @@ help:
 	@echo "Options:"
 	@echo "  DEBUG=1                     - Enable debug build"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
+	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 
 .DEFAULT_GOAL := all

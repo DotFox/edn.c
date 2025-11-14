@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "edn_internal.h"
-#include "identifier_internal.h"
 
 /* Windows-specific intrinsics */
 #if defined(_MSC_VER)

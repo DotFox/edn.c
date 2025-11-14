@@ -10,7 +10,6 @@
 #include <string.h>
 
 #include "edn_internal.h"
-#include "identifier_internal.h"
 
 /**
  * Result of identifier scanning (internal).

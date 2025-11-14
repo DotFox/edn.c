@@ -16,6 +16,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **📖 UTF-8 Native**: All string inputs and outputs are UTF-8 encoded
 - **🏷️ Tagged Literals**: Extensible data types with custom reader support
 - **🗺️ Map Namespace Syntax**: Clojure-compatible `#:ns{...}` syntax (optional, disabled by default)
+- **🔤 Extended Characters**: `\formfeed`, `\backspace`, and octal `\oNNN` literals (optional, disabled by default)
 
 ## Table of Contents
 
@@ -30,6 +31,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Tagged Literals](#tagged-literals)
   - [Custom Readers](#custom-readers)
   - [Map Namespace Syntax](#map-namespace-syntax)
+  - [Extended Character Literals](#extended-character-literals)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -780,6 +782,63 @@ make MAP_NAMESPACE_SYNTAX=1
 When disabled (default), `#:foo{...}` will fail to parse.
 
 See `examples/example_namespaced_map.c` for more details.
+
+### Extended Character Literals
+
+EDN.C supports optional extended character literal features that are disabled by default for strict EDN compliance.
+
+**Extended named characters:**
+- `\formfeed` - Form feed control character (U+000C)
+- `\backspace` - Backspace control character (U+0008)
+
+**Octal escape sequences (Clojure-compatible):**
+- `\oN` - Where N is 1-3 octal digits (0-7)
+- If `\o` is followed by any digit, attempts octal parsing
+- Digits 8 or 9 cause "Invalid octal escape sequence in character literal" error
+- Examples:
+  - `\o7` - Bell character (U+0007)
+  - `\o12` - Line feed (U+000A)
+  - `\o101` - Uppercase 'A' (U+0041)
+  - `\o377` - Maximum value (U+00FF / 255)
+  - `\o` alone - Parses as character 'o'
+  - `\o8` - Error: Invalid octal character
+
+**Example:**
+```c
+edn_result_t result = edn_parse("\\formfeed", 0);
+if (result.error == EDN_OK) {
+    uint32_t codepoint;
+    edn_character_get(result.value, &codepoint);
+    printf("U+%04X\n", codepoint);  // Output: U+000C
+    edn_free(result.value);
+}
+
+// Octal escapes
+result = edn_parse("[\\o101 \\o102 \\o103]", 0);
+// Parses as vector ['A', 'B', 'C']
+```
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make EXTENDED_CHARACTERS=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_EXTENDED_CHARACTERS=ON ..
+make
+```
+
+When disabled (default):
+- `\formfeed` and `\backspace` will fail to parse
+- `\oNNN` will fail to parse
+- Standard character literals still work: `\newline`, `\tab`, `\space`, `\return`, `\uXXXX`, etc.
+
+See `examples/example_extended_characters.c` for more details.
 
 ## Examples
 

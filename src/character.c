@@ -30,6 +30,40 @@ static bool parse_unicode_escape(const char* ptr, const char* end, uint32_t* cod
     return true;
 }
 
+#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+static bool parse_octal_escape(const char* ptr, const char* end, uint32_t* codepoint,
+                               const char** next_ptr) {
+    if (ptr >= end) {
+        return false;
+    }
+
+    uint32_t result = 0;
+    int digits = 0;
+
+    while (digits < 3 && ptr < end && *ptr >= '0' && *ptr <= '7') {
+        result = (result << 3) | (*ptr - '0');
+        ptr++;
+        digits++;
+    }
+
+    if (digits == 0) {
+        return false;
+    }
+
+    if (ptr < end && (*ptr == '8' || *ptr == '9')) {
+        return false;
+    }
+
+    if (result > 0377) {
+        return false;
+    }
+
+    *codepoint = result;
+    *next_ptr = ptr;
+    return true;
+}
+#endif
+
 static bool is_valid_single_char(char c) {
     if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
         return false;
@@ -47,12 +81,6 @@ static bool match_string(const char* ptr, const char* end, const char* str, size
 edn_value_t* edn_parse_character(edn_parser_t* parser) {
     const char* ptr = parser->current;
     const char* end = parser->end;
-
-    if (ptr >= end || *ptr != '\\') {
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Expected backslash at start of character literal";
-        return NULL;
-    }
 
     ptr++;
 
@@ -76,7 +104,28 @@ edn_value_t* edn_parse_character(edn_parser_t* parser) {
     } else if (match_string(ptr, end, "tab", 3)) {
         codepoint = 0x09;
         ptr += 3;
-    } else if (*ptr == 'u') {
+    }
+#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+    else if (match_string(ptr, end, "formfeed", 8)) {
+        codepoint = 0x0C;
+        ptr += 8;
+    } else if (match_string(ptr, end, "backspace", 9)) {
+        codepoint = 0x08;
+        ptr += 9;
+    } else if (*ptr == 'o' && ptr + 1 < end && ptr[1] >= '0' && ptr[1] <= '9') {
+        ptr++;
+        const char* next_ptr;
+        if (!parse_octal_escape(ptr, end, &codepoint, &next_ptr)) {
+            parser->error = EDN_ERROR_INVALID_ESCAPE;
+            parser->error_message = "Invalid octal escape sequence in character literal";
+            return NULL;
+        }
+        ptr = next_ptr;
+    }
+#endif
+    else if (*ptr == 'u' && ptr + 1 < end &&
+             ((ptr[1] >= '0' && ptr[1] <= '9') || (ptr[1] >= 'a' && ptr[1] <= 'f') ||
+              (ptr[1] >= 'A' && ptr[1] <= 'F'))) {
         ptr++;
         if (!parse_unicode_escape(ptr, end, &codepoint)) {
             parser->error = EDN_ERROR_INVALID_ESCAPE;
@@ -97,6 +146,13 @@ edn_value_t* edn_parse_character(edn_parser_t* parser) {
     if (codepoint > 0x10FFFF) {
         parser->error = EDN_ERROR_INVALID_ESCAPE;
         parser->error_message = "Unicode codepoint out of valid range";
+        return NULL;
+    }
+
+    /* After parsing a character, we must be at end of input or at a delimiter */
+    if (ptr < end && !is_delimiter((unsigned char) *ptr)) {
+        parser->error = EDN_ERROR_INVALID_SYNTAX;
+        parser->error_message = "Invalid character - expected delimiter after character literal";
         return NULL;
     }
 
