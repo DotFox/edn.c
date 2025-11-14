@@ -38,6 +38,18 @@ static void print_map(edn_value_t* map) {
             } else {
                 printf(":%.*s", (int)name_len, name);
             }
+        } else if (edn_type(key) == EDN_TYPE_SYMBOL) {
+            const char* ns;
+            size_t ns_len;
+            const char* name;
+            size_t name_len;
+            edn_symbol_get(key, &ns, &ns_len, &name, &name_len);
+
+            if (ns != NULL) {
+                printf("%.*s/%.*s", (int)ns_len, ns, (int)name_len, name);
+            } else {
+                printf("%.*s", (int)name_len, name);
+            }
         } else if (edn_type(key) == EDN_TYPE_STRING) {
             size_t len;
             const char* str = edn_string_get(key, &len);
@@ -107,6 +119,16 @@ int main(void) {
         "Configuration-style map:"
     );
     
+    example(
+        "#:foo{x 1 y 2}",
+        "Symbol keys are also namespaced:"
+    );
+
+    example(
+        "#:foo{x 1 :y 2 bar/z 3}",
+        "Mixed key types (symbol, keyword, namespaced symbol):"
+    );
+
     example(
         "#:api{}",
         "Empty namespaced map:"

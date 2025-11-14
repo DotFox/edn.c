@@ -379,6 +379,23 @@ static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_
             final_key->arena = parser->arena;
         }
 
+        if (ns_name != NULL && key->type == EDN_TYPE_SYMBOL && key->as.symbol.namespace == NULL) {
+            final_key = edn_arena_alloc_value(parser->arena);
+            if (final_key == NULL) {
+                parser->depth--;
+                parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                parser->error_message = "Out of memory allocating namespaced keyword";
+                return NULL;
+            }
+
+            final_key->type = EDN_TYPE_SYMBOL;
+            final_key->as.symbol.namespace = ns_name;
+            final_key->as.symbol.ns_length = ns_length;
+            final_key->as.symbol.name = key->as.symbol.name;
+            final_key->as.symbol.name_length = key->as.symbol.name_length;
+            final_key->arena = parser->arena;
+        }
+
         if (!edn_map_builder_add(&builder, final_key, value)) {
             parser->depth--;
             parser->error = EDN_ERROR_OUT_OF_MEMORY;

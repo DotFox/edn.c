@@ -763,9 +763,11 @@ if (result.error == EDN_OK) {
 ```
 
 **Rules:**
-- Only keyword keys without an existing namespace are transformed
+- Both keyword and symbol keys without an existing namespace are transformed
 - Keys with existing namespaces are preserved: `#:foo{:x 1 :bar/y 2}` → `{:foo/x 1 :bar/y 2}`
-- Non-keyword keys are not transformed: `#:foo{"x" 1 :y 2}` → `{"x" 1 :foo/y 2}`
+- Symbol keys are also namespaced: `#:foo{x 1 y 2}` → `{foo/x 1 foo/y 2}`
+- Mixed keys work correctly: `#:foo{x 1 :y 2}` → `{foo/x 1 :foo/y 2}`
+- Non-keyword/non-symbol keys are not transformed: `#:foo{"x" 1 :y 2}` → `{"x" 1 :foo/y 2}`
 - The namespace keyword cannot itself have a namespace
 
 **Build Configuration:**
