@@ -1059,6 +1059,16 @@ See `bench/` directory for detailed benchmarking tools and results.
 - Performance profiling and further optimization
 - Extended documentation and tutorials
 - Public helper functions (`edn_bool_get()`, `edn_nil_p()`, etc.)
+- EOF configuration
+- Streaming/Incremental parsing
+- Extra features:
+  - octal number notation ("0713" => 459)
+  - hexadecimal number notation ("0xFF" => 255)
+  - radix number notation ("2r1111" => 15, "36rabcxyz" => 623741435)
+  - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
+  - ratio numbers ("1/2" => 0.5)
+  - octal escape ("\"\\176\"" => "~")
+  - metadata support
 
 ## Contributing
 
