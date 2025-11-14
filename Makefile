@@ -40,6 +40,12 @@ else
     CFLAGS += -DNDEBUG
 endif
 
+# Map namespace syntax (Clojure extension, disabled by default)
+MAP_NAMESPACE_SYNTAX ?= 0
+ifeq ($(MAP_NAMESPACE_SYNTAX),1)
+    CFLAGS += -DEDN_ENABLE_MAP_NAMESPACE_SYNTAX
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -50,6 +56,7 @@ endif
 
 # Source files
 SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c
+
 OBJS = $(SRCS:.c=.o)
 
 # Library output
@@ -205,7 +212,8 @@ help:
 	@echo "  make help             - Show this help message"
 	@echo ""
 	@echo "Options:"
-	@echo "  DEBUG=1               - Enable debug build"
-	@echo "  VERBOSE=1             - Show full compiler commands"
+	@echo "  DEBUG=1                     - Enable debug build"
+	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
+	@echo "  VERBOSE=1                   - Show full compiler commands"
 
 .DEFAULT_GOAL := all

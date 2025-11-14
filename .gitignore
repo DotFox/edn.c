@@ -15,6 +15,11 @@ bench/bench_*
 !bench/bench_*.h
 !bench/*.clj
 
+# Examples binaries
+examples/*
+!examples/*.c
+!examples/*.h
+
 # Debug files
 *.dSYM/
 *.su

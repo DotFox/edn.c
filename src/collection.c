@@ -333,7 +333,8 @@ static edn_map_entry_t* edn_map_builder_finish(edn_map_builder_t* builder, size_
     return builder->entries;
 }
 
-edn_value_t* edn_parse_map(edn_parser_t* parser) {
+static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_name,
+                                           size_t ns_length) {
     parser->current++;
     parser->depth++;
 
@@ -360,7 +361,25 @@ edn_value_t* edn_parse_map(edn_parser_t* parser) {
             return NULL;
         }
 
-        if (!edn_map_builder_add(&builder, key, value)) {
+        edn_value_t* final_key = key;
+        if (ns_name != NULL && key->type == EDN_TYPE_KEYWORD && key->as.keyword.namespace == NULL) {
+            final_key = edn_arena_alloc_value(parser->arena);
+            if (final_key == NULL) {
+                parser->depth--;
+                parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                parser->error_message = "Out of memory allocating namespaced keyword";
+                return NULL;
+            }
+
+            final_key->type = EDN_TYPE_KEYWORD;
+            final_key->as.keyword.namespace = ns_name;
+            final_key->as.keyword.ns_length = ns_length;
+            final_key->as.keyword.name = key->as.keyword.name;
+            final_key->as.keyword.name_length = key->as.keyword.name_length;
+            final_key->arena = parser->arena;
+        }
+
+        if (!edn_map_builder_add(&builder, final_key, value)) {
             parser->depth--;
             parser->error = EDN_ERROR_OUT_OF_MEMORY;
             parser->error_message = "Out of memory while building map";
@@ -371,14 +390,16 @@ edn_value_t* edn_parse_map(edn_parser_t* parser) {
     if (parser->current >= parser->end) {
         parser->depth--;
         parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unterminated map (missing '}')";
+        parser->error_message = ns_name != NULL ? "Unterminated namespaced map (missing '}')"
+                                                : "Unterminated map (missing '}')";
         return NULL;
     }
 
     if (*parser->current != '}') {
         parser->depth--;
         parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
-        parser->error_message = "Mismatched closing delimiter in map";
+        parser->error_message = ns_name != NULL ? "Mismatched closing delimiter in namespaced map"
+                                                : "Mismatched closing delimiter in map";
         return NULL;
     }
 
@@ -404,22 +425,66 @@ edn_value_t* edn_parse_map(edn_parser_t* parser) {
 
         if (edn_has_duplicates(keys, count)) {
             parser->error = EDN_ERROR_DUPLICATE_KEY;
-            parser->error_message = "Map contains duplicate keys";
+            parser->error_message = ns_name != NULL ? "Namespaced map contains duplicate keys"
+                                                    : "Map contains duplicate keys";
             return NULL;
         }
     }
 
-    edn_value_t* value = edn_arena_alloc_value(parser->arena);
-    if (value == NULL) {
+    edn_value_t* result = edn_arena_alloc_value(parser->arena);
+    if (result == NULL) {
         parser->error = EDN_ERROR_OUT_OF_MEMORY;
         parser->error_message = "Out of memory allocating map";
         return NULL;
     }
 
-    value->type = EDN_TYPE_MAP;
-    value->as.map.entries = entries;
-    value->as.map.count = count;
-    value->arena = parser->arena;
+    result->type = EDN_TYPE_MAP;
+    result->as.map.entries = entries;
+    result->as.map.count = count;
+    result->arena = parser->arena;
 
-    return value;
+    return result;
 }
+
+edn_value_t* edn_parse_map(edn_parser_t* parser) {
+    return edn_parse_map_internal(parser, NULL, 0);
+}
+
+#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+
+edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser) {
+    parser->current++;
+
+    edn_value_t* ns_keyword = edn_parser_parse_value(parser);
+    if (ns_keyword == NULL) {
+        /* Parsing failed, error already set */
+        return NULL;
+    }
+
+    if (ns_keyword->type != EDN_TYPE_KEYWORD) {
+        parser->error = EDN_ERROR_INVALID_SYNTAX;
+        parser->error_message = "Namespaced map must start with a keyword";
+        return NULL;
+    }
+
+    if (ns_keyword->as.keyword.namespace != NULL) {
+        parser->error = EDN_ERROR_INVALID_SYNTAX;
+        parser->error_message = "Namespaced map keyword cannot have a namespace";
+        return NULL;
+    }
+
+    const char* ns_name = ns_keyword->as.keyword.name;
+    size_t ns_length = ns_keyword->as.keyword.name_length;
+
+    edn_parser_skip_whitespace(parser);
+
+    if (parser->current >= parser->end || *parser->current != '{') {
+        parser->error = EDN_ERROR_INVALID_SYNTAX;
+        parser->error_message = "Namespaced map must be followed by '{'";
+        return NULL;
+    }
+
+    return edn_parse_map_internal(parser, ns_name, ns_length);
+}
+
+#endif /* EDN_ENABLE_MAP_NAMESPACE_SYNTAX */

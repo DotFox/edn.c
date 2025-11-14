@@ -26,7 +26,12 @@ jobs:
     - name: Run tests
       run: |
         make test CC=${{ matrix.compiler }}
-    
+
+    - name: Run tests with enabled features
+      run: |
+        make clean
+        make test CC=${{ matrix.compiler }} MAP_NAMESPACE_SYNTAX=1
+
     - name: Run tests with sanitizers
       run: |
         make clean
@@ -50,7 +55,12 @@ jobs:
     
     - name: Run tests
       run: make test
-    
+
+    - name: Run tests with enabled features
+      run: |
+        make clean
+        make test MAP_NAMESPACE_SYNTAX=1
+
     - name: Run tests with sanitizers
       run: |
         make clean
@@ -82,6 +92,11 @@ jobs:
     
     - name: Run tests
       run: make test
+
+    - name: Run tests with enabled features
+      run: |
+        make clean
+        make test MAP_NAMESPACE_SYNTAX=1
 
   test-windows-msvc:
     name: Test on Windows (MSVC + CMake)

@@ -481,7 +481,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             return edn_parse_map(parser);
 
         case CHAR_TYPE_HASH:
-            /* Hash requires lookahead: #{ (set), ## (symbolic), #_ (discard), # (tagged) */
+            /* Hash requires lookahead: #{ (set), ## (symbolic), #_ (discard), #: (namespaced map), # (tagged) */
             if (parser->current + 1 < parser->end) {
                 char next = parser->current[1];
                 if (next == '{') {
@@ -500,6 +500,12 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
                     /* Recursively parse the next value (which may itself be another discard) */
                     return edn_parser_parse_value(parser);
                 }
+#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+                else if (next == ':') {
+                    /* Namespaced map syntax: #:ns{...} */
+                    return edn_parse_namespaced_map(parser);
+                }
+#endif
             }
             return edn_parse_tagged(parser);
 

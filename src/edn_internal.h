@@ -232,4 +232,9 @@ edn_value_t* edn_parse_discard_value(edn_parser_t* parser);
 edn_reader_fn edn_reader_lookup_internal(const edn_reader_registry_t* registry, const char* tag,
                                          size_t tag_length);
 
+/* Namespaced map parser (Clojure extension, requires EDN_ENABLE_MAP_NAMESPACE_SYNTAX) */
+#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser);
+#endif
+
 #endif /* EDN_INTERNAL_H */

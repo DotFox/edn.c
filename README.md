@@ -15,6 +15,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **✅ Fully Tested**: 340+ tests across 24 test suites
 - **📖 UTF-8 Native**: All string inputs and outputs are UTF-8 encoded
 - **🏷️ Tagged Literals**: Extensible data types with custom reader support
+- **🗺️ Map Namespace Syntax**: Clojure-compatible `#:ns{...}` syntax (optional, disabled by default)
 
 ## Table of Contents
 
@@ -27,6 +28,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Collections](#collections)
   - [Tagged Literals](#tagged-literals)
   - [Custom Readers](#custom-readers)
+  - [Map Namespace Syntax](#map-namespace-syntax)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -666,6 +668,50 @@ int main(void) {
 ```
 
 See `examples/reader.c` for more complete examples including timestamp conversion, vector extraction, and namespaced tags.
+
+### Map Namespace Syntax
+
+EDN.C supports Clojure's map namespace syntax extension, which allows you to specify a namespace that gets automatically applied to all non-namespaced keyword keys in a map.
+
+**Syntax:** `#:namespace{:key1 val1 :key2 val2}`
+
+**Example:**
+```c
+edn_result_t result = edn_parse("#:person{:name \"Alice\" :age 30}", 0);
+// Equivalent to: {:person/name "Alice" :person/age 30}
+
+if (result.error == EDN_OK) {
+    edn_value_t* map = result.value;
+    
+    // Keys are automatically namespaced
+    edn_value_t* key1 = edn_map_get_key(map, 0);
+    const char *ns, *name;
+    size_t ns_len, name_len;
+    edn_keyword_get(key1, &ns, &ns_len, &name, &name_len);
+    
+    printf(":%.*s/%.*s\n", (int)ns_len, ns, (int)name_len, name);
+    // Output: :person/name
+    
+    edn_free(map);
+}
+```
+
+**Rules:**
+- Only keyword keys without an existing namespace are transformed
+- Keys with existing namespaces are preserved: `#:foo{:x 1 :bar/y 2}` → `{:foo/x 1 :bar/y 2}`
+- Non-keyword keys are not transformed: `#:foo{"x" 1 :y 2}` → `{"x" 1 :foo/y 2}`
+- The namespace keyword cannot itself have a namespace
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+```bash
+make MAP_NAMESPACE_SYNTAX=1
+```
+
+When disabled (default), `#:foo{...}` will fail to parse.
+
+See `examples/example_namespaced_map.c` for more details.
 
 ## Examples
 
