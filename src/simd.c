@@ -73,15 +73,16 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         if (ptr + 16 <= end) {
             uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
 
-            /* Check for space (0x20), tab (0x09), newline (0x0A), carriage return (0x0D), comma (0x2C) */
+            /* Check for space (0x20), tab (0x09), newline (0x0A), carriage return (0x0D), formfeed (0x0C), comma (0x2C) */
             uint8x16_t is_space = vceqq_u8(chunk, vdupq_n_u8(0x20));
             uint8x16_t is_tab = vceqq_u8(chunk, vdupq_n_u8(0x09));
             uint8x16_t is_newline = vceqq_u8(chunk, vdupq_n_u8(0x0A));
             uint8x16_t is_cr = vceqq_u8(chunk, vdupq_n_u8(0x0D));
+            uint8x16_t is_formfeed = vceqq_u8(chunk, vdupq_n_u8(0x0C));
             uint8x16_t is_comma = vceqq_u8(chunk, vdupq_n_u8(0x2C));
 
             /* Combine all whitespace checks */
-            uint8x16_t is_ws = vorrq_u8(vorrq_u8(is_space, is_tab),
+            uint8x16_t is_ws = vorrq_u8(vorrq_u8(vorrq_u8(is_space, is_tab), is_formfeed),
                                         vorrq_u8(vorrq_u8(is_newline, is_cr), is_comma));
 
             /* Check if all bytes are whitespace */
@@ -97,8 +98,9 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         }
 
         /* Scalar fallback for remaining bytes */
-        char c = *ptr;
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',') {
+        unsigned char c = (unsigned char) *ptr;
+        /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
+        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
             ptr++;
         } else {
             break;
@@ -162,10 +164,11 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
             __m128i tab = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\t'));
             __m128i newline = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\n'));
             __m128i cr = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\r'));
+            __m128i formfeed = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\f'));
             __m128i comma = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(','));
 
             /* Combine all whitespace checks */
-            __m128i is_ws = _mm_or_si128(_mm_or_si128(space, tab),
+            __m128i is_ws = _mm_or_si128(_mm_or_si128(_mm_or_si128(space, tab), formfeed),
                                          _mm_or_si128(_mm_or_si128(newline, cr), comma));
 
             /* Check if all bytes are whitespace */
@@ -178,8 +181,9 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         }
 
         /* Scalar fallback for remaining bytes */
-        char c = *ptr;
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',') {
+        unsigned char c = (unsigned char) *ptr;
+        /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
+        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
             ptr++;
         } else {
             break;
@@ -209,7 +213,9 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         }
 
         /* Handle regular whitespace */
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',') {
+        /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
+        unsigned char uc = (unsigned char) c;
+        if (c == ' ' || c == ',' || (uc >= 0x09 && uc <= 0x0D) || (uc >= 0x1C && uc <= 0x1F)) {
             ptr++;
         } else {
             break;

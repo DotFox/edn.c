@@ -20,8 +20,11 @@
  * 0 = valid identifier character
  */
 static const uint8_t DELIMITER_TABLE[256] = {
-    /* 0x00-0x1F: Control characters (all delimiters) */
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 0x00-0x1F: Control characters */
+    /* Following Clojure behavior: */
+    /* - Whitespace delimiters: 0x09-0x0D (tab, LF, VT, FF, CR) and 0x1C-0x1F (FS, GS, RS, US) */
+    /* - Valid in identifiers: 0x00-0x08, 0x0E-0x1B */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
 
     /* 0x20-0x2F */
     1, /* 0x20: space - delimiter */

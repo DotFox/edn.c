@@ -108,6 +108,61 @@ TEST(symbol_slash_alone) {
     edn_free(result.value);
 }
 
+TEST(symbol_with_backspace) {
+    /* Backspace character (0x08) is valid in identifiers */
+    const char* input = "\bfoo"; /* backspace followed by "foo" */
+    edn_result_t result = edn_parse(input, 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
+
+    const char *ns, *name;
+    size_t name_len;
+    assert(edn_symbol_get(result.value, &ns, NULL, &name, &name_len));
+    assert(ns == NULL);
+    assert(name_len == 4); /* backspace + "foo" = 4 bytes */
+    assert(name[0] == '\b');
+    assert(memcmp(name + 1, "foo", 3) == 0);
+
+    edn_free(result.value);
+}
+
+TEST(symbol_with_backspace_middle) {
+    /* Backspace character in middle of identifier */
+    const char* input = "foo\bbar";
+    edn_result_t result = edn_parse(input, 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
+
+    const char *ns, *name;
+    size_t name_len;
+    assert(edn_symbol_get(result.value, &ns, NULL, &name, &name_len));
+    assert(ns == NULL);
+    assert(name_len == 7); /* "foo" + backspace + "bar" = 7 bytes */
+    assert(memcmp(name, "foo\bbar", 7) == 0);
+
+    edn_free(result.value);
+}
+
+TEST(keyword_with_backspace) {
+    /* Backspace character valid in keywords too */
+    const char* input = ":\bkey";
+    edn_result_t result = edn_parse(input, 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
+
+    const char *ns, *name;
+    size_t name_len;
+    assert(edn_keyword_get(result.value, &ns, NULL, &name, &name_len));
+    assert(ns == NULL);
+    assert(name_len == 4); /* backspace + "key" = 4 bytes */
+    assert(name[0] == '\b');
+
+    edn_free(result.value);
+}
+
 TEST(symbol_namespaced_simple) {
     edn_result_t result = edn_parse("foo/bar", 0);
     assert(result.error == EDN_OK);
@@ -296,6 +351,9 @@ int main(void) {
     RUN_TEST(symbol_false_suffix);
     RUN_TEST(symbol_plus);
     RUN_TEST(symbol_slash_alone);
+    RUN_TEST(symbol_with_backspace);
+    RUN_TEST(symbol_with_backspace_middle);
+    RUN_TEST(keyword_with_backspace);
     RUN_TEST(symbol_namespaced_simple);
     RUN_TEST(symbol_namespaced_multiple_slashes);
     RUN_TEST(symbol_namespaced_reserved_in_namespace);

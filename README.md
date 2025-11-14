@@ -21,6 +21,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Whitespace and Control Characters](#whitespace-and-control-characters)
 - [API Reference](#api-reference)
   - [Core Functions](#core-functions)
   - [Type System](#type-system)
@@ -137,6 +138,71 @@ int main(void) {
 ```
 Parsed map with 3 entries
 Name: Alice
+```
+
+## Whitespace and Control Characters
+
+EDN.C follows Clojure's exact behavior for whitespace and control character handling:
+
+### Whitespace Characters
+
+The following characters act as **whitespace delimiters** (separate tokens):
+
+| Character | Hex  | Name                 | Common Use          |
+|-----------|------|----------------------|---------------------|
+| ` `       | 0x20 | Space                | Standard spacing    |
+| `\t`      | 0x09 | Tab                  | Indentation         |
+| `\n`      | 0x0A | Line Feed (LF)       | Unix line ending    |
+| `\r`      | 0x0D | Carriage Return (CR) | Windows line ending |
+| `\f`      | 0x0C | Form Feed            | Page break          |
+| `\v`      | 0x0B | Vertical Tab         | Vertical spacing    |
+| `,`       | 0x2C | Comma                | Optional separator  |
+| FS        | 0x1C | File Separator       | Data separation     |
+| GS        | 0x1D | Group Separator      | Data separation     |
+| RS        | 0x1E | Record Separator     | Data separation     |
+| US        | 0x1F | Unit Separator       | Data separation     |
+
+**Examples:**
+```c
+// All of these parse as vectors with 3 elements:
+edn_parse("[1 2 3]", 0);          // spaces
+edn_parse("[1,2,3]", 0);          // commas
+edn_parse("[1\t2\n3]", 0);        // tabs and newlines
+edn_parse("[1\f2\x1C3]", 0);      // formfeed and file separator
+```
+
+### Control Characters in Identifiers
+
+Control characters `0x00-0x1F` (except whitespace delimiters) are **valid in identifiers** (symbols and keywords):
+
+**Valid identifier characters:**
+- `0x00` - `0x08`: NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL, Backspace
+- `0x0E` - `0x1B`: Shift Out through Escape
+
+**Examples:**
+```c
+// Backspace in symbol - valid!
+edn_result_t r = edn_parse("[\bfoo]", 0);  // 1-element vector
+edn_vector_count(r.value);  // Returns 1
+edn_free(r.value);
+
+// Control characters in middle of identifier
+const char input[] = {'[', 'f', 'o', 'o', 0x08, 'b', 'a', 'r', ']', 0};
+r = edn_parse(input, sizeof(input) - 1);
+edn_vector_count(r.value);  // Returns 1 (symbol: "foo\bbar")
+edn_free(r.value);
+
+// Versus whitespace - separates into 2 elements
+edn_result_t r2 = edn_parse("[foo\tbar]", 0);  // Tab is whitespace
+edn_vector_count(r2.value);  // Returns 2 (symbols: "foo" and "bar")
+edn_free(r2.value);
+```
+
+**Note on null bytes (`0x00`):** When using string literals with `strlen()`, null bytes will truncate the string. Always pass explicit length for data containing null bytes:
+
+```c
+const char data[] = {'[', 'a', 0x00, 'b', ']', 0};
+edn_result_t r = edn_parse(data, 5);  // Pass exact length: 5 bytes (excluding terminator)
 ```
 
 ## API Reference

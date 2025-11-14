@@ -447,8 +447,10 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
 
 edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
     if (parser->current < parser->end) {
-        char c = *parser->current;
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' || c == ';') {
+        unsigned char c = (unsigned char) *parser->current;
+        /* Quick check for whitespace: 0x09-0x0D, 0x1C-0x1F, space, comma, semicolon */
+        if (c == ' ' || c == ',' || c == ';' || (c >= 0x09 && c <= 0x0D) ||
+            (c >= 0x1C && c <= 0x1F)) {
             if (!edn_parser_skip_whitespace(parser)) {
                 parser->error = EDN_ERROR_UNEXPECTED_EOF;
                 parser->error_message = "Unexpected end of input";
