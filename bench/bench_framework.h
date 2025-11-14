@@ -101,7 +101,7 @@ static inline bench_result_t bench_run(const char* name, const char* data, size_
  * Print benchmark result
  */
 static inline void bench_print_result(const char* name, bench_result_t result) {
-    printf("%-40s ", name);
+    printf("%-25s ", name);
     printf("%14llu  ", (unsigned long long) result.iterations);
     printf("%8.2f  ", (double) result.total_time_ns / 1000000.0);
     printf("%10.3f  ", result.mean_time_us);
@@ -113,9 +113,9 @@ static inline void bench_print_result(const char* name, bench_result_t result) {
  * Print benchmark header
  */
 static inline void bench_print_header(void) {
-    printf("%-40s %14s  %8s  %10s  %10s  %s\n", "Benchmark", "Iterations", "Total", "Mean",
+    printf("%-25s %14s  %8s  %10s  %10s  %s\n", "Benchmark", "Iterations", "Total", "Mean",
            "Throughput", "Size");
-    printf("%-40s %14s  %8s  %10s  %10s  %s\n", "---------", "----------", "-----", "----",
+    printf("%-25s %14s  %8s  %10s  %10s  %s\n", "---------", "----------", "-----", "----",
            "----------", "----");
 }
 

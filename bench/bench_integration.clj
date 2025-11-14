@@ -50,13 +50,13 @@
               (recur (inc iterations) new-elapsed))))))))
 
 (defn print-header []
-  (println (format "%-40s %14s  %8s  %10s  %10s  %s"
+  (println (format "%-25s %14s  %8s  %10s  %10s  %s"
                    "Benchmark" "Iterations" "Total" "Mean" "Throughput" "Size"))
-  (println (format "%-40s %14s  %8s  %10s  %10s  %s"
+  (println (format "%-25s %14s  %8s  %10s  %10s  %s"
                    "---------" "----------" "-----" "----" "----------" "----")))
 
 (defn print-result [description result]
-  (printf "%-40s %,14d  %8.2f  %10.3f  %10.3f  (%d bytes)\n"
+  (printf "%-25s %,14d  %8.2f  %10.3f  %10.3f  (%d bytes)\n"
           description
           (:iterations result)
           (:total-ms result)
@@ -69,7 +69,7 @@
   (let [path (str "bench/data/" filename)
         data (read-file-str path)
         size (file-size path)
-        full-desc (str description)]
+        full-desc (str description " (" (format-size size) ")")]
     (try
       (let [result (bench-parse parser-fn data size full-desc)]
         (print-result full-desc result))
@@ -85,31 +85,31 @@
   
   ;; Basic maps
   (println "\n--- Basic Maps ---")
-  (bench-file parser-fn "basic_10.edn" "basic_10 (9 bytes)")
-  (bench-file parser-fn "basic_100.edn" "basic_100 (97 bytes)")
-  (bench-file parser-fn "basic_1000.edn" "basic_1000 (898 bytes)")
-  (bench-file parser-fn "basic_10000.edn" "basic_10000 (10 KB)")
-  (bench-file parser-fn "basic_100000.edn" "basic_100000 (99 KB)")
+  (bench-file parser-fn "basic_10.edn" "basic_10")
+  (bench-file parser-fn "basic_100.edn" "basic_100")
+  (bench-file parser-fn "basic_1000.edn" "basic_1000")
+  (bench-file parser-fn "basic_10000.edn" "basic_10000")
+  (bench-file parser-fn "basic_100000.edn" "basic_100000")
   
   ;; Keywords
   (println "\n--- Keyword Vectors ---")
-  (bench-file parser-fn "keywords_10.edn" "keywords_10 (116 bytes)")
-  (bench-file parser-fn "keywords_100.edn" "keywords_100 (886 bytes)")
-  (bench-file parser-fn "keywords_1000.edn" "keywords_1000 (9.7 KB)")
-  (bench-file parser-fn "keywords_10000.edn" "keywords_10000 (117 KB)")
+  (bench-file parser-fn "keywords_10.edn" "keywords_10")
+  (bench-file parser-fn "keywords_100.edn" "keywords_100")
+  (bench-file parser-fn "keywords_1000.edn" "keywords_1000")
+  (bench-file parser-fn "keywords_10000.edn" "keywords_10000")
   
   ;; Integers
   (println "\n--- Integer Arrays ---")
-  (bench-file parser-fn "ints_1400.edn" "ints_1400 (10 KB)")
+  (bench-file parser-fn "ints_1400.edn" "ints_1400")
   
   ;; Strings
   (println "\n--- String Collections ---")
-  (bench-file parser-fn "strings_1000.edn" "strings_1000 (55 KB)")
-  (bench-file parser-fn "strings_uni_250.edn" "strings_uni_250 (56 KB)")
+  (bench-file parser-fn "strings_1000.edn" "strings_1000")
+  (bench-file parser-fn "strings_uni_250.edn" "strings_uni_250")
   
   ;; Nested
   (println "\n--- Nested Structures ---")
-  (bench-file parser-fn "nested_100000.edn" "nested_100000 (96 KB)")
+  (bench-file parser-fn "nested_100000.edn" "nested_100000")
   
   (println)
   (println "Notes:")

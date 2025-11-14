@@ -101,29 +101,16 @@ test/%: test/%.c $(LIB)
 # Build and run quick benchmark
 .PHONY: bench
 bench: bench/bench_integration
-	@echo "Running quick benchmark..."
-	@echo ""
 	@./bench/bench_integration
 
-# Build and run Clojure benchmarks (clojure.edn and fast-edn)
+# Run Clojure benchmarks (clojure.edn and fast-edn)
 .PHONY: bench-clj
 bench-clj:
-	@echo "Running Clojure benchmarks..."
-	@echo ""
 	@clojure -M -m bench-integration
 
 # Build and run comparison benchmarks (C, then Clojure)
 .PHONY: bench-compare
-bench-compare: bench/bench_integration
-	@echo "Running C benchmark..."
-	@echo ""
-	@./bench/bench_integration
-	@echo ""
-	@echo "================================================================================"
-	@echo ""
-	@echo "Running Clojure benchmarks..."
-	@echo ""
-	@clojure -M -m bench-integration
+bench-compare: bench bench-clj
 
 # Build and run all benchmarks
 .PHONY: bench-all
