@@ -18,12 +18,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential clang
-    
+
     - name: Build library (${{ matrix.compiler }})
       run: |
         make CC=${{ matrix.compiler }}
@@ -115,12 +110,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-    
+
     - name: Build and run benchmarks
       run: make bench
 
