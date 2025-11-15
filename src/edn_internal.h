@@ -238,8 +238,7 @@ bool edn_parser_skip_whitespace(edn_parser_t* parser);
 edn_value_t* edn_parser_parse_value(edn_parser_t* parser);
 
 const char* edn_simd_skip_whitespace(const char* ptr, const char* end);
-const char* edn_simd_find_quote(const char* ptr, const char* end);
-bool edn_simd_has_backslash(const char* ptr, size_t length);
+const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash);
 
 /* String parsing functions */
 typedef struct {

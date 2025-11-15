@@ -24,14 +24,11 @@
 edn_string_scan_t edn_parse_string_lazy(const char* ptr, const char* end) {
     edn_string_scan_t result = {0};
 
-    if (ptr >= end || *ptr != '"') {
-        result.valid = false;
-        return result;
-    }
-
     ptr++;
     result.start = ptr;
-    const char* closing_quote = edn_simd_find_quote(ptr, end);
+
+    bool has_escapes = false;
+    const char* closing_quote = edn_simd_find_quote(ptr, end, &has_escapes);
 
     if (!closing_quote) {
         result.valid = false;
@@ -40,9 +37,7 @@ edn_string_scan_t edn_parse_string_lazy(const char* ptr, const char* end) {
 
     result.end = closing_quote;
     result.valid = true;
-
-    size_t length = closing_quote - ptr;
-    result.has_escapes = edn_simd_has_backslash(ptr, length);
+    result.has_escapes = has_escapes;
 
     return result;
 }

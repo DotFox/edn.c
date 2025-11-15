@@ -9,7 +9,9 @@
 /* Test SIMD find quote function */
 TEST(simd_find_quote_simple) {
     const char* input = "hello world\"";
-    const char* result = edn_simd_find_quote(input, input + strlen(input));
+    bool has_escape = false;
+    const char* result = edn_simd_find_quote(input, input + strlen(input), &has_escape);
+    assert(has_escape == false); /* No backslash in this string */
     assert(result != NULL);
     assert(*result == '"');
     assert(result == input + 11);
@@ -17,7 +19,9 @@ TEST(simd_find_quote_simple) {
 
 TEST(simd_find_quote_with_escape) {
     const char* input = "hello \\\" world\"";
-    const char* result = edn_simd_find_quote(input, input + strlen(input));
+    bool has_escape = false;
+    const char* result = edn_simd_find_quote(input, input + strlen(input), &has_escape);
+    assert(has_escape == true);
     assert(result != NULL);
     assert(*result == '"');
     assert(result == input + 14); /* After escaped quote */
@@ -25,27 +29,10 @@ TEST(simd_find_quote_with_escape) {
 
 TEST(simd_find_quote_not_found) {
     const char* input = "hello world";
-    const char* result = edn_simd_find_quote(input, input + strlen(input));
+    bool has_escape = false;
+    const char* result = edn_simd_find_quote(input, input + strlen(input), &has_escape);
+    assert(has_escape == false);
     assert(result == NULL);
-}
-
-TEST(simd_has_backslash_true) {
-    const char* input = "hello\\nworld";
-    bool result = edn_simd_has_backslash(input, strlen(input));
-    assert(result == true);
-}
-
-TEST(simd_has_backslash_false) {
-    const char* input = "hello world";
-    bool result = edn_simd_has_backslash(input, strlen(input));
-    assert(result == false);
-}
-
-TEST(simd_has_backslash_long) {
-    /* Test SIMD path with 20+ characters */
-    const char* input = "hello world this is long\\n";
-    bool result = edn_simd_has_backslash(input, strlen(input));
-    assert(result == true);
 }
 
 /* Test lazy string parsing */
@@ -225,9 +212,6 @@ int main(void) {
     run_test_simd_find_quote_simple();
     run_test_simd_find_quote_with_escape();
     run_test_simd_find_quote_not_found();
-    run_test_simd_has_backslash_true();
-    run_test_simd_has_backslash_false();
-    run_test_simd_has_backslash_long();
 
     /* Lazy parsing tests */
     run_test_parse_string_simple();

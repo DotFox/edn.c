@@ -17,7 +17,7 @@ static void benchmark_simd_find_quote(void) {
 
     double start = get_time();
     for (int i = 0; i < iterations; i++) {
-        const char* result = edn_simd_find_quote(short_str, short_str + strlen(short_str));
+        const char* result = edn_simd_find_quote(short_str, short_str + strlen(short_str), false);
         (void) result;
     }
     double elapsed = get_time() - start;
@@ -30,44 +30,13 @@ static void benchmark_simd_find_quote(void) {
 
     start = get_time();
     for (int i = 0; i < iterations; i++) {
-        const char* result = edn_simd_find_quote(long_str, long_str + strlen(long_str));
+        const char* result = edn_simd_find_quote(long_str, long_str + strlen(long_str), false);
         (void) result;
     }
     elapsed = get_time() - start;
 
     printf("  Long (50 chars):   %.2f ns/op, %.0f Mops/sec\n\n", (elapsed / iterations) * 1e9,
            iterations / elapsed / 1e6);
-}
-
-static void benchmark_simd_has_backslash(void) {
-    printf("SIMD Backslash Detection:\n");
-
-    /* String without backslash */
-    const char* no_bs = "This is a string without any escape sequences at all";
-    int iterations = 10000000;
-
-    double start = get_time();
-    for (int i = 0; i < iterations; i++) {
-        bool result = edn_simd_has_backslash(no_bs, strlen(no_bs));
-        (void) result;
-    }
-    double elapsed = get_time() - start;
-
-    printf("  No backslash (53 chars): %.2f ns/op, %.0f Mops/sec\n", (elapsed / iterations) * 1e9,
-           iterations / elapsed / 1e6);
-
-    /* String with backslash */
-    const char* with_bs = "This string has a \\n newline in the middle somewhere";
-
-    start = get_time();
-    for (int i = 0; i < iterations; i++) {
-        bool result = edn_simd_has_backslash(with_bs, strlen(with_bs));
-        (void) result;
-    }
-    elapsed = get_time() - start;
-
-    printf("  With backslash (53 chars): %.2f ns/op, %.0f Mops/sec\n\n",
-           (elapsed / iterations) * 1e9, iterations / elapsed / 1e6);
 }
 
 static void benchmark_parse_string_lazy(void) {
@@ -292,7 +261,6 @@ int main(void) {
     printf("\n");
 
     benchmark_simd_find_quote();
-    benchmark_simd_has_backslash();
     benchmark_parse_string_lazy();
     benchmark_decode_string();
     benchmark_end_to_end();

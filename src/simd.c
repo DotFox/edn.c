@@ -25,6 +25,21 @@ static inline int msvc_ctz(unsigned int mask) {
 /* ARM64 NEON implementation */
 #include <arm_neon.h>
 
+/* Produce a 16-bit mask from a uint8x16_t, assuming lanes are 0x00 or 0xFF. */
+static inline uint16_t edn_neon_movemask_u8(uint8x16_t input) {
+    static const uint8x16_t bitmask = {1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128};
+
+    uint8x16_t tmp = vandq_u8(input, bitmask);
+
+    uint8x8_t lo = vget_low_u8(tmp);
+    uint8x8_t hi = vget_high_u8(tmp);
+
+    uint16_t lo_mask = (uint16_t) vaddv_u8(lo);
+    uint16_t hi_mask = (uint16_t) vaddv_u8(hi);
+
+    return (uint16_t) (lo_mask | (hi_mask << 8));
+}
+
 /* SIMD function to find newline character in comment */
 static inline const char* edn_simd_find_newline_neon(const char* ptr, const char* end) {
     /* Process 16 bytes at a time with NEON */
@@ -245,195 +260,158 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
 /* SIMD function to find closing quote in string */
 #if defined(__aarch64__) || defined(_M_ARM64)
 
-const char* edn_simd_find_quote(const char* ptr, const char* end) {
-    /* SIMD-optimized string parser with correct escape handling
-     * 
-     * Strategy:
-     * 1. Use SIMD to quickly scan chunks that have no quotes or backslashes
-     * 2. When we find a quote or backslash, switch to careful byte-by-byte processing
-     * 3. After handling escapes, resume SIMD scanning
-     */
+const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash) {
+    bool has_backslash = false;
 
-    while (ptr < end) {
-        /* SIMD fast path: process 16 bytes at a time */
-        if (ptr + 16 <= end) {
-            uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
-            uint8x16_t quote = vceqq_u8(chunk, vdupq_n_u8('"'));
-            uint8x16_t backslash = vceqq_u8(chunk, vdupq_n_u8('\\'));
+    while (ptr + 16 <= end) {
+        uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
+        uint8x16_t quote_v = vceqq_u8(chunk, vdupq_n_u8('"'));
+        uint8x16_t bs_v = vceqq_u8(chunk, vdupq_n_u8('\\'));
+        uint8x16_t specials = vorrq_u8(quote_v, bs_v);
 
-            /* Check if we found a quote or backslash */
-            uint8x16_t special = vorrq_u8(quote, backslash);
-            uint64x2_t special_64 = vreinterpretq_u64_u8(special);
-            uint64_t low = vgetq_lane_u64(special_64, 0);
-            uint64_t high = vgetq_lane_u64(special_64, 1);
+        uint16_t bs_mask = edn_neon_movemask_u8(bs_v);
+        uint16_t special_mask = edn_neon_movemask_u8(specials);
 
-            if (low == 0 && high == 0) {
-                /* No quotes or backslashes in this chunk - fast path */
-                ptr += 16;
-                continue;
-            }
-
-            /* Found a special character - find first occurrence */
-            for (int i = 0; i < 16; i++) {
-                if (ptr[i] == '\\') {
-                    /* Skip escape sequence and continue */
-                    ptr += i + 2; /* Skip backslash and next character */
-                    goto continue_outer;
-                } else if (ptr[i] == '"') {
-                    /* Found unescaped quote - this is the end */
-                    return ptr + i;
-                }
-            }
-
-            /* Should not reach here, but advance anyway */
+        if (special_mask == 0u) {
+            /* No '"' or '\\' in this block */
             ptr += 16;
-        continue_outer:;
-        } else {
-            /* Scalar fallback for remaining bytes (< 16) */
-            if (*ptr == '\\' && ptr + 1 < end) {
-                ptr += 2; /* Skip escaped character */
-            } else if (*ptr == '"') {
-                return ptr;
-            } else {
-                ptr++;
+            continue;
+        }
+
+        /* Something interesting in this block */
+        int idx = CTZ((unsigned int) special_mask); /* 0..15 */
+        char c = ptr[idx];
+
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + idx + 1 >= end) {
+                /* trailing backslash without following char */
+                return NULL;
             }
+            ptr += idx + 2;
+            continue;
+        }
+
+        /* Must be a '"' (we don't have any other specials) */
+        if (out_has_backslash) {
+            *out_has_backslash = has_backslash || (bs_mask != 0);
+        }
+        return ptr + idx;
+    }
+
+    /* Scalar tail for remaining bytes (<16) */
+    while (ptr < end) {
+        char c = *ptr;
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + 1 >= end) {
+                return NULL; /* trailing backslash */
+            }
+            ptr += 2;
+        } else if (c == '"') {
+            if (out_has_backslash) {
+                *out_has_backslash = has_backslash;
+            }
+            return ptr;
+        } else {
+            ++ptr;
         }
     }
 
     return NULL; /* Not found */
-}
-
-bool edn_simd_has_backslash(const char* ptr, size_t length) {
-    const char* end = ptr + length;
-
-    /* Process 16 bytes at a time with NEON */
-    while (ptr + 16 <= end) {
-        uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
-        uint8x16_t backslash = vceqq_u8(chunk, vdupq_n_u8('\\'));
-
-        uint64x2_t bs_64 = vreinterpretq_u64_u8(backslash);
-        uint64_t low = vgetq_lane_u64(bs_64, 0);
-        uint64_t high = vgetq_lane_u64(bs_64, 1);
-
-        if (low != 0 || high != 0) {
-            return true;
-        }
-        ptr += 16;
-    }
-
-    /* Scalar fallback for remaining bytes */
-    while (ptr < end) {
-        if (*ptr == '\\') {
-            return true;
-        }
-        ptr++;
-    }
-    return false;
 }
 
 #elif defined(__x86_64__) || defined(_M_X64)
 
-const char* edn_simd_find_quote(const char* ptr, const char* end) {
-    /* SIMD-optimized string parser with correct escape handling
-     * 
-     * Strategy:
-     * 1. Use SIMD to quickly scan chunks that have no quotes or backslashes
-     * 2. When we find a quote or backslash, switch to careful byte-by-byte processing
-     * 3. After handling escapes, resume SIMD scanning
-     */
+const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash) {
+    bool has_backslash = false;
 
-    while (ptr < end) {
-        /* SIMD fast path: process 16 bytes at a time */
-        if (ptr + 16 <= end) {
-            __m128i chunk = _mm_loadu_si128((const __m128i*) ptr);
-            __m128i quote = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('"'));
-            __m128i backslash = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\\'));
-
-            int quote_mask = _mm_movemask_epi8(quote);
-            int bs_mask = _mm_movemask_epi8(backslash);
-
-            if (quote_mask == 0 && bs_mask == 0) {
-                /* No quotes or backslashes in this chunk - fast path */
-                ptr += 16;
-                continue;
-            }
-
-            /* Found a special character - find first occurrence */
-            int special_mask = quote_mask | bs_mask;
-            int first_pos = CTZ(special_mask);
-
-            if (ptr[first_pos] == '\\') {
-                /* Skip escape sequence and continue */
-                ptr += first_pos + 2; /* Skip backslash and next character */
-            } else {
-                /* Found unescaped quote */
-                return ptr + first_pos;
-            }
-        } else {
-            /* Scalar fallback for remaining bytes (< 16) */
-            if (*ptr == '\\' && ptr + 1 < end) {
-                ptr += 2; /* Skip escaped character */
-            } else if (*ptr == '"') {
-                return ptr;
-            } else {
-                ptr++;
-            }
-        }
-    }
-
-    return NULL; /* Not found */
-}
-
-bool edn_simd_has_backslash(const char* ptr, size_t length) {
-    const char* end = ptr + length;
-
-    /* Process 16 bytes at a time with SSE */
     while (ptr + 16 <= end) {
         __m128i chunk = _mm_loadu_si128((const __m128i*) ptr);
-        __m128i backslash = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\\'));
+        __m128i quote_v = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('"'));
+        __m128i bs_v = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\\'));
 
-        int mask = _mm_movemask_epi8(backslash);
-        if (mask != 0) {
-            return true;
+        int quote_mask = _mm_movemask_epi8(quote_v);
+        int bs_mask = _mm_movemask_epi8(bs_v);
+        int special_mask = quote_mask | bs_mask;
+
+        if (special_mask == 0) {
+            /* No '"' or '\\' in this block */
+            ptr += 16;
+            continue;
         }
-        ptr += 16;
+
+        /* Something interesting in this block */
+        int idx = CTZ((unsigned int) special_mask); /* 0..15 */
+        char c = ptr[idx];
+
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + idx + 1 >= end) {
+                /* trailing backslash without following char */
+                return NULL;
+            }
+            ptr += idx + 2;
+            continue;
+        }
+
+        /* Must be a '"' (we don't have any other specials) */
+        if (out_has_backslash) {
+            *out_has_backslash = has_backslash || (bs_mask != 0);
+        }
+        return ptr + idx;
     }
 
-    /* Scalar fallback for remaining bytes */
+    /* Scalar tail for remaining bytes (<16) */
     while (ptr < end) {
-        if (*ptr == '\\') {
-            return true;
+        char c = *ptr;
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + 1 >= end) {
+                return NULL; /* trailing backslash */
+            }
+            ptr += 2;
+        } else if (c == '"') {
+            if (out_has_backslash) {
+                *out_has_backslash = has_backslash;
+            }
+            return ptr;
+        } else {
+            ++ptr;
         }
-        ptr++;
     }
-    return false;
+
+    return NULL;
 }
 
 #else
-/* Scalar fallback */
+/* Scalar fallback: scan for closing quote and track whether any '\' appeared.
+   ptr points to first char after initial '"'. */
 
-const char* edn_simd_find_quote(const char* ptr, const char* end) {
+const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash) {
+    bool has_backslash = false;
+
     while (ptr < end) {
-        if (*ptr == '\\' && ptr + 1 < end) {
-            ptr += 2; /* Skip escaped character */
-        } else if (*ptr == '"') {
+        char c = *ptr;
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + 1 >= end) {
+                /* trailing backslash with no following char -> invalid string */
+                return NULL;
+            }
+            ptr += 2; /* skip escaped character */
+        } else if (c == '"') {
+            if (out_has_backslash) {
+                *out_has_backslash = has_backslash;
+            }
             return ptr;
         } else {
             ptr++;
         }
     }
-    return NULL;
-}
 
-bool edn_simd_has_backslash(const char* ptr, size_t length) {
-    const char* end = ptr + length;
-    while (ptr < end) {
-        if (*ptr == '\\') {
-            return true;
-        }
-        ptr++;
-    }
-    return false;
+    /* Unterminated string */
+    return NULL;
 }
 
 #endif
@@ -451,30 +429,35 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
         uint8x16_t le_9 = vcleq_u8(chunk, vdupq_n_u8('9'));
         uint8x16_t is_digit = vandq_u8(ge_0, le_9);
 
-        /* Check if all bytes are digits */
-        uint64x2_t digit_64 = vreinterpretq_u64_u8(is_digit);
-        uint64_t low = vgetq_lane_u64(digit_64, 0);
-        uint64_t high = vgetq_lane_u64(digit_64, 1);
+        /* Build a 16-bit mask: bit i == 1 → byte i is a digit */
+        uint16_t mask = edn_neon_movemask_u8(is_digit);
 
-        if ((low & high) == 0xFFFFFFFFFFFFFFFFULL) {
+        if (mask == 0xFFFFu) {
             /* All 16 bytes are digits */
             ptr += 16;
-        } else {
-            /* Found non-digit, find exact position */
-            for (int i = 0; i < 16 && ptr + i < end; i++) {
-                char c = ptr[i];
-                if (c < '0' || c > '9') {
-                    return ptr + i;
-                }
-            }
-            ptr += 16;
+            continue;
         }
+
+        if (mask == 0u) {
+            /* First byte is already non-digit */
+            return ptr;
+        }
+
+        /* Some digits, then a non-digit: find the first non-digit */
+        unsigned int non_mask = (~mask) & 0xFFFFu;
+        int idx = CTZ(non_mask); /* index of first 0 bit (non-digit) */
+
+        return ptr + idx;
     }
 
-    /* Scalar fallback for remaining bytes */
-    while (ptr < end && *ptr >= '0' && *ptr <= '9') {
-        ptr++;
+    while (ptr < end) {
+        unsigned char c = (unsigned char) *ptr;
+        if (c < '0' || c > '9') {
+            break;
+        }
+        ++ptr;
     }
+
     return ptr;
 }
 
