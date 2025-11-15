@@ -1061,6 +1061,11 @@ See `bench/` directory for detailed benchmarking tools and results.
 - Public helper functions (`edn_bool_get()`, `edn_nil_p()`, etc.)
 - EOF configuration
 - Streaming/Incremental parsing
+- Additional SIMD Platform Support:
+  - 32-bit x86 (i386/i686) `__i386__, _M_IX86. mostly the same as x86-64`
+  - 32-bit ARM (ARMv7) `__arm__, _M_ARM. mostly the same as ARM64 NEON`
+  - WebAssembly SIMD128 `__wasm__, __wasm32__, __wasm64__. uses <wasm_simd128.h>`
+  - RISC-V Vector Extension (RVV) `__riscv, __riscv_vector. uses <riscv_vector.h>`
 - Extra features:
   - octal number notation ("0713" => 459)
   - hexadecimal number notation ("0xFF" => 255)
