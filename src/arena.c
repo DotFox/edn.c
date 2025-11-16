@@ -9,7 +9,8 @@ edn_arena_t* edn_arena_create(void) {
         return NULL;
     }
 
-    arena_block_t* block = malloc(sizeof(arena_block_t) + ARENA_BLOCK_SIZE);
+    /* Start with small block for small documents */
+    arena_block_t* block = malloc(sizeof(arena_block_t) + ARENA_INITIAL_SIZE);
     if (!block) {
         free(arena);
         return NULL;
@@ -17,10 +18,12 @@ edn_arena_t* edn_arena_create(void) {
 
     block->next = NULL;
     block->used = 0;
-    block->capacity = ARENA_BLOCK_SIZE;
+    block->capacity = ARENA_INITIAL_SIZE;
 
     arena->current = block;
     arena->first = block;
+    arena->next_block_size = ARENA_MEDIUM_SIZE; /* Grow to medium on next allocation */
+    arena->total_allocated = ARENA_INITIAL_SIZE;
 
     return arena;
 }
@@ -49,7 +52,9 @@ void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size) {
 
     arena_block_t* block = arena->current;
 
-    size_t block_size = size > ARENA_BLOCK_SIZE ? size : ARENA_BLOCK_SIZE;
+    /* Use adaptive block size - either the next planned size or the requested size (whichever is larger) */
+    size_t block_size = (size > arena->next_block_size) ? size : arena->next_block_size;
+
     arena_block_t* new_block = malloc(sizeof(arena_block_t) + block_size);
     if (!new_block) {
         return NULL;
@@ -62,6 +67,16 @@ void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size) {
     block->next = new_block;
     arena->current = new_block;
     block = new_block;
+
+    /* Adaptive growth: double size up to LARGE limit */
+    if (arena->next_block_size < ARENA_LARGE_SIZE) {
+        arena->next_block_size *= 2;
+        if (arena->next_block_size > ARENA_LARGE_SIZE) {
+            arena->next_block_size = ARENA_LARGE_SIZE;
+        }
+    }
+
+    arena->total_allocated += block_size;
 
     void* ptr = block->data + block->used;
     block->used += size;

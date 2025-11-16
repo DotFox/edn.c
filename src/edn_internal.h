@@ -14,7 +14,9 @@
 #include "edn.h"
 
 /* Arena allocator constants and structures */
-#define ARENA_BLOCK_SIZE (64 * 1024) /* 64KB blocks */
+#define ARENA_INITIAL_SIZE (16 * 1024) /* Start with 16KB for small documents */
+#define ARENA_MEDIUM_SIZE (64 * 1024)  /* 64KB blocks */
+#define ARENA_LARGE_SIZE (256 * 1024)  /* 256KB for large documents */
 
 /* Arena block structure - exposed for inline allocation */
 typedef struct arena_block {
@@ -35,6 +37,8 @@ typedef struct arena_block {
 struct edn_arena {
     arena_block_t* current;
     arena_block_t* first;
+    size_t next_block_size;
+    size_t total_allocated;
 };
 
 typedef struct edn_arena edn_arena_t;
