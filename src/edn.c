@@ -393,8 +393,8 @@ static edn_value_t* parse_string_value(edn_parser_t* parser) {
 
     value->type = EDN_TYPE_STRING;
     value->as.string.data = scan.start;
-    value->as.string.length = scan.end - scan.start;
-    value->as.string.has_escapes = scan.has_escapes;
+    edn_string_set_length(value, scan.end - scan.start);
+    edn_string_set_has_escapes(value, scan.has_escapes);
     value->as.string.decoded = NULL;
     value->arena = parser->arena;
 
@@ -565,18 +565,19 @@ const char* edn_string_get(const edn_value_t* value, size_t* length) {
     }
 
     /* Fast path: no escapes, return pointer directly (zero-copy) */
-    if (!value->as.string.has_escapes) {
+    if (!edn_string_has_escapes(value)) {
+        size_t str_length = edn_string_get_length(value);
         if (length)
-            *length = value->as.string.length;
+            *length = str_length;
 
         /* Need to add null terminator for zero-copy strings */
         /* For now, we'll need to allocate. In future, we can optimize this */
         if (!value->as.string.decoded) {
             /* Allocate and copy with null terminator */
-            char* copy = edn_arena_alloc(value->arena, value->as.string.length + 1);
+            char* copy = edn_arena_alloc(value->arena, str_length + 1);
             if (copy) {
-                memcpy(copy, value->as.string.data, value->as.string.length);
-                copy[value->as.string.length] = '\0';
+                memcpy(copy, value->as.string.data, str_length);
+                copy[str_length] = '\0';
                 /* Cast away const - we're modifying cached field */
                 ((edn_value_t*) value)->as.string.decoded = copy;
             }
@@ -586,8 +587,8 @@ const char* edn_string_get(const edn_value_t* value, size_t* length) {
 
     /* Slow path: has escapes, decode if not already cached */
     if (!value->as.string.decoded) {
-        char* decoded =
-            edn_decode_string(value->arena, value->as.string.data, value->as.string.length);
+        size_t str_length = edn_string_get_length(value);
+        char* decoded = edn_decode_string(value->arena, value->as.string.data, str_length);
         if (!decoded) {
             if (length)
                 *length = 0;

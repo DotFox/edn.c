@@ -106,15 +106,18 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             return a->as.character == b->as.character;
 
         case EDN_TYPE_STRING: {
-            if (a->as.string.has_escapes != b->as.string.has_escapes) {
+            size_t len_a = edn_string_get_length(a);
+            size_t len_b = edn_string_get_length(b);
+
+            if (edn_string_has_escapes(a) != edn_string_has_escapes(b)) {
                 return false;
             }
 
-            if (a->as.string.length != b->as.string.length) {
+            if (len_a != len_b) {
                 return false;
             }
 
-            return memcmp(a->as.string.data, b->as.string.data, a->as.string.length) == 0;
+            return memcmp(a->as.string.data, b->as.string.data, len_a) == 0;
         }
 
         case EDN_TYPE_SYMBOL:
@@ -311,15 +314,20 @@ int edn_value_compare(const void* a_ptr, const void* b_ptr) {
             return 0;
 
         case EDN_TYPE_STRING: {
-            if (a->as.string.has_escapes != b->as.string.has_escapes) {
-                return a->as.string.has_escapes ? 1 : -1;
+            bool has_esc_a = edn_string_has_escapes(a);
+            bool has_esc_b = edn_string_has_escapes(b);
+            size_t len_a = edn_string_get_length(a);
+            size_t len_b = edn_string_get_length(b);
+
+            if (has_esc_a != has_esc_b) {
+                return has_esc_a ? 1 : -1;
             }
 
-            if (a->as.string.length != b->as.string.length) {
-                return (int) (a->as.string.length - b->as.string.length);
+            if (len_a != len_b) {
+                return (int) (len_a - len_b);
             }
 
-            return memcmp(a->as.string.data, b->as.string.data, a->as.string.length);
+            return memcmp(a->as.string.data, b->as.string.data, len_a);
         }
 
         case EDN_TYPE_SYMBOL:
@@ -431,7 +439,8 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             break;
 
         case EDN_TYPE_STRING: {
-            for (size_t i = 0; i < value->as.string.length; i++) {
+            size_t len = edn_string_get_length(value);
+            for (size_t i = 0; i < len; i++) {
                 hash ^= (uint8_t) value->as.string.data[i];
                 hash *= FNV_PRIME;
             }

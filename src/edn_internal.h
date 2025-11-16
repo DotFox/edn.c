@@ -68,10 +68,12 @@ struct edn_value {
         double floating;
         uint32_t character; /* Unicode codepoint */
         struct {
-            const char* data; /* Pointer to string content in input buffer (zero-copy) */
-            size_t length;    /* Length of string in bytes (excluding quotes) */
-            bool has_escapes; /* True if string contains escape sequences */
-            char* decoded;    /* Lazy-decoded string (NULL until needed) */
+            const char* data;          /* Pointer to string content in input buffer (zero-copy) */
+            uint64_t length_and_flags; /* Combined: length (bits 0-61), flags (bits 62-63) */
+            /* bit 63: has_escapes - True if string contains escape sequences */
+            /* bit 62: is_decoded - True if decoded pointer is set */
+            /* bits 61-0: actual length (supports up to 2 PB strings) */
+            char* decoded; /* Lazy-decoded string (NULL until needed) */
         } string;
         struct {
             const char* namespace; /* NULL if no namespace, points into input (zero-copy) */
@@ -109,6 +111,32 @@ struct edn_value {
     } as;
     edn_arena_t* arena; /* Arena that owns this value */
 };
+
+/* String packing flags and helper functions */
+#define EDN_STRING_FLAG_HAS_ESCAPES (1ULL << 63)
+#define EDN_STRING_FLAG_IS_DECODED (1ULL << 62)
+#define EDN_STRING_LENGTH_MASK ((1ULL << 62) - 1)
+
+static inline size_t edn_string_get_length(const edn_value_t* value) {
+    return value->as.string.length_and_flags & EDN_STRING_LENGTH_MASK;
+}
+
+static inline bool edn_string_has_escapes(const edn_value_t* value) {
+    return (value->as.string.length_and_flags & EDN_STRING_FLAG_HAS_ESCAPES) != 0;
+}
+
+static inline void edn_string_set_length(edn_value_t* value, size_t length) {
+    value->as.string.length_and_flags =
+        (value->as.string.length_and_flags & ~EDN_STRING_LENGTH_MASK) | length;
+}
+
+static inline void edn_string_set_has_escapes(edn_value_t* value, bool has_escapes) {
+    if (has_escapes) {
+        value->as.string.length_and_flags |= EDN_STRING_FLAG_HAS_ESCAPES;
+    } else {
+        value->as.string.length_and_flags &= ~EDN_STRING_FLAG_HAS_ESCAPES;
+    }
+}
 
 /* Parser state */
 typedef struct {

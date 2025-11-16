@@ -160,8 +160,8 @@ static void benchmark_end_to_end(void) {
         edn_value_t value;
         value.type = EDN_TYPE_STRING;
         value.as.string.data = scan.start;
-        value.as.string.length = scan.end - scan.start;
-        value.as.string.has_escapes = scan.has_escapes;
+        edn_string_set_length(&value, scan.end - scan.start);
+        edn_string_set_has_escapes(&value, scan.has_escapes);
         value.as.string.decoded = NULL;
         value.arena = arena;
 
@@ -191,8 +191,8 @@ static void benchmark_end_to_end(void) {
         edn_value_t value;
         value.type = EDN_TYPE_STRING;
         value.as.string.data = scan.start;
-        value.as.string.length = scan.end - scan.start;
-        value.as.string.has_escapes = scan.has_escapes;
+        edn_string_set_length(&value, scan.end - scan.start);
+        edn_string_set_has_escapes(&value, scan.has_escapes);
         value.as.string.decoded = NULL;
         value.arena = arena;
 
@@ -221,8 +221,8 @@ static void benchmark_cached_access(void) {
     edn_value_t value;
     value.type = EDN_TYPE_STRING;
     value.as.string.data = scan.start;
-    value.as.string.length = scan.end - scan.start;
-    value.as.string.has_escapes = scan.has_escapes;
+    edn_string_set_length(&value, scan.end - scan.start);
+    edn_string_set_has_escapes(&value, scan.has_escapes);
     value.as.string.decoded = NULL;
     value.arena = arena;
 

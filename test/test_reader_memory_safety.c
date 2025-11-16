@@ -166,8 +166,8 @@ static edn_value_t* string_reader(edn_value_t* value, edn_arena_t* arena,
 
     result->type = EDN_TYPE_STRING;
     result->as.string.data = arena_str;
-    result->as.string.length = len;
-    result->as.string.has_escapes = false;
+    edn_string_set_length(result, len);
+    edn_string_set_has_escapes(result, false);
     result->as.string.decoded = NULL;
     result->arena = arena;
 
