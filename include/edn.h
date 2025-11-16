@@ -448,6 +448,30 @@ typedef struct {
 edn_result_t edn_parse_with_options(const char* input, size_t length,
                                     const edn_parse_options_t* options);
 
+/**
+ * Metadata API (optional, requires EDN_ENABLE_METADATA)
+ */
+
+#ifdef EDN_ENABLE_METADATA
+/**
+ * Get metadata attached to a value.
+ *
+ * Metadata is always a map (or NULL if no metadata).
+ *
+ * @param value EDN value
+ * @return Metadata map, or NULL if no metadata attached
+ */
+edn_value_t* edn_value_meta(const edn_value_t* value);
+
+/**
+ * Check if a value has metadata attached.
+ *
+ * @param value EDN value
+ * @return true if value has metadata, false otherwise
+ */
+bool edn_value_has_meta(const edn_value_t* value);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

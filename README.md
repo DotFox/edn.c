@@ -17,6 +17,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **🏷️ Tagged Literals**: Extensible data types with custom reader support
 - **🗺️ Map Namespace Syntax**: Clojure-compatible `#:ns{...}` syntax (optional, disabled by default)
 - **🔤 Extended Characters**: `\formfeed`, `\backspace`, and octal `\oNNN` literals (optional, disabled by default)
+- **📝 Metadata**: Clojure-style metadata `^{...}` syntax (optional, disabled by default)
 
 ## Table of Contents
 
@@ -32,6 +33,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Custom Readers](#custom-readers)
   - [Map Namespace Syntax](#map-namespace-syntax)
   - [Extended Character Literals](#extended-character-literals)
+  - [Metadata](#metadata)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -840,6 +842,116 @@ When disabled (default):
 
 See `examples/example_extended_characters.c` for more details.
 
+### Metadata
+
+EDN.C supports Clojure-style metadata syntax, which allows attaching metadata maps to values.
+
+**Syntax variants:**
+
+1. **Map metadata**: `^{:key val} form` - metadata is the map itself
+2. **Keyword shorthand**: `^:keyword form` - expands to `{:keyword true}`
+3. **String tag**: `^"string" form` - expands to `{:tag "string"}`
+4. **Symbol tag**: `^symbol form` - expands to `{:tag symbol}`
+5. **Vector param-tags**: `^[type1 type2] form` - expands to `{:param-tags [type1 type2]}`
+
+**Chaining**: Multiple metadata can be chained: `^meta1 ^meta2 form` - metadata maps are merged from right to left.
+
+**Example:**
+```c
+#include "edn.h"
+#include <stdio.h>
+
+int main(void) {
+    // Parse with keyword shorthand
+    edn_result_t result = edn_parse("^:private my-var", 0);
+
+    if (result.error == EDN_OK) {
+        // Check if value has metadata
+        if (edn_value_has_meta(result.value)) {
+            edn_value_t* meta = edn_value_meta(result.value);
+
+            // Metadata is always a map
+            printf("Metadata entries: %zu\n", edn_map_count(meta));
+
+            // Look up specific metadata key
+            edn_result_t key = edn_parse(":private", 0);
+            edn_value_t* val = edn_map_lookup(meta, key.value);
+            // val will be boolean true
+
+            edn_free(key.value);
+        }
+
+        edn_free(result.value);
+    }
+
+    return 0;
+}
+```
+
+**More examples:**
+```c
+// Map metadata
+edn_parse("^{:doc \"A function\" :test true} my-fn", 0);
+
+// String tag
+edn_parse("^\"String\" [1 2 3]", 0);
+// Expands to: ^{:tag "String"} [1 2 3]
+
+// Symbol tag
+edn_parse("^Vector [1 2 3]", 0);
+// Expands to: ^{:tag Vector} [1 2 3]
+
+// Vector param-tags
+edn_parse("^[String long _] my-fn", 0);
+// Expands to: ^{:param-tags [String long _]} my-fn
+
+// Chained metadata
+edn_parse("^:private ^:dynamic ^{:doc \"My var\"} x", 0);
+// All metadata merged into one map
+```
+
+**Supported value types:**
+
+Metadata can only be attached to:
+- Collections: lists, vectors, maps, sets
+- Tagged literals
+- Symbols
+
+**Note:** Metadata cannot be attached to scalar values (nil, booleans, numbers, strings, keywords).
+
+**API:**
+```c
+// Check if value has metadata
+bool edn_value_has_meta(const edn_value_t* value);
+
+// Get metadata map (returns NULL if no metadata)
+edn_value_t* edn_value_meta(const edn_value_t* value);
+```
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make METADATA=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_METADATA=ON ..
+make
+```
+
+When disabled (default):
+- `^` is treated as a valid character in identifiers (symbols/keywords)
+- `^test` parses as a symbol named "^test"
+- Metadata API functions are not available
+
+**Note:** Metadata is a Clojure language feature, not part of the official EDN specification. It's provided here for compatibility with Clojure's reader.
+
+See `examples/example_metadata.c` for more details.
+
 ## Examples
 
 ### Complete Working Example
@@ -1049,6 +1161,10 @@ See `bench/` directory for detailed benchmarking tools and results.
 - Deep structural equality
 - SIMD optimization for ARM64 (NEON) and x86_64 (SSE4.2)
 - Cross-platform support (Unix, macOS, Linux, Windows)
+- Optional Clojure extensions (disabled by default):
+  - Map namespace syntax `#:ns{...}`
+  - Extended character literals (`\formfeed`, `\backspace`, `\oNNN`)
+  - Metadata `^{...}` syntax
 
 ✅ **Testing:**
 - 340+ tests across 24 test suites
@@ -1073,7 +1189,6 @@ See `bench/` directory for detailed benchmarking tools and results.
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
   - ratio numbers ("1/2" => 0.5)
   - octal escape ("\"\\176\"" => "~")
-  - metadata support
 
 ## Contributing
 

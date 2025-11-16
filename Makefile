@@ -52,6 +52,12 @@ ifeq ($(EXTENDED_CHARACTERS),1)
     CFLAGS += -DEDN_ENABLE_EXTENDED_CHARACTERS
 endif
 
+# Metadata parsing (Clojure extension, disabled by default)
+METADATA ?= 0
+ifeq ($(METADATA),1)
+    CFLAGS += -DEDN_ENABLE_METADATA
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -61,7 +67,7 @@ else
 endif
 
 # Source files
-SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c
+SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -226,6 +232,7 @@ help:
 	@echo "  DEBUG=1                     - Enable debug build"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
+	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 
 .DEFAULT_GOAL := all

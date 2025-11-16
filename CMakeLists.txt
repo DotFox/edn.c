@@ -10,6 +10,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Optional features (disabled by default)
 option(EDN_ENABLE_MAP_NAMESPACE_SYNTAX "Enable map namespace syntax (#:ns{...})" OFF)
 option(EDN_ENABLE_EXTENDED_CHARACTERS "Enable extended characters (\\formfeed, \\backspace, \\oNNN)" OFF)
+option(EDN_ENABLE_METADATA "Enable metadata parsing (^{...} form)" OFF)
 
 # Apply feature flags
 if(EDN_ENABLE_MAP_NAMESPACE_SYNTAX)
@@ -18,6 +19,10 @@ endif()
 
 if(EDN_ENABLE_EXTENDED_CHARACTERS)
     add_compile_definitions(EDN_ENABLE_EXTENDED_CHARACTERS)
+endif()
+
+if(EDN_ENABLE_METADATA)
+    add_compile_definitions(EDN_ENABLE_METADATA)
 endif()
 
 # Compiler flags
@@ -58,6 +63,7 @@ set(SOURCES
     src/tagged.c
     src/discard.c
     src/reader.c
+    src/metadata.c
 )
 
 # Library target

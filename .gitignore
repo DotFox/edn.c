@@ -3,6 +3,7 @@
 *.a
 *.so
 *.dylib
+build/
 
 # Test binaries
 test/test_*

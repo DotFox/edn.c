@@ -49,6 +49,9 @@ typedef struct {
 struct edn_value {
     edn_type_t type;
     uint64_t cached_hash; /* Cached hash value (0 = not computed yet) */
+#ifdef EDN_ENABLE_METADATA
+    edn_value_t* metadata;
+#endif
     union {
         bool boolean;
         int64_t integer;
@@ -147,6 +150,9 @@ static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
     edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
     if (value) {
         value->cached_hash = 0;
+#ifdef EDN_ENABLE_METADATA
+        value->metadata = NULL;
+#endif
     }
     return value;
 }
@@ -317,6 +323,11 @@ edn_reader_fn edn_reader_lookup_internal(const edn_reader_registry_t* registry, 
 /* Namespaced map parser (Clojure extension, requires EDN_ENABLE_MAP_NAMESPACE_SYNTAX) */
 #ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
 edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser);
+#endif
+
+/* Metadata parser (Clojure extension, requires EDN_ENABLE_METADATA) */
+#ifdef EDN_ENABLE_METADATA
+edn_value_t* edn_parse_metadata(edn_parser_t* parser);
 #endif
 
 #endif /* EDN_INTERNAL_H */

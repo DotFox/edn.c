@@ -90,6 +90,9 @@ typedef enum {
     CHAR_TYPE_SIGN,
     CHAR_TYPE_DIGIT,
     CHAR_TYPE_DELIMITER,
+#ifdef EDN_ENABLE_METADATA
+    CHAR_TYPE_METADATA,
+#endif
 } char_dispatch_type_t;
 
 static const char_dispatch_type_t char_dispatch_table[256] = {
@@ -198,7 +201,11 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
     ['['] = CHAR_TYPE_VECTOR_OPEN,
     ['\\'] = CHAR_TYPE_CHARACTER,
     [']'] = CHAR_TYPE_DELIMITER,
+#ifdef EDN_ENABLE_METADATA
+    ['^'] = CHAR_TYPE_METADATA,
+#else
     ['^'] = CHAR_TYPE_IDENTIFIER,
+#endif
     ['_'] = CHAR_TYPE_IDENTIFIER,
     ['`'] = CHAR_TYPE_IDENTIFIER,
 
@@ -538,6 +545,11 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             /* Inside collection - let collection parser handle it */
             return NULL;
 
+#ifdef EDN_ENABLE_METADATA
+        case CHAR_TYPE_METADATA:
+            return edn_parse_metadata(parser);
+#endif
+
         case CHAR_TYPE_IDENTIFIER:
         default:
             /* Default: identifier (symbol, keyword, nil, true, false) */
@@ -854,3 +866,21 @@ bool edn_tagged_get(const edn_value_t* value, const char** tag, size_t* tag_leng
 
     return true;
 }
+
+/* Metadata API */
+
+#ifdef EDN_ENABLE_METADATA
+edn_value_t* edn_value_meta(const edn_value_t* value) {
+    if (!value) {
+        return NULL;
+    }
+    return value->metadata;
+}
+
+bool edn_value_has_meta(const edn_value_t* value) {
+    if (!value) {
+        return false;
+    }
+    return value->metadata != NULL;
+}
+#endif
