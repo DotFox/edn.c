@@ -21,56 +21,6 @@ static int bench_parse_roundtrip(const char* data, size_t size) {
     return 1;
 }
 
-/* Benchmark function that only parses (no free) - measures pure parsing performance */
-typedef struct {
-    edn_value_t** values;
-    size_t capacity;
-    size_t count;
-} value_list_t;
-
-static value_list_t* value_list_create(size_t capacity) {
-    value_list_t* list = malloc(sizeof(value_list_t));
-    if (!list) return NULL;
-    list->values = malloc(sizeof(edn_value_t*) * capacity);
-    if (!list->values) {
-        free(list);
-        return NULL;
-    }
-    list->capacity = capacity;
-    list->count = 0;
-    return list;
-}
-
-static void value_list_add(value_list_t* list, edn_value_t* value) {
-    if (list->count < list->capacity) {
-        list->values[list->count++] = value;
-    }
-}
-
-static void value_list_free_all(value_list_t* list) {
-    for (size_t i = 0; i < list->count; i++) {
-        edn_free(list->values[i]);
-    }
-    list->count = 0;
-}
-
-static void value_list_destroy(value_list_t* list) {
-    if (!list) return;
-    value_list_free_all(list);
-    free(list->values);
-    free(list);
-}
-
-/* Parse-only benchmark with deferred cleanup */
-static int bench_parse_only(const char* data, size_t size, value_list_t* values) {
-    edn_result_t result = edn_parse(data, size);
-    if (result.error != EDN_OK) {
-        return 0;
-    }
-    value_list_add(values, result.value);
-    return 1;
-}
-
 /* Read entire file into memory */
 static char* read_file(const char* path, size_t* out_size) {
     FILE* f = fopen(path, "rb");
@@ -125,18 +75,15 @@ static void bench_file(const char* filename, const char* description, int mode) 
 
     if (mode == 0) {
         /* Parse-only mode: measures pure parsing performance */
-        value_list_t* values = value_list_create(10000);
-        if (!values) {
-            printf("%-40s FAILED (out of memory)\n", description);
-            free(data);
-            return;
-        }
+        /* Free immediately after each iteration to avoid memory pressure */
 
         /* Warmup */
         for (int i = 0; i < 3; i++) {
-            bench_parse_only(data, size, values);
+            edn_result_t result = edn_parse(data, size);
+            if (result.error == EDN_OK) {
+                edn_free(result.value);
+            }
         }
-        value_list_free_all(values);
 
         /* Run benchmark */
         uint64_t iterations = 0;
@@ -145,40 +92,49 @@ static void bench_file(const char* filename, const char* description, int mode) 
         uint64_t target_duration_ns = 500 * 1000000ULL;
         uint64_t min_iterations = 1000;
 
+        /* Timing: only measure the parse, not the free */
+        uint64_t total_parse_time = 0;
+
         while (elapsed < target_duration_ns || iterations < min_iterations) {
-            if (!bench_parse_only(data, size, values)) {
-                printf("ERROR: Benchmark function failed for %s\n", description);
-                value_list_destroy(values);
+            uint64_t parse_start = bench_get_time_ns();
+            edn_result_t result = edn_parse(data, size);
+            uint64_t parse_end = bench_get_time_ns();
+
+            if (result.error != EDN_OK) {
+                printf("ERROR: Parse failed for %s\n", description);
                 free(data);
                 return;
             }
+
+            total_parse_time += (parse_end - parse_start);
+
+            /* Free outside of timing (not measured) */
+            edn_free(result.value);
+
             iterations++;
-            
-            /* Check time periodically to avoid too many time calls */
+
+            /* Check overall time to know when to stop */
             if (iterations % 100 == 0) {
                 elapsed = bench_get_time_ns() - start_time;
             }
         }
-        elapsed = bench_get_time_ns() - start_time;
 
         bench_result_t result = {0};
         result.iterations = iterations;
-        result.total_time_ns = elapsed;
-        result.mean_time_us = (double) elapsed / (double) iterations / 1000.0;
+        result.total_time_ns = total_parse_time;
+        result.mean_time_us = (double) total_parse_time / (double) iterations / 1000.0;
         result.data_size = size;
 
         double total_bytes = (double) iterations * (double) size;
-        double time_seconds = (double) elapsed / 1000000000.0;
+        double time_seconds = (double) total_parse_time / 1000000000.0;
         result.throughput_gbps = (total_bytes / time_seconds) / (1024.0 * 1024.0 * 1024.0);
 
         bench_print_result(description, result);
 
-        /* Cleanup outside of timing */
-        value_list_destroy(values);
-        
     } else {
         /* Roundtrip mode: includes parse + free */
-        bench_result_t result = bench_run(description, data, size, 500, 1000, bench_parse_roundtrip);
+        bench_result_t result =
+            bench_run(description, data, size, 500, 1000, bench_parse_roundtrip);
         bench_print_result(description, result);
     }
 
