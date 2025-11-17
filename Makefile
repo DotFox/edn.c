@@ -35,7 +35,7 @@ DEBUG ?= 0
 ifeq ($(DEBUG),1)
     CFLAGS += -g -O0 -DDEBUG
     # Note: Sanitizers added only to LDFLAGS to avoid static library linking issues
-    LDFLAGS += -fsanitize=address,undefined
+    LDFLAGS += -fsanitize=address,leak,undefined
 else
     CFLAGS += -DNDEBUG
 endif

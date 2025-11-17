@@ -11,6 +11,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 option(EDN_ENABLE_MAP_NAMESPACE_SYNTAX "Enable map namespace syntax (#:ns{...})" OFF)
 option(EDN_ENABLE_EXTENDED_CHARACTERS "Enable extended characters (\\formfeed, \\backspace, \\oNNN)" OFF)
 option(EDN_ENABLE_METADATA "Enable metadata parsing (^{...} form)" OFF)
+option(EDN_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 
 # Apply feature flags
 if(EDN_ENABLE_MAP_NAMESPACE_SYNTAX)
@@ -28,13 +29,25 @@ endif()
 # Compiler flags
 if(MSVC)
     # MSVC compiler flags
-    add_compile_options(/W4 /WX- /O2)
+    add_compile_options(/W4 /WX-)
+    # Only add /O2 if not using sanitizers
+    if(NOT EDN_ENABLE_ASAN)
+        add_compile_options(/O2)
+    endif()
     # Enable SSE4.2 on x86_64 Windows
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         add_compile_options(/arch:AVX)
     endif()
     # Disable specific MSVC warnings that are too strict
     add_compile_options(/wd4100)  # unreferenced formal parameter
+
+    # AddressSanitizer support for MSVC
+    if(EDN_ENABLE_ASAN)
+        add_compile_options(/fsanitize=address)
+        # Disable runtime checks that conflict with ASAN
+        string(REPLACE "/RTC1" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    endif()
 else()
     # GCC/Clang flags
     add_compile_options(-Wall -Wextra -Wpedantic -O2)

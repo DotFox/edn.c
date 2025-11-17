@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         compiler: [gcc, clang]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
     - name: Build library (${{ matrix.compiler }})
       run: |
         make CC=${{ matrix.compiler }}
-    
+
     - name: Run tests
       run: |
         make test CC=${{ matrix.compiler }}
@@ -33,6 +33,8 @@ jobs:
         make test CC=${{ matrix.compiler }} MAP_NAMESPACE_SYNTAX=1
 
     - name: Run tests with sanitizers
+      env:
+        ASAN_OPTIONS: detect_leaks=1
       run: |
         make clean
         make DEBUG=1 test CC=${{ matrix.compiler }}
@@ -40,19 +42,24 @@ jobs:
   test-macos:
     name: Test on macOS
     runs-on: macos-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Show architecture
+    - name: Install LLVM via Homebrew
+      run: |
+        brew install llvm
+        echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+
+    - name: Show architecture and compiler
       run: |
         uname -m
         clang --version
-    
+
     - name: Build library
       run: make
-    
+
     - name: Run tests
       run: make test
 
@@ -64,7 +71,7 @@ jobs:
     - name: Run tests with sanitizers
       run: |
         make clean
-        make DEBUG=1 test
+        make DEBUG=1 CC=clang LDFLAGS="-L$(brew --prefix llvm)/lib" test
 
   test-windows:
     name: Test on Windows (MinGW)
@@ -72,11 +79,11 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
@@ -86,10 +93,10 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-make
           make
-    
+
     - name: Build library
       run: make
-    
+
     - name: Run tests
       run: make test
 
@@ -101,27 +108,36 @@ jobs:
   test-windows-msvc:
     name: Test on Windows (MSVC + CMake)
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
-    
+
     - name: Configure CMake
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-    
+
     - name: Build
       run: cmake --build build --config Release
-    
+
     - name: Run tests
       run: ctest --test-dir build -C Release --output-on-failure
+
+    - name: Configure CMake with AddressSanitizer
+      run: cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DEDN_ENABLE_ASAN=ON
+
+    - name: Build with AddressSanitizer
+      run: cmake --build build-asan --config Debug
+
+    - name: Run tests with AddressSanitizer
+      run: ctest --test-dir build-asan -C Debug --output-on-failure
 
   benchmark-linux:
     name: Benchmark on Linux
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -143,7 +159,7 @@ jobs:
   benchmark-macos:
     name: Benchmark on macOS
     runs-on: macos-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -168,11 +184,11 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
@@ -203,7 +219,7 @@ jobs:
   benchmark-windows-msvc:
     name: Benchmark on Windows (MSVC)
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -221,12 +237,12 @@ jobs:
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
-    
+
     - name: Configure and build
       run: |
         cmake -B build -DCMAKE_BUILD_TYPE=Release
         cmake --build build --config Release
-    
+
     - name: Run benchmarks
       run: |
         ./build/Release/bench_integration.exe
@@ -236,16 +252,16 @@ jobs:
   format-check:
     name: Check code formatting
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Install clang-format
       run: |
         sudo apt-get update
         sudo apt-get install -y clang-format
-    
+
     - name: Check formatting
       run: |
         make format-check

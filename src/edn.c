@@ -51,8 +51,8 @@ edn_result_t edn_parse_with_options(const char* input, size_t length,
     result.error_column = parser.column;
     result.error_message = parser.error_message;
 
-    /* Free arena if parsing failed (no value was created) */
-    if (result.value == NULL && parser.arena != NULL) {
+    /* Free arena if parsing failed (no value was created) or if value is a singleton */
+    if (parser.arena != NULL && (result.value == NULL || result.value->arena == NULL)) {
         edn_arena_destroy(parser.arena);
     }
 
