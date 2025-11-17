@@ -205,14 +205,13 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             size_t count = a->as.map.count;
 
             for (size_t i = 0; i < count; i++) {
-                edn_value_t* key_a = a->as.map.entries[i].key;
-                edn_value_t* val_a = a->as.map.entries[i].value;
+                edn_value_t* key_a = a->as.map.keys[i];
+                edn_value_t* val_a = a->as.map.values[i];
 
                 bool found = false;
                 for (size_t j = 0; j < count; j++) {
-                    if (edn_value_equal_internal(key_a, b->as.map.entries[j].key, depth + 1)) {
-                        if (!edn_value_equal_internal(val_a, b->as.map.entries[j].value,
-                                                      depth + 1)) {
+                    if (edn_value_equal_internal(key_a, b->as.map.keys[j], depth + 1)) {
+                        if (!edn_value_equal_internal(val_a, b->as.map.values[j], depth + 1)) {
                             return false;
                         }
                         found = true;
@@ -499,8 +498,8 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
         case EDN_TYPE_MAP: {
             uint64_t map_hash = 0;
             for (size_t i = 0; i < value->as.map.count; i++) {
-                uint64_t key_hash = edn_value_hash_internal(value->as.map.entries[i].key);
-                uint64_t val_hash = edn_value_hash_internal(value->as.map.entries[i].value);
+                uint64_t key_hash = edn_value_hash_internal(value->as.map.keys[i]);
+                uint64_t val_hash = edn_value_hash_internal(value->as.map.values[i]);
                 uint64_t pair_hash = key_hash ^ (val_hash * FNV_PRIME);
                 map_hash ^= pair_hash;
             }

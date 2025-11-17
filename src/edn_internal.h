@@ -96,7 +96,8 @@ struct edn_value {
             size_t count;
         } vector;
         struct {
-            edn_map_entry_t* entries;
+            edn_value_t** keys;
+            edn_value_t** values;
             size_t count;
         } map;
         struct {

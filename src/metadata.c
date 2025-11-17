@@ -60,23 +60,28 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
         }
 
         size_t total_count = existing_count + new_entries_count;
-        edn_map_entry_t* extended_entries =
-            edn_arena_alloc(parser->arena, total_count * sizeof(edn_map_entry_t));
-        if (extended_entries == NULL) {
+        edn_value_t** extended_keys =
+            edn_arena_alloc(parser->arena, total_count * sizeof(edn_value_t*));
+        edn_value_t** extended_values =
+            edn_arena_alloc(parser->arena, total_count * sizeof(edn_value_t*));
+        if (extended_keys == NULL || extended_values == NULL) {
             parser->error = EDN_ERROR_OUT_OF_MEMORY;
             parser->error_message = "Out of memory extending metadata";
             return NULL;
         }
 
         /* Copy existing entries (lower precedence) */
-        memcpy(extended_entries, existing_meta->as.map.entries,
-               existing_count * sizeof(edn_map_entry_t));
+        memcpy(extended_keys, existing_meta->as.map.keys, existing_count * sizeof(edn_value_t*));
+        memcpy(extended_values, existing_meta->as.map.values,
+               existing_count * sizeof(edn_value_t*));
 
         /* Add new entries (higher precedence) at the end */
         if (meta_value->type == EDN_TYPE_MAP) {
             /* Copy all entries from the metadata map */
-            memcpy(extended_entries + existing_count, meta_value->as.map.entries,
-                   new_entries_count * sizeof(edn_map_entry_t));
+            memcpy(extended_keys + existing_count, meta_value->as.map.keys,
+                   new_entries_count * sizeof(edn_value_t*));
+            memcpy(extended_values + existing_count, meta_value->as.map.values,
+                   new_entries_count * sizeof(edn_value_t*));
         } else if (meta_value->type == EDN_TYPE_KEYWORD) {
             /* Add {:keyword true} */
             edn_value_t* true_value = edn_arena_alloc_value(parser->arena);
@@ -90,8 +95,8 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             true_value->arena = parser->arena;
             true_value->metadata = NULL;
 
-            extended_entries[existing_count].key = meta_value;
-            extended_entries[existing_count].value = true_value;
+            extended_keys[existing_count] = meta_value;
+            extended_values[existing_count] = true_value;
         } else if (meta_value->type == EDN_TYPE_VECTOR) {
             /* Add {:param-tags vector} */
             edn_value_t* param_tags_keyword = edn_arena_alloc_value(parser->arena);
@@ -108,8 +113,8 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             param_tags_keyword->arena = parser->arena;
             param_tags_keyword->metadata = NULL;
 
-            extended_entries[existing_count].key = param_tags_keyword;
-            extended_entries[existing_count].value = meta_value;
+            extended_keys[existing_count] = param_tags_keyword;
+            extended_values[existing_count] = meta_value;
         } else /* EDN_TYPE_STRING or EDN_TYPE_SYMBOL */ {
             /* Add {:tag value} */
             edn_value_t* tag_keyword = edn_arena_alloc_value(parser->arena);
@@ -126,12 +131,13 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             tag_keyword->arena = parser->arena;
             tag_keyword->metadata = NULL;
 
-            extended_entries[existing_count].key = tag_keyword;
-            extended_entries[existing_count].value = meta_value;
+            extended_keys[existing_count] = tag_keyword;
+            extended_values[existing_count] = meta_value;
         }
 
         /* Update the existing metadata map in place */
-        existing_meta->as.map.entries = extended_entries;
+        existing_meta->as.map.keys = extended_keys;
+        existing_meta->as.map.values = extended_values;
         existing_meta->as.map.count = total_count;
     } else {
         /* No existing metadata - create new metadata map */
@@ -147,7 +153,8 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
 
         if (meta_value->type == EDN_TYPE_MAP) {
             /* Use the map directly */
-            meta_map->as.map.entries = meta_value->as.map.entries;
+            meta_map->as.map.keys = meta_value->as.map.keys;
+            meta_map->as.map.values = meta_value->as.map.values;
             meta_map->as.map.count = meta_value->as.map.count;
         } else if (meta_value->type == EDN_TYPE_KEYWORD) {
             /* Create {:keyword true} */
@@ -162,16 +169,18 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             true_value->arena = parser->arena;
             true_value->metadata = NULL;
 
-            edn_map_entry_t* entry = edn_arena_alloc(parser->arena, sizeof(edn_map_entry_t));
-            if (entry == NULL) {
+            edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            if (keys == NULL || values == NULL) {
                 parser->error = EDN_ERROR_OUT_OF_MEMORY;
                 parser->error_message = "Out of memory creating metadata entry";
                 return NULL;
             }
-            entry->key = meta_value;
-            entry->value = true_value;
+            keys[0] = meta_value;
+            values[0] = true_value;
 
-            meta_map->as.map.entries = entry;
+            meta_map->as.map.keys = keys;
+            meta_map->as.map.values = values;
             meta_map->as.map.count = 1;
         } else if (meta_value->type == EDN_TYPE_VECTOR) {
             /* Create {:param-tags vector} */
@@ -189,16 +198,18 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             param_tags_keyword->arena = parser->arena;
             param_tags_keyword->metadata = NULL;
 
-            edn_map_entry_t* entry = edn_arena_alloc(parser->arena, sizeof(edn_map_entry_t));
-            if (entry == NULL) {
+            edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            if (keys == NULL || values == NULL) {
                 parser->error = EDN_ERROR_OUT_OF_MEMORY;
                 parser->error_message = "Out of memory creating metadata entry";
                 return NULL;
             }
-            entry->key = param_tags_keyword;
-            entry->value = meta_value;
+            keys[0] = param_tags_keyword;
+            values[0] = meta_value;
 
-            meta_map->as.map.entries = entry;
+            meta_map->as.map.keys = keys;
+            meta_map->as.map.values = values;
             meta_map->as.map.count = 1;
         } else /* EDN_TYPE_STRING or EDN_TYPE_SYMBOL */ {
             /* Create {:tag value} */
@@ -216,16 +227,18 @@ edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
             tag_keyword->arena = parser->arena;
             tag_keyword->metadata = NULL;
 
-            edn_map_entry_t* entry = edn_arena_alloc(parser->arena, sizeof(edn_map_entry_t));
-            if (entry == NULL) {
+            edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
+            if (keys == NULL || values == NULL) {
                 parser->error = EDN_ERROR_OUT_OF_MEMORY;
                 parser->error_message = "Out of memory creating metadata entry";
                 return NULL;
             }
-            entry->key = tag_keyword;
-            entry->value = meta_value;
+            keys[0] = tag_keyword;
+            values[0] = meta_value;
 
-            meta_map->as.map.entries = entry;
+            meta_map->as.map.keys = keys;
+            meta_map->as.map.values = values;
             meta_map->as.map.count = 1;
         }
 

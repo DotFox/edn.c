@@ -811,7 +811,7 @@ edn_value_t* edn_map_get_key(const edn_value_t* value, size_t index) {
     if (index >= value->as.map.count) {
         return NULL;
     }
-    return value->as.map.entries[index].key;
+    return value->as.map.keys[index];
 }
 
 edn_value_t* edn_map_get_value(const edn_value_t* value, size_t index) {
@@ -821,7 +821,7 @@ edn_value_t* edn_map_get_value(const edn_value_t* value, size_t index) {
     if (index >= value->as.map.count) {
         return NULL;
     }
-    return value->as.map.entries[index].value;
+    return value->as.map.values[index];
 }
 
 edn_value_t* edn_map_lookup(const edn_value_t* value, const edn_value_t* key) {
@@ -830,8 +830,8 @@ edn_value_t* edn_map_lookup(const edn_value_t* value, const edn_value_t* key) {
     }
 
     for (size_t i = 0; i < value->as.map.count; i++) {
-        if (edn_value_equal(value->as.map.entries[i].key, key)) {
-            return value->as.map.entries[i].value;
+        if (edn_value_equal(value->as.map.keys[i], key)) {
+            return value->as.map.values[i];
         }
     }
 
@@ -844,7 +844,7 @@ bool edn_map_contains_key(const edn_value_t* value, const edn_value_t* key) {
     }
 
     for (size_t i = 0; i < value->as.map.count; i++) {
-        if (edn_value_equal(value->as.map.entries[i].key, key)) {
+        if (edn_value_equal(value->as.map.keys[i], key)) {
             return true;
         }
     }

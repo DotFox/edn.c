@@ -265,11 +265,13 @@ edn_value_t* edn_parse_set(edn_parser_t* parser) {
 }
 
 typedef struct {
-    edn_map_entry_t* entries;
+    edn_value_t** keys;
+    edn_value_t** values;
     size_t count;
     size_t capacity;
     edn_arena_t* arena;
-    edn_map_entry_t inline_storage[8];
+    edn_value_t* inline_keys[8];
+    edn_value_t* inline_values[8];
 } edn_map_builder_t;
 
 static void edn_map_builder_init(edn_map_builder_t* builder, edn_arena_t* arena,
@@ -278,14 +280,17 @@ static void edn_map_builder_init(edn_map_builder_t* builder, edn_arena_t* arena,
     builder->arena = arena;
 
     if (initial_capacity <= 8) {
-        builder->entries = builder->inline_storage;
+        builder->keys = builder->inline_keys;
+        builder->values = builder->inline_values;
         builder->capacity = 8;
     } else {
-        builder->entries = edn_arena_alloc(arena, initial_capacity * sizeof(edn_map_entry_t));
-        if (builder->entries != NULL) {
+        builder->keys = edn_arena_alloc(arena, initial_capacity * sizeof(edn_value_t*));
+        builder->values = edn_arena_alloc(arena, initial_capacity * sizeof(edn_value_t*));
+        if (builder->keys != NULL && builder->values != NULL) {
             builder->capacity = initial_capacity;
         } else {
-            builder->entries = builder->inline_storage;
+            builder->keys = builder->inline_keys;
+            builder->values = builder->inline_values;
             builder->capacity = 8;
         }
     }
@@ -298,39 +303,52 @@ static bool edn_map_builder_add(edn_map_builder_t* builder, edn_value_t* key, ed
             new_capacity = builder->capacity + 8;
         }
 
-        edn_map_entry_t* new_entries =
-            edn_arena_alloc(builder->arena, new_capacity * sizeof(edn_map_entry_t));
-        if (new_entries == NULL) {
+        edn_value_t** new_keys =
+            edn_arena_alloc(builder->arena, new_capacity * sizeof(edn_value_t*));
+        edn_value_t** new_values =
+            edn_arena_alloc(builder->arena, new_capacity * sizeof(edn_value_t*));
+        if (new_keys == NULL || new_values == NULL) {
             return false;
         }
 
         if (builder->count > 0) {
-            memcpy(new_entries, builder->entries, builder->count * sizeof(edn_map_entry_t));
+            memcpy(new_keys, builder->keys, builder->count * sizeof(edn_value_t*));
+            memcpy(new_values, builder->values, builder->count * sizeof(edn_value_t*));
         }
 
-        builder->entries = new_entries;
+        builder->keys = new_keys;
+        builder->values = new_values;
         builder->capacity = new_capacity;
     }
 
-    builder->entries[builder->count].key = key;
-    builder->entries[builder->count].value = value;
+    builder->keys[builder->count] = key;
+    builder->values[builder->count] = value;
     builder->count++;
+
     return true;
 }
 
-static edn_map_entry_t* edn_map_builder_finish(edn_map_builder_t* builder, size_t* out_count) {
+static void edn_map_builder_finish(edn_map_builder_t* builder, edn_value_t*** out_keys,
+                                   edn_value_t*** out_values, size_t* out_count) {
     *out_count = builder->count;
 
-    if (builder->entries == builder->inline_storage && builder->count > 0) {
-        edn_map_entry_t* permanent =
-            edn_arena_alloc(builder->arena, builder->count * sizeof(edn_map_entry_t));
-        if (permanent != NULL) {
-            memcpy(permanent, builder->inline_storage, builder->count * sizeof(edn_map_entry_t));
-            return permanent;
+    /* If using inline storage and we have entries, allocate permanent storage */
+    if (builder->keys == builder->inline_keys && builder->count > 0) {
+        edn_value_t** permanent_keys =
+            edn_arena_alloc(builder->arena, builder->count * sizeof(edn_value_t*));
+        edn_value_t** permanent_values =
+            edn_arena_alloc(builder->arena, builder->count * sizeof(edn_value_t*));
+        if (permanent_keys != NULL && permanent_values != NULL) {
+            memcpy(permanent_keys, builder->inline_keys, builder->count * sizeof(edn_value_t*));
+            memcpy(permanent_values, builder->inline_values, builder->count * sizeof(edn_value_t*));
+            *out_keys = permanent_keys;
+            *out_values = permanent_values;
+            return;
         }
     }
 
-    return builder->entries;
+    *out_keys = builder->keys;
+    *out_values = builder->values;
 }
 
 static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_name,
@@ -423,23 +441,13 @@ static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_
     parser->current++;
     parser->depth--;
 
+    edn_value_t** keys;
+    edn_value_t** values;
     size_t count;
-    edn_map_entry_t* entries = edn_map_builder_finish(&builder, &count);
+    edn_map_builder_finish(&builder, &keys, &values, &count);
 
     /* Check for duplicate keys (EDN spec requirement) */
     if (count > 1) {
-        /* Extract keys into temporary array for duplicate checking */
-        edn_value_t** keys = edn_arena_alloc(parser->arena, count * sizeof(edn_value_t*));
-        if (keys == NULL) {
-            parser->error = EDN_ERROR_OUT_OF_MEMORY;
-            parser->error_message = "Out of memory checking map keys";
-            return NULL;
-        }
-
-        for (size_t i = 0; i < count; i++) {
-            keys[i] = entries[i].key;
-        }
-
         if (edn_has_duplicates(keys, count)) {
             parser->error = EDN_ERROR_DUPLICATE_KEY;
             parser->error_message = ns_name != NULL ? "Namespaced map contains duplicate keys"
@@ -456,7 +464,8 @@ static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_
     }
 
     result->type = EDN_TYPE_MAP;
-    result->as.map.entries = entries;
+    result->as.map.keys = keys;
+    result->as.map.values = values;
     result->as.map.count = count;
     result->arena = parser->arena;
 
