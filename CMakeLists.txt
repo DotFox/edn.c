@@ -11,6 +11,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 option(EDN_ENABLE_MAP_NAMESPACE_SYNTAX "Enable map namespace syntax (#:ns{...})" OFF)
 option(EDN_ENABLE_EXTENDED_CHARACTERS "Enable extended characters (\\formfeed, \\backspace, \\oNNN)" OFF)
 option(EDN_ENABLE_METADATA "Enable metadata parsing (^{...} form)" OFF)
+option(EDN_ENABLE_TEXT_BLOCKS "Enable text block parsing (Java-style \"\"\" blocks)" OFF)
 option(EDN_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 
 # Apply feature flags
@@ -24,6 +25,10 @@ endif()
 
 if(EDN_ENABLE_METADATA)
     add_compile_definitions(EDN_ENABLE_METADATA)
+endif()
+
+if(EDN_ENABLE_TEXT_BLOCKS)
+    add_compile_definitions(EDN_ENABLE_TEXT_BLOCKS)
 endif()
 
 # Compiler flags
@@ -77,6 +82,7 @@ set(SOURCES
     src/discard.c
     src/reader.c
     src/metadata.c
+    src/text_block.c
 )
 
 # Library target
