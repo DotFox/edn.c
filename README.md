@@ -1189,6 +1189,8 @@ See `bench/` directory for detailed benchmarking tools and results.
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
   - ratio numbers ("1/2" => 0.5)
   - octal escape ("\"\\176\"" => "~")
+- Extra-extra features (EXPERIMENTAL!):
+  - support text blocks for raw multiline strings
 
 ## Contributing
 
