@@ -114,36 +114,39 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
 }
 
 /**
- * Create nil value.
+ * Singleton EDN values for nil, true, and false.
  */
-static edn_value_t* create_nil_value(edn_parser_t* parser) {
-    edn_value_t* value = edn_arena_alloc_value(parser->arena);
-    if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
-        return NULL;
-    }
+static edn_value_t edn_singleton_nil = {.type = EDN_TYPE_NIL,
+                                        .cached_hash = 0,
+#ifdef EDN_ENABLE_METADATA
+                                        .metadata = NULL,
+#endif
+                                        .arena = NULL};
 
-    value->type = EDN_TYPE_NIL;
-    value->arena = parser->arena;
-    return value;
+static edn_value_t edn_singleton_true = {.type = EDN_TYPE_BOOL,
+                                         .cached_hash = 0,
+#ifdef EDN_ENABLE_METADATA
+                                         .metadata = NULL,
+#endif
+                                         .as.boolean = true,
+                                         .arena = NULL};
+
+static edn_value_t edn_singleton_false = {.type = EDN_TYPE_BOOL,
+                                          .cached_hash = 0,
+#ifdef EDN_ENABLE_METADATA
+                                          .metadata = NULL,
+#endif
+                                          .as.boolean = false,
+                                          .arena = NULL};
+
+static edn_value_t* create_nil_value(edn_parser_t* parser) {
+    (void) parser;
+    return &edn_singleton_nil;
 }
 
-/**
- * Create boolean value.
- */
 static edn_value_t* create_bool_value(edn_parser_t* parser, bool val) {
-    edn_value_t* value = edn_arena_alloc_value(parser->arena);
-    if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
-        return NULL;
-    }
-
-    value->type = EDN_TYPE_BOOL;
-    value->as.boolean = val;
-    value->arena = parser->arena;
-    return value;
+    (void) parser;
+    return val ? &edn_singleton_true : &edn_singleton_false;
 }
 
 /**
