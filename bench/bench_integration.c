@@ -11,14 +11,20 @@
 #include "../include/edn.h"
 #include "bench_framework.h"
 
-/* Benchmark function that parses EDN and frees result (roundtrip) */
-static int bench_parse_roundtrip(const char* data, size_t size) {
+/* Benchmark function that parses EDN and returns the value as closure */
+static void* bench_parse_only(const char* data, size_t size) {
     edn_result_t result = edn_parse(data, size);
     if (result.error != EDN_OK) {
-        return 0;
+        return NULL;
     }
-    edn_free(result.value);
-    return 1;
+    return result.value;
+}
+
+/* After function that frees the parsed value */
+static void bench_free_value(void* closure) {
+    if (closure != NULL) {
+        edn_free((edn_value_t*) closure);
+    }
 }
 
 /* Read entire file into memory */
@@ -73,71 +79,19 @@ static void bench_file(const char* filename, const char* description, int mode) 
         return;
     }
 
+    bench_result_t result;
+
     if (mode == 0) {
-        /* Parse-only mode: measures pure parsing performance */
-        /* Free immediately after each iteration to avoid memory pressure */
-
-        /* Warmup */
-        for (int i = 0; i < 3; i++) {
-            edn_result_t result = edn_parse(data, size);
-            if (result.error == EDN_OK) {
-                edn_free(result.value);
-            }
-        }
-
-        /* Run benchmark */
-        uint64_t iterations = 0;
-        uint64_t start_time = bench_get_time_ns();
-        uint64_t elapsed = 0;
-        uint64_t target_duration_ns = 500 * 1000000ULL;
-        uint64_t min_iterations = 1000;
-
-        /* Timing: only measure the parse, not the free */
-        uint64_t total_parse_time = 0;
-
-        while (elapsed < target_duration_ns || iterations < min_iterations) {
-            uint64_t parse_start = bench_get_time_ns();
-            edn_result_t result = edn_parse(data, size);
-            uint64_t parse_end = bench_get_time_ns();
-
-            if (result.error != EDN_OK) {
-                printf("ERROR: Parse failed for %s\n", description);
-                free(data);
-                return;
-            }
-
-            total_parse_time += (parse_end - parse_start);
-
-            /* Free outside of timing (not measured) */
-            edn_free(result.value);
-
-            iterations++;
-
-            /* Check overall time to know when to stop */
-            if (iterations % 100 == 0) {
-                elapsed = bench_get_time_ns() - start_time;
-            }
-        }
-
-        bench_result_t result = {0};
-        result.iterations = iterations;
-        result.total_time_ns = total_parse_time;
-        result.mean_time_us = (double) total_parse_time / (double) iterations / 1000.0;
-        result.data_size = size;
-
-        double total_bytes = (double) iterations * (double) size;
-        double time_seconds = (double) total_parse_time / 1000000000.0;
-        result.throughput_gbps = (total_bytes / time_seconds) / (1024.0 * 1024.0 * 1024.0);
-
-        bench_print_result(description, result);
-
+        /* Parse-only mode: measures pure parsing performance, cleanup is deferred (outside timing) */
+        result =
+            bench_run(description, data, size, 500, 1000, bench_parse_only, bench_free_value, 0);
     } else {
-        /* Roundtrip mode: includes parse + free */
-        bench_result_t result =
-            bench_run(description, data, size, 500, 1000, bench_parse_roundtrip);
-        bench_print_result(description, result);
+        /* Roundtrip mode: includes both parse and free in the timing */
+        result =
+            bench_run(description, data, size, 500, 1000, bench_parse_only, bench_free_value, 1);
     }
 
+    bench_print_result(description, result);
     free(data);
 }
 
