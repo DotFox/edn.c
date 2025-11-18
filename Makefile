@@ -30,6 +30,13 @@ else
     ARCH = generic
 endif
 
+# Platform-specific libraries
+ifeq ($(UNAME_S),Linux)
+    LDLIBS = -lm
+else
+    LDLIBS =
+endif
+
 # Debug build
 DEBUG ?= 0
 ifeq ($(DEBUG),1)
@@ -121,7 +128,7 @@ test: $(TEST_BINS)
 # Build individual test
 test/%: test/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Build and run quick benchmark
 .PHONY: bench
@@ -152,12 +159,12 @@ bench-build: $(BENCH_BINS)
 
 bench/%: bench/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Build examples
 examples/%: examples/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Debug build
 .PHONY: debug
