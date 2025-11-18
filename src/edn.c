@@ -431,10 +431,10 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
 
     if (scan.type == EDN_NUMBER_INT64) {
         int64_t num;
-        if (!edn_parse_int64(scan.start, scan.end, &num, scan.radix)) {
+        if (!edn_parse_int64(scan.start, scan.digits_end, &num, scan.radix)) {
             value->type = EDN_TYPE_BIGINT;
-            value->as.bigint.digits = scan.start;
-            value->as.bigint.length = scan.end - scan.start;
+            value->as.bigint.digits = scan.digits_start;
+            value->as.bigint.length = scan.digits_end - scan.digits_start;
             value->as.bigint.negative = scan.negative;
             value->as.bigint.radix = scan.radix;
         } else {
@@ -443,13 +443,18 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         }
     } else if (scan.type == EDN_NUMBER_BIGINT) {
         value->type = EDN_TYPE_BIGINT;
-        value->as.bigint.digits = scan.start;
-        value->as.bigint.length = scan.end - scan.start;
+        value->as.bigint.digits = scan.digits_start;
+        value->as.bigint.length = scan.digits_end - scan.digits_start; /* Exclude N suffix */
         value->as.bigint.negative = scan.negative;
         value->as.bigint.radix = scan.radix;
     } else if (scan.type == EDN_NUMBER_DOUBLE) {
         value->type = EDN_TYPE_FLOAT;
-        value->as.floating = edn_parse_double(scan.start, scan.end);
+        value->as.floating = edn_parse_double(scan.start, scan.digits_end);
+    } else if (scan.type == EDN_NUMBER_BIGDEC) {
+        value->type = EDN_TYPE_BIGDEC;
+        value->as.bigdec.decimal = scan.digits_start;
+        value->as.bigdec.length = scan.digits_end - scan.digits_start; /* Exclude M suffix */
+        value->as.bigdec.negative = scan.negative;
     } else {
         parser->error = EDN_ERROR_INVALID_NUMBER;
         parser->error_message = "Invalid number type";
@@ -650,6 +655,23 @@ bool edn_double_get(const edn_value_t* value, double* out) {
     return true;
 }
 
+const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negative) {
+    if (!value || value->type != EDN_TYPE_BIGDEC) {
+        if (length)
+            *length = 0;
+        if (negative)
+            *negative = false;
+        return NULL;
+    }
+
+    if (length)
+        *length = value->as.bigdec.length;
+    if (negative)
+        *negative = value->as.bigdec.negative;
+
+    return value->as.bigdec.decimal;
+}
+
 bool edn_number_as_double(const edn_value_t* value, double* out) {
     if (!value || !out) {
         return false;
@@ -690,6 +712,23 @@ bool edn_number_as_double(const edn_value_t* value, double* out) {
         case EDN_TYPE_FLOAT:
             *out = value->as.floating;
             return true;
+
+        case EDN_TYPE_BIGDEC:
+            /* Convert BigDecimal string to double (may lose precision) */
+            {
+                /* Use standard strtod for conversion */
+                char buffer[512];
+                size_t len = value->as.bigdec.length;
+                if (len >= sizeof(buffer)) {
+                    len = sizeof(buffer) - 1;
+                }
+                memcpy(buffer, value->as.bigdec.decimal, len);
+                buffer[len] = '\0';
+
+                double result = strtod(buffer, NULL);
+                *out = value->as.bigdec.negative ? -result : result;
+                return true;
+            }
 
         default:
             return false;

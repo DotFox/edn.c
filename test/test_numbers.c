@@ -313,6 +313,223 @@ TEST(api_number_as_double_float) {
     assert(fabs(result - 3.14) < 0.0001);
 }
 
+/* Test BigInt N suffix (Clojure-compatible) */
+TEST(scan_number_bigint_suffix_simple) {
+    const char* input = "42N";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGINT); /* Forced by N suffix */
+    assert(scan.radix == 10);
+    assert(scan.end - scan.start == 3); /* Includes N */
+}
+
+TEST(scan_number_bigint_suffix_negative) {
+    const char* input = "-999N";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGINT);
+    assert(scan.negative == true);
+}
+
+TEST(scan_number_bigint_suffix_hex) {
+    /* Hex numbers don't support N suffix - N is a hex digit */
+    const char* input = "0xDEADBEEFN";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_INT64); /* N is treated as hex digit, not suffix */
+    assert(scan.radix == 16);
+}
+
+TEST(scan_number_bigint_suffix_only_decimal) {
+    /* N suffix only applies to base-10, not radix notation */
+    const char* input = "36rZZ"; /* No N suffix for non-decimal */
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_INT64);
+    assert(scan.radix == 36);
+}
+
+TEST(scan_number_bigint_suffix_on_float_invalid) {
+    /* Cannot have N suffix on float - invalid */
+    const char* input = "3.14N";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == false); /* Floats cannot have N suffix */
+}
+
+TEST(scan_number_bigint_suffix_on_exponent_invalid) {
+    /* Cannot have N suffix on scientific notation - invalid */
+    const char* input = "1e5N";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == false); /* Exponent notation cannot have N suffix */
+}
+
+TEST(api_parse_bigint_suffix) {
+    /* Test full parsing integration */
+    edn_result_t r = edn_parse("42N", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGINT);
+
+    size_t length;
+    bool negative;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(r.value, &length, &negative, &radix);
+
+    assert(digits != NULL);
+    assert(negative == false);
+    assert(radix == 10);
+    /* digits should be "42N" with length 3, but bigint logic should handle it */
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_bigint_suffix_in_collection) {
+    /* Test N suffix in vector */
+    edn_result_t r = edn_parse("[1 2N 3]", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_VECTOR);
+    assert(edn_vector_count(r.value) == 3);
+
+    /* First element: regular int */
+    edn_value_t* elem0 = edn_vector_get(r.value, 0);
+    assert(edn_type(elem0) == EDN_TYPE_INT);
+
+    /* Second element: BigInt with N suffix */
+    edn_value_t* elem1 = edn_vector_get(r.value, 1);
+    assert(edn_type(elem1) == EDN_TYPE_BIGINT);
+
+    /* Third element: regular int */
+    edn_value_t* elem2 = edn_vector_get(r.value, 2);
+    assert(edn_type(elem2) == EDN_TYPE_INT);
+
+    edn_free(r.value);
+}
+
+/* Test BigDecimal M suffix (Clojure-compatible) */
+TEST(scan_number_bigdec_suffix_simple) {
+    const char* input = "3.14M";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGDEC); /* Forced by M suffix */
+    assert(scan.radix == 10);
+    assert(scan.end - scan.start == 5); /* Includes M */
+}
+
+TEST(scan_number_bigdec_suffix_negative) {
+    const char* input = "-123.456M";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGDEC);
+    assert(scan.negative == true);
+}
+
+TEST(scan_number_bigdec_suffix_exponent) {
+    const char* input = "1.5e10M";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGDEC);
+}
+
+TEST(scan_number_bigdec_suffix_on_integer) {
+    /* M suffix on integer is valid - converts to BigDecimal */
+    const char* input = "42M";
+    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+
+    assert(scan.valid == true);
+    assert(scan.type == EDN_NUMBER_BIGDEC); /* Integer becomes BigDecimal */
+}
+
+TEST(api_parse_bigdec_suffix) {
+    /* Test full parsing integration */
+    edn_result_t r = edn_parse("3.14159M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(r.value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(negative == false);
+    assert(length == 7); /* "3.14159" */
+    assert(strncmp(decimal, "3.14159", 7) == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_bigdec_suffix_on_integer) {
+    /* Integer with M suffix becomes BigDecimal */
+    edn_result_t r = edn_parse("42M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(r.value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(negative == false);
+    assert(length == 2); /* "42" */
+    assert(strncmp(decimal, "42", 2) == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_bigdec_get) {
+    edn_value_t value;
+    value.type = EDN_TYPE_BIGDEC;
+    value.as.bigdec.decimal = "123.456";
+    value.as.bigdec.length = 7;
+    value.as.bigdec.negative = false;
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(&value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(length == 7);
+    assert(negative == false);
+    assert(strncmp(decimal, "123.456", 7) == 0);
+}
+
+TEST(api_parse_bigdec_suffix_in_collection) {
+    /* Test M suffix in vector */
+    edn_result_t r = edn_parse("[1.1 2.2M 3.3]", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_VECTOR);
+    assert(edn_vector_count(r.value) == 3);
+
+    /* First element: regular float */
+    edn_value_t* elem0 = edn_vector_get(r.value, 0);
+    assert(edn_type(elem0) == EDN_TYPE_FLOAT);
+
+    /* Second element: BigDecimal with M suffix */
+    edn_value_t* elem1 = edn_vector_get(r.value, 1);
+    assert(edn_type(elem1) == EDN_TYPE_BIGDEC);
+
+    /* Third element: regular float */
+    edn_value_t* elem2 = edn_vector_get(r.value, 2);
+    assert(edn_type(elem2) == EDN_TYPE_FLOAT);
+
+    edn_free(r.value);
+}
+
 int main(void) {
     printf("Running number parsing tests...\n");
 
@@ -359,6 +576,26 @@ int main(void) {
     run_test_api_number_as_double_int();
     run_test_api_number_as_double_bigint();
     run_test_api_number_as_double_float();
+
+    /* BigInt N suffix tests */
+    run_test_scan_number_bigint_suffix_simple();
+    run_test_scan_number_bigint_suffix_negative();
+    run_test_scan_number_bigint_suffix_hex();
+    run_test_scan_number_bigint_suffix_only_decimal();
+    run_test_scan_number_bigint_suffix_on_float_invalid();
+    run_test_scan_number_bigint_suffix_on_exponent_invalid();
+    run_test_api_parse_bigint_suffix();
+    run_test_api_parse_bigint_suffix_in_collection();
+
+    /* BigDecimal M suffix tests */
+    run_test_scan_number_bigdec_suffix_simple();
+    run_test_scan_number_bigdec_suffix_negative();
+    run_test_scan_number_bigdec_suffix_exponent();
+    run_test_scan_number_bigdec_suffix_on_integer();
+    run_test_api_parse_bigdec_suffix();
+    run_test_api_parse_bigdec_suffix_on_integer();
+    run_test_api_bigdec_get();
+    run_test_api_parse_bigdec_suffix_in_collection();
 
     TEST_SUMMARY("number parsing");
 }

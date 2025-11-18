@@ -260,8 +260,9 @@ edn_type_t edn_type(const edn_value_t *value);
 - `EDN_TYPE_NIL`
 - `EDN_TYPE_BOOL`
 - `EDN_TYPE_INT` (int64_t)
-- `EDN_TYPE_BIGINT` (arbitrary precision)
+- `EDN_TYPE_BIGINT` (arbitrary precision integer)
 - `EDN_TYPE_FLOAT` (double)
+- `EDN_TYPE_BIGDEC` (exact precision decimal)
 - `EDN_TYPE_CHARACTER` (Unicode codepoint)
 - `EDN_TYPE_STRING`
 - `EDN_TYPE_SYMBOL`
@@ -349,8 +350,14 @@ Get big integer digit string for use with external libraries (GMP, OpenSSL BIGNU
 
 **Returns:** Digit string, or NULL if not a big integer.
 
+**Clojure Compatibility:** The `N` suffix forces BigInt for base-10 integers.
+- `42N` → BigInt "42" (forced BigInt even though it fits in int64)
+- `999999999999999999999999999` → BigInt (overflow detection)
+- `0xDEADBEEFN` → Long (N is hex digit, not suffix)
+
 **Example:**
 ```c
+// BigInt from overflow
 edn_result_t r = edn_parse("999999999999999999999999999", 0);
 size_t len;
 bool neg;
@@ -360,6 +367,12 @@ if (digits) {
     printf("%s%.*s (base %d)\n", neg ? "-" : "", (int)len, digits, radix);
 }
 edn_free(r.value);
+
+// BigInt with N suffix
+edn_result_t r2 = edn_parse("42N", 0);
+digits = edn_bigint_get(r2.value, &len, &neg, &radix);
+// digits = "42", len = 2, use with GMP: mpz_set_str(bigint, digits, radix)
+edn_free(r2.value);
 ```
 
 #### Floating Point
@@ -374,7 +387,7 @@ Get double value. Returns `true` if value is `EDN_TYPE_FLOAT`, `false` otherwise
 bool edn_number_as_double(const edn_value_t *value, double *out);
 ```
 
-Convert any numeric type (INT, BIGINT, FLOAT) to double. May lose precision for large big integers.
+Convert any numeric type (INT, BIGINT, FLOAT, BIGDEC) to double. May lose precision for large numbers.
 
 **Example:**
 ```c
@@ -384,6 +397,46 @@ if (edn_double_get(r.value, &num)) {
     printf("Pi: %.5f\n", num);
 }
 edn_free(r.value);
+```
+
+#### Big Decimals
+
+```c
+const char *edn_bigdec_get(const edn_value_t *value, size_t *length, bool *negative);
+```
+
+Get big decimal string for use with external libraries (Java BigDecimal, Python Decimal, etc.).
+
+**Parameters:**
+- `value`: EDN big decimal value
+- `length`: Output for string length (may be NULL)
+- `negative`: Output for sign flag (may be NULL)
+
+**Returns:** Decimal string, or NULL if not a big decimal.
+
+**Clojure Compatibility:** The `M` suffix forces exact precision decimal representation.
+- `42M` → BigDecimal "42" (integer with M suffix)
+- `3.14M` → BigDecimal "3.14"
+- `1.5e10M` → BigDecimal "1.5e10"
+
+**Example:**
+```c
+// BigDecimal from float
+edn_result_t r1 = edn_parse("3.14159265358979323846M", 0);
+size_t len;
+bool neg;
+const char *decimal = edn_bigdec_get(r1.value, &len, &neg);
+if (decimal) {
+    printf("%s%.*s\n", neg ? "-" : "", (int)len, decimal);
+    // Use with: Java BigDecimal(decimal), Python Decimal(decimal), etc.
+}
+edn_free(r1.value);
+
+// BigDecimal from integer with M suffix
+edn_result_t r2 = edn_parse("42M", 0);
+decimal = edn_bigdec_get(r2.value, &len, &neg);
+// decimal = "42", application can convert to BigDecimal
+edn_free(r2.value);
 ```
 
 #### Characters

@@ -66,6 +66,11 @@ struct edn_value {
             uint8_t radix;      /* Number base (2-36, default 10) */
         } bigint;
         double floating;
+        struct {
+            const char* decimal; /* Pointer to decimal string in input buffer (zero-copy) */
+            size_t length;       /* Number of characters in decimal string */
+            bool negative;       /* Sign bit */
+        } bigdec;
         uint32_t character; /* Unicode codepoint */
         struct {
             const char* data;          /* Pointer to string content in input buffer (zero-copy) */
@@ -295,16 +300,19 @@ typedef enum {
     EDN_NUMBER_INT64,  /* Fits in int64_t */
     EDN_NUMBER_BIGINT, /* Overflow, needs BigInt */
     EDN_NUMBER_DOUBLE, /* Has decimal point or exponent */
+    EDN_NUMBER_BIGDEC, /* BigDecimal - exact precision with M suffix */
     EDN_NUMBER_INVALID /* Parse error */
 } edn_number_type_t;
 
 typedef struct {
-    const char* start;      /* Start of number in input */
-    const char* end;        /* End of number in input */
-    edn_number_type_t type; /* Detected type */
-    uint8_t radix;          /* Number base (2-36, default 10) */
-    bool negative;          /* Sign */
-    bool valid;             /* True if valid number */
+    const char* start;        /* Start of entire number (includes sign) */
+    const char* end;          /* End of entire number (includes N suffix if present) */
+    const char* digits_start; /* Start of actual digits (after sign and radix prefix) */
+    const char* digits_end;   /* End of digits (excludes N suffix, for BigInt storage) */
+    edn_number_type_t type;   /* Detected type */
+    uint8_t radix;            /* Number base (2-36, default 10) */
+    bool negative;            /* Sign */
+    bool valid;               /* True if valid number */
 } edn_number_scan_t;
 
 edn_number_scan_t edn_scan_number(const char* ptr, const char* end);

@@ -22,6 +22,7 @@ typedef enum {
     EDN_TYPE_INT,
     EDN_TYPE_BIGINT,
     EDN_TYPE_FLOAT,
+    EDN_TYPE_BIGDEC,
     EDN_TYPE_CHARACTER,
     EDN_TYPE_STRING,
     EDN_TYPE_SYMBOL,
@@ -139,11 +140,27 @@ const char* edn_bigint_get(const edn_value_t* value, size_t* length, bool* negat
 bool edn_double_get(const edn_value_t* value, double* out);
 
 /**
+ * Get BigDecimal string from an EDN big decimal.
+ *
+ * Returns the string representation of the big decimal for use with
+ * external BigDecimal libraries (Java BigDecimal, GMP mpf_t, etc.).
+ *
+ * @param value EDN big decimal value
+ * @param length Pointer to store the string length (may be NULL)
+ * @param negative Pointer to store the sign (may be NULL)
+ * @return Pointer to decimal string, or NULL if value is not a big decimal
+ *
+ * The returned pointer is valid until the value is freed with edn_free().
+ * The string contains the exact decimal representation (e.g., "3.14159265358979323846").
+ */
+const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negative);
+
+/**
  * Convert any EDN number type to double.
  * 
- * Automatically converts INT, BIGINT (may lose precision), and FLOAT to double.
+ * Automatically converts INT, BIGINT (may lose precision), FLOAT, and BIGDEC to double.
  * 
- * @param value EDN number value (INT, BIGINT, or FLOAT)
+ * @param value EDN number value (INT, BIGINT, FLOAT, or BIGDEC)
  * @param out Pointer to store the result
  * @return true if value is a number type, false otherwise
  */

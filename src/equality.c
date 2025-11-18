@@ -102,6 +102,15 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             }
             return a->as.floating == b->as.floating;
 
+        case EDN_TYPE_BIGDEC:
+            if (a->as.bigdec.negative != b->as.bigdec.negative) {
+                return false;
+            }
+            if (a->as.bigdec.length != b->as.bigdec.length) {
+                return false;
+            }
+            return memcmp(a->as.bigdec.decimal, b->as.bigdec.decimal, a->as.bigdec.length) == 0;
+
         case EDN_TYPE_CHARACTER:
             return a->as.character == b->as.character;
 
@@ -431,6 +440,15 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             }
             break;
         }
+
+        case EDN_TYPE_BIGDEC:
+            hash ^= value->as.bigdec.negative ? 1 : 0;
+            hash *= FNV_PRIME;
+            for (size_t i = 0; i < value->as.bigdec.length; i++) {
+                hash ^= (uint8_t) value->as.bigdec.decimal[i];
+                hash *= FNV_PRIME;
+            }
+            break;
 
         case EDN_TYPE_CHARACTER:
             hash ^= value->as.character;

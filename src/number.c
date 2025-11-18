@@ -142,9 +142,31 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
             }
 
             if (digit_ptr >= end || (*digit_ptr != '.' && *digit_ptr != 'e' && *digit_ptr != 'E' &&
-                                     *digit_ptr != 'r')) {
+                                     *digit_ptr != 'r' && *digit_ptr != 'N' && *digit_ptr != 'M')) {
                 result.negative = is_negative;
+                result.digits_start = scan_ptr;
+                result.digits_end = digit_ptr;
                 result.end = digit_ptr;
+                result.valid = true;
+                return result;
+            }
+            /* Check for N suffix in fast path */
+            if (digit_ptr < end && *digit_ptr == 'N') {
+                result.negative = is_negative;
+                result.type = EDN_NUMBER_BIGINT;
+                result.digits_start = scan_ptr;
+                result.digits_end = digit_ptr;
+                result.end = digit_ptr + 1; /* Include N */
+                result.valid = true;
+                return result;
+            }
+            /* Check for M suffix in fast path - integers with M become BigDecimal */
+            if (digit_ptr < end && *digit_ptr == 'M') {
+                result.negative = is_negative;
+                result.type = EDN_NUMBER_BIGDEC;
+                result.digits_start = scan_ptr;
+                result.digits_end = digit_ptr;
+                result.end = digit_ptr + 1; /* Include M */
                 result.valid = true;
                 return result;
             }
@@ -204,6 +226,8 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
     }
 
     const char* digit_start = ptr;
+    result.digits_start = ptr; /* Track where actual digits begin */
+
     if (result.radix == 10) {
         while (ptr < end && *ptr >= '0' && *ptr <= '9') {
             ptr++;
@@ -236,6 +260,23 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
         while (ptr < end && *ptr >= '0' && *ptr <= '9') {
             ptr++;
         }
+    }
+
+    /* Save digits_end before checking for N/M suffix */
+    result.digits_end = ptr;
+
+    if (ptr < end && *ptr == 'N' && result.radix == 10) {
+        if (result.type == EDN_NUMBER_DOUBLE) {
+            /* Invalid: cannot have N suffix on float */
+            result.valid = false;
+            return result;
+        }
+        result.type = EDN_NUMBER_BIGINT;
+        ptr++;
+    } else if (ptr < end && *ptr == 'M') {
+        /* M suffix works on both integers and floats */
+        result.type = EDN_NUMBER_BIGDEC;
+        ptr++;
     }
 
     result.end = ptr;
