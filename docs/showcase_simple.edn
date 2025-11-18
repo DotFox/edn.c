@@ -1,0 +1,50 @@
+{:intro "Welcome to EDN.C Parser!"
+
+ :numbers {:regular [1 2 3 42 -999]
+           :bigint [42N 12345678901234567890N]
+           :float [3.14 -0.5 1.5e10]
+           :bigdec [42M 3.14159M 1.5e10M]
+           :special [##Inf ##-Inf ##NaN]}
+
+ :strings ["Hello"
+           "Unicode: α β γ ∑ ∫ ∞"
+           "Escapes:\nNew line\tTab"]
+
+ :collections {:vector [1 2 3 4 5]
+               :list (a b c d e)
+               :set #{:red :green :blue}
+               :map {:a 1 :b 2 :c 3}}
+
+ :nested {:level1 {:level2 {:level3 {:level4 "deep value"}}}}
+
+ :users [{:name "Alice"
+          :age 30
+          :roles #{:admin :developer}}
+         {:name "Bob"
+          :age 25
+          :roles #{:developer}}]
+
+ :tagged {:instant #inst "2024-01-01T12:00:00Z"
+          :uuid #uuid "550e8400-e29b-41d4-a716-446655440000"
+          :custom #myapp/data {:id 123}}
+
+ :mixed-data [42
+              42N
+              3.14
+              3.14M
+              "string"
+              :keyword
+              symbol
+              true
+              nil
+              [1 2 3]
+              {:a 1 :b 2}
+              #{:x :y :z}]
+
+ :config {:database {:host "localhost"
+                     :port 5432
+                     :user "admin"}
+          :features #{:auth :logging :metrics}
+          :timeout 30}
+
+ :status :ready}

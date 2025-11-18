@@ -1,0 +1,369 @@
+{;; ==================================================
+ ;; SCALAR TYPES
+ ;; ==================================================
+
+ :scalars {;; Nil
+           :nil nil
+
+           ;; Booleans
+           :true true
+           :false false
+
+           ;; Numbers - Integers
+           :int-small 42
+           :int-negative -123
+           :int-zero 0
+           :int-max 9223372036854775807
+           :int-min -9223372036854775808
+
+           ;; Numbers - BigInt (N suffix for arbitrary precision)
+           :bigint-simple 42N
+           :bigint-large 12345678901234567890123456789N
+           :bigint-negative -999999999999999999999999N
+
+           ;; Numbers - Floats
+           :float-simple 3.14
+           :float-negative -0.5
+           :float-scientific 1.5e10
+           :float-exp-negative 2.5e-8
+           :float-special ##Inf
+           :float-neg-inf ##-Inf
+           :float-nan ##NaN
+
+           ;; Numbers - BigDecimal (M suffix for exact precision)
+           :bigdec-from-int 42M
+           :bigdec-from-float 3.14159265358979323846M
+           :bigdec-negative -123.456M
+           :bigdec-scientific 1.5e10M
+
+           ;; Numbers - Radix notation
+           :hex 0xDEADBEEF
+           :octal 0755
+           :binary 2r1010
+           :base36 36rZZZ
+
+           ;; Characters
+           :char-letter \a
+           :char-unicode \u03B1
+           :char-newline \newline
+           :char-tab \tab
+           :char-space \space
+           :char-return \return
+
+           ;; Strings
+           :string-simple "Hello, EDN!"
+           :string-unicode "Greek: α β γ, Math: ∑ ∫ ∞"
+           :string-escapes "Line 1\nLine 2\tTabbed\r\nWindows line"
+           :string-quotes "She said \"Hello!\""
+           :string-backslash "Path: C:\\Users\\file.txt"
+           :string-empty ""
+
+           ;; Keywords
+           :keyword-simple :simple
+           :keyword-namespaced :namespace/name
+           :keyword-special :foo-bar_baz
+
+           ;; Symbols
+           :symbol-simple foo
+           :symbol-namespaced clojure.core/map
+           :symbol-special foo-bar_baz*!?}
+
+;; ==================================================
+ ;; COLLECTIONS
+ ;; ==================================================
+
+ :collections { ;; Lists - ()
+               :list-empty ()
+               :list-numbers (1 2 3 4 5)
+               :list-mixed (1 "two" :three true nil)
+               :list-nested ((1 2) (3 4) (5 6))
+
+               ;; Vectors - []
+               :vector-empty []
+               :vector-numbers [1 2 3 4 5]
+               :vector-mixed [1 "two" :three true nil]
+               :vector-nested [[1 2] [3 4] [5 6]]
+               :vector-large [1 2 3 4 5 6 7 8 9 10
+                              11 12 13 14 15 16 17 18 19 20]
+
+               ;; Maps - {}
+               :map-empty {}
+               :map-simple {:a 1 :b 2 :c 3}
+               :map-nested {:outer {:inner {:deep :value}}}
+               :map-mixed-keys {1 "one"
+                                "two" 2
+                                :three 3
+                                true "yes"
+                                nil "nothing"
+                                #file "/tmp/file" "tagged"}
+               :map-collection-keys {{} "empty map"
+                                     {:foo 1} "any map"
+                                     [] "empty vector"
+                                     [1 2 3] "any vector"
+                                     () "empty list"
+                                     (1 2 3) "any list"
+                                     #{} "empty set"
+                                     #{1 2 3} "any set"}
+
+               ;; Sets - #{}
+               :set-empty #{}
+               :set-numbers #{1 2 3 4 5}
+               :set-keywords #{:red :green :blue}
+               :set-mixed #{1 "two" :three true}}
+
+;; ==================================================
+ ;; NESTED STRUCTURES
+ ;; ==================================================
+
+ :nested {;; Realistic data structure
+          :users [{:id 1
+                   :name "Alice"
+                   :email "alice@example.com"
+                   :roles #{:admin :developer}
+                   :metadata {:created "2024-01-01"
+                              :verified true}}
+                  {:id 2
+                   :name "Bob"
+                   :email "bob@example.com"
+                   :roles #{:developer}
+                   :metadata {:created "2024-01-15"
+                              :verified false}}]
+
+          ;; Configuration structure
+          :config {:database {:host "localhost"
+                              :port 5432
+                              :credentials {:user "admin"
+                                            :pass "secret"}}
+                   :cache {:enabled true
+                           :ttl 3600
+                           :backends [:redis :memcached]}
+                   :features #{:auth :logging :metrics}}
+
+          ;; Tree structure
+          :tree {:value "root"
+                 :children [{:value "child1"
+                             :children [{:value "grandchild1"}
+                                        {:value "grandchild2"}]}
+                            {:value "child2"
+                             :children [{:value "grandchild3"}]}]}}
+
+;; ==================================================
+ ;; TAGGED LITERALS
+ ;; ==================================================
+
+ :tagged {;; Standard tags (returned as tagged literals)
+          :instant #inst "2024-01-01T12:00:00.000Z"
+          :uuid #uuid "550e8400-e29b-41d4-a716-446655440000"
+
+          ;; Custom tags
+          :custom-simple #myapp/user {:id 123 :name "Alice"}
+          :custom-nested #myapp/config {:db #myapp/connection "localhost:5432"}
+          :custom-namespaced #com.example.app/data [1 2 3]}
+
+;; ==================================================
+ ;; DISCARD READER MACRO
+ ;; ==================================================
+
+ :discard-examples {;; Single discard
+                    :kept 1
+                    #_:discarded
+                    :also-kept 2
+
+                    ;; Discard value
+                    :value #_999 42
+
+                    ;; Discard in collection
+                    :vector [1 #_2 3 #_4 5]
+                    :map {:a 1 #_:b #_2 :c 3}
+
+                    ;; Nested discard
+                    :nested #_#_:first :second :third}
+
+;; ==================================================
+ ;; EDGE CASES & SPECIAL VALUES
+ ;; ==================================================
+
+ :edge-cases {;; Numbers at boundaries
+              :zero 0
+              :negative-zero -0
+              :one 1
+              :minus-one -1
+
+              ;; Empty collections
+              :empties [() [] {} #{}]
+
+              ;; Single element collections
+              :singles [(1) [2] {:a 3} #{4}]
+
+              ;; Deeply nested
+              :deep [[[[[[[[[[42]]]]]]]]]]
+
+              ;; Long strings
+              :long-string "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+
+              ;; All number types together
+              :all-numbers [42           ;; int64
+                            42N          ;; BigInt
+                            3.14         ;; float
+                            3.14M        ;; BigDecimal
+                            0xCAFE       ;; hex
+                            0777         ;; octal
+                            2r1111       ;; binary
+                            36rZZZ]      ;; base-36
+              }
+
+ ;; ==================================================
+ ;; WHITESPACE VARIATIONS
+ ;; ==================================================
+
+ :whitespace {;; Compact
+              :compact {:a 1,:b 2,:c 3}
+
+              ;; Spaced
+              :spaced {:a 1 , :b 2 , :c 3}
+
+              ;; Multi-line
+              :multiline {:key1 "value1"
+                          :key2 "value2"
+                          :key3 "value3"}
+
+              ;; Irregular spacing
+              :irregular [1  2   3    4     5]}
+
+;; ==================================================
+ ;; COMMENTS
+ ;; ==================================================
+
+ :with-comments {;; This is a comment
+                 :key1 "value1" ;; inline comment
+
+                 ; Single semicolon works too
+                 :key2 "value2"
+
+                 ;; Multi-line comment block:
+                 ;; Line 1
+                 ;; Line 2
+                 ;; Line 3
+                 :key3 "value3"}
+
+;; ==================================================
+ ;; REAL-WORLD EXAMPLES
+ ;; ==================================================
+
+ :real-world {;; API Response
+              :api-response {:status 200
+                             :headers {:content-type "application/json"
+                                       :cache-control "no-cache"}
+                             :body {:data [{:id 1 :title "Post 1"}
+                                           {:id 2 :title "Post 2"}]
+                                    :meta {:total 2 :page 1}}}
+
+              ;; Database Record
+              :db-record {:table :users
+                          :action :insert
+                          :values {:username "alice"
+                                   :email "alice@example.com"
+                                   :created_at #inst "2024-01-01T00:00:00Z"
+                                   :balance 1000.50M  ;; Exact precision for money
+                                   :login_count 42N}} ;; Arbitrary precision counter
+
+              ;; Configuration File
+              :app-config {:name "MyApp"
+                           :version "1.0.0"
+                           :server {:host "0.0.0.0"
+                                    :port 8080
+                                    :workers 4}
+                           :database {:driver :postgresql
+                                      :connection-string "postgres://localhost/mydb"
+                                      :pool-size 10}
+                           :features #{:auth :api :websockets}
+                           :logging {:level :info
+                                     :outputs [:console :file]}}
+
+              ;; Game State
+              :game-state {:player {:name "Hero"
+                                    :health 100
+                                    :mana 50
+                                    :position [10 20]
+                                    :inventory #{:sword :shield :potion}}
+                           :enemies [{:type :goblin :health 30 :position [15 22]}
+                                     {:type :orc :health 80 :position [12 25]}]
+                           :world {:time 1230
+                                   :weather :sunny
+                                   :temperature 72.5}}}
+
+;; ==================================================
+ ;; UNICODE & INTERNATIONAL
+ ;; ==================================================
+
+ :unicode {:greek "Ελληνικά (Greek)"
+           :russian "Русский (Russian)"
+           :chinese "中文 (Chinese)"
+           :japanese "日本語 (Japanese)"
+           :arabic "العربية (Arabic)"
+           :emoji "🚀 🎉 💻 📊 ✨"
+           :math "∀x∈ℝ: x² ≥ 0"
+           :symbols "© ® ™ € £ ¥ § † ‡"}
+
+ ;; ==================================================
+ ;; Extra features
+ ;; ==================================================
+
+ :extra {:ratio [22/7 -355/113 3/6]
+         :with-meta ^{:doc "This is a test" :version 1} {:data "value"}
+         :nested-meta ^{:outer true} ^{:inner true :outer false} [1 2 3]
+         :meta-shorthands {:tag ^com.foo/Foo my.namespace/function
+                           :param-tags ^[Foo param _] #{1 2 3}
+                           :boolean ^:disabled {:x 1}}}
+
+ ;; ==================================================
+ ;; PERFORMANCE TEST DATA
+ ;; ==================================================
+
+ :performance {;; Large vector
+               :large-vector [1 2 3 4 5 6 7 8 9 10
+                              11 12 13 14 15 16 17 18 19 20
+                              21 22 23 24 25 26 27 28 29 30
+                              31 32 33 34 35 36 37 38 39 40
+                              41 42 43 44 45 46 47 48 49 50]
+
+               ;; Large map
+               :large-map {:k1 1 :k2 2 :k3 3 :k4 4 :k5 5
+                           :k6 6 :k7 7 :k8 8 :k9 9 :k10 10
+                           :k11 11 :k12 12 :k13 13 :k14 14 :k15 15
+                           :k16 16 :k17 17 :k18 18 :k19 19 :k20 20}
+
+               ;; Repeated structure
+               :repeated [{:id 1 :value "a"}
+                          {:id 2 :value "b"}
+                          {:id 3 :value "c"}
+                          {:id 4 :value "d"}
+                          {:id 5 :value "e"}
+                          {:id 6 :value "f"}
+                          {:id 7 :value "g"}
+                          {:id 8 :value "h"}
+                          {:id 9 :value "i"}
+                          {:id 10 :value "j"}]}
+
+;; ==================================================
+ ;; SUMMARY
+ ;; ==================================================
+
+ :summary {:total-features 15
+           :feature-list #{:scalars
+                           :collections
+                           :nesting
+                           :tagged-literals
+                           :discard-macro
+                           :comments
+                           :unicode
+                           :bigint-suffix
+                           :bigdec-suffix
+                           :radix-notation
+                           :symbolic-values
+                           :whitespace-handling
+                           :zero-copy-strings
+                           :arena-allocation
+                           :simd-acceleration}
+           :parser-name "EDN.C"
+           :status :feature-complete}}

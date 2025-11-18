@@ -22,20 +22,20 @@
 static void print_character(const char* description, const char* input) {
     printf("\n%s\n", description);
     printf("  Input:  %s\n", input);
-    
+
     edn_result_t result = edn_parse(input, 0);
-    
+
     if (result.error != EDN_OK) {
         printf("  Error:  %s\n", result.error_message);
         return;
     }
-    
+
     if (edn_type(result.value) == EDN_TYPE_CHARACTER) {
         uint32_t codepoint;
         if (edn_character_get(result.value, &codepoint)) {
             printf("  Result: U+%04X (decimal: %u)\n", codepoint, codepoint);
             if (codepoint >= 32 && codepoint < 127) {
-                printf("  ASCII:  '%c'\n", (char)codepoint);
+                printf("  ASCII:  '%c'\n", (char) codepoint);
             }
         }
     } else if (edn_type(result.value) == EDN_TYPE_VECTOR) {
@@ -46,25 +46,25 @@ static void print_character(const char* description, const char* input) {
             uint32_t codepoint;
             if (edn_character_get(elem, &codepoint)) {
                 if (codepoint >= 32 && codepoint < 127) {
-                    printf("    [%zu] U+%04X '%c'\n", i, codepoint, (char)codepoint);
+                    printf("    [%zu] U+%04X '%c'\n", i, codepoint, (char) codepoint);
                 } else {
                     printf("    [%zu] U+%04X\n", i, codepoint);
                 }
             }
         }
     }
-    
+
     edn_free(result.value);
 }
 
 int main(void) {
     printf("EDN.C Extended Character Literals Example\n");
     printf("==========================================\n");
-    
+
     printf("\n--- Extended Named Characters ---\n");
     print_character("Formfeed character:", "\\formfeed");
     print_character("Backspace character:", "\\backspace");
-    
+
     printf("\n--- Octal Escape Sequences ---\n");
     print_character("Single digit octal (\\o7 - bell):", "\\o7");
     print_character("Two digit octal (\\o12 - line feed):", "\\o12");
@@ -72,15 +72,15 @@ int main(void) {
     print_character("Three digit octal (\\o141 - 'a'):", "\\o141");
     print_character("Maximum octal (\\o377 - 255):", "\\o377");
     print_character("Octal zero (\\o0 - null):", "\\o0");
-    
+
     printf("\n--- In Collections ---\n");
     print_character("Octal characters in vector:", "[\\o101 \\o102 \\o103]");
     print_character("Mixed character types:", "[\\a \\o101 \\u0041 \\formfeed]");
-    
+
     printf("\n--- Practical Examples ---\n");
     print_character("Control characters for terminal:", "[\\o33 \\o133 \\o61 \\o155]");
     print_character("ASCII digits via octal:", "[\\o60 \\o61 \\o62 \\o63 \\o64]");
-    
+
     return 0;
 }
 
