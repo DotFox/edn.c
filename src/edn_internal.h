@@ -363,4 +363,9 @@ edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser);
 edn_value_t* edn_parse_metadata(edn_parser_t* parser);
 #endif
 
+/* Text block parser (experimental, requires EDN_ENABLE_TEXT_BLOCKS) */
+#ifdef EDN_ENABLE_TEXT_BLOCKS
+edn_value_t* edn_parse_text_block(edn_parser_t* parser);
+#endif
+
 #endif /* EDN_INTERNAL_H */

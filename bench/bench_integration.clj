@@ -2,6 +2,7 @@
   (:require
    [clojure.edn :as clojure-edn]
    [clojure.java.io :as io]
+   [criterium.core :refer [quick-benchmark]]
    [fast-edn.core :as fast-edn]))
 
 (defn read-file-str [path]
@@ -16,51 +17,37 @@
     (>= bytes 1024) (format "%.1f KB" (/ bytes 1024.0))
     :else (format "%d bytes" bytes)))
 
-(defn bench-parse [parser-fn data size _]
-  (let [warmup-iterations 3
-        min-duration-ms 500
-        min-iterations 1000]
-    
-    ;; Warmup
-    (dotimes [_ warmup-iterations]
-      (parser-fn data))
-    
-    ;; Benchmark loop
-    (let [start-time (System/nanoTime)
-          target-ns (* min-duration-ms 1000000)]
-      (loop [iterations 0
-             elapsed 0]
-        (if (and (>= elapsed target-ns) (>= iterations min-iterations))
-          ;; Done - calculate results
-          (let [mean-us (/ elapsed iterations 1000.0)
-                total-ms (/ elapsed 1000000.0)
-                total-bytes (* iterations size)
-                time-seconds (/ elapsed 1e9)
-                throughput-gbps (/ total-bytes time-seconds 1024.0 1024.0 1024.0)]
-            {:iterations iterations
-             :total-ms total-ms
-             :mean-us mean-us
-             :throughput-gbps throughput-gbps
-             :size size})
-          ;; Continue benchmarking
-          (do
-            (parser-fn data)
-            (let [now (System/nanoTime)
-                  new-elapsed (- now start-time)]
-              (recur (inc iterations) new-elapsed))))))))
+(defn bench-parse [parser-fn data size]
+  (let [results (quick-benchmark (parser-fn data) {})
+        mean-s (first (:mean results))
+        mean-us (* mean-s 1e6)
+        stddev-us (* (Math/sqrt (first (:variance results))) 1e6)
+        sample-count (:sample-count results)
+        execution-count (:execution-count results)
+        total-samples (* sample-count execution-count)
+        ;; Calculate throughput
+        throughput-gbps (/ size mean-s 1024.0 1024.0 1024.0)]
+
+    {:iterations total-samples
+     :total-ms (* (:total-time results) 1e3)
+     :mean-us mean-us
+     :stddev-us stddev-us
+     :throughput-gbps throughput-gbps
+     :size size}))
 
 (defn print-header []
-  (println (format "%-25s %14s  %8s  %10s  %10s  %s"
-                   "Benchmark" "Iterations" "Total" "Mean" "Throughput" "Size"))
-  (println (format "%-25s %14s  %8s  %10s  %10s  %s"
-                   "---------" "----------" "-----" "----" "----------" "----")))
+  (println (format "%-25s %14s  %10s  %20s  %10s  %s"
+                   "Benchmark" "Iterations" "Total (ms)" "Mean (μs)" "Throughput" "Size"))
+  (println (format "%-25s %14s  %10s  %20s  %10s  %s"
+                   "---------" "----------" "----------" "---------" "----------" "----")))
 
 (defn print-result [description result]
-  (printf "%-25s %,14d  %8.2f  %10.3f  %10.3f  (%d bytes)\n"
+  (printf "%-25s %,14d  %10.2f  %10.3f ± %-7.3f  %5.3f GB/s  (%d bytes)\n"
           description
           (:iterations result)
           (:total-ms result)
           (:mean-us result)
+          (:stddev-us result)
           (:throughput-gbps result)
           (:size result))
   (flush))
@@ -71,7 +58,7 @@
         size (file-size path)
         full-desc (str description " (" (format-size size) ")")]
     (try
-      (let [result (bench-parse parser-fn data size full-desc)]
+      (let [result (bench-parse parser-fn data size)]
         (print-result full-desc result))
       (catch Exception e
         (printf "%-40s FAILED (%s)\n" full-desc (.getMessage e))
@@ -113,9 +100,6 @@
   
   (println)
   (println "Notes:")
-  (println "  - Throughput includes only parsing (no explicit freeing)")
-  (println "  - Each benchmark runs for minimum 500ms or 1000 iterations")
-  (println "  - Warmup: 3 iterations before measurement")
   (println "  - GB/s calculated as: (iterations × file_size) / time / 1024³"))
 
 (defn -main [& _]

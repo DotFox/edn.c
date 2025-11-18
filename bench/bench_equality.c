@@ -12,7 +12,7 @@
 #include "bench_framework.h"
 
 /* Benchmark: String equality without escapes */
-static int bench_string_equality_simple(const char* input, size_t size) {
+static void* bench_string_equality_simple(const char* input, size_t size) {
     (void) size;
 
     /* Parse two identical strings */
@@ -22,7 +22,7 @@ static int bench_string_equality_simple(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     /* Compare them (should be equal, no decoding needed) */
@@ -31,11 +31,11 @@ static int bench_string_equality_simple(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return equal ? 1 : 0;
+    return (void*) (uintptr_t) (equal ? 1 : 0);
 }
 
 /* Benchmark: String equality with escapes */
-static int bench_string_equality_escaped(const char* input, size_t size) {
+static void* bench_string_equality_escaped(const char* input, size_t size) {
     (void) size;
 
     /* Parse two identical strings with escapes */
@@ -45,7 +45,7 @@ static int bench_string_equality_escaped(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     /* Compare them (should be equal, no decoding needed) */
@@ -54,11 +54,11 @@ static int bench_string_equality_escaped(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return equal ? 1 : 0;
+    return (void*) (uintptr_t) (equal ? 1 : 0);
 }
 
 /* Benchmark: String inequality (different lengths) */
-static int bench_string_inequality_length(const char* input, size_t size) {
+static void* bench_string_inequality_length(const char* input, size_t size) {
     (void) input;
     (void) size;
 
@@ -72,7 +72,7 @@ static int bench_string_inequality_length(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     /* Compare them (should be unequal, fast path on length) */
@@ -81,11 +81,11 @@ static int bench_string_inequality_length(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return !equal ? 1 : 0;
+    return (void*) (uintptr_t) (!equal ? 1 : 0);
 }
 
 /* Benchmark: String inequality (same length, different content) */
-static int bench_string_inequality_content(const char* input, size_t size) {
+static void* bench_string_inequality_content(const char* input, size_t size) {
     (void) input;
     (void) size;
 
@@ -99,7 +99,7 @@ static int bench_string_inequality_content(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     /* Compare them (should be unequal, memcmp detects) */
@@ -108,11 +108,11 @@ static int bench_string_inequality_content(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return !equal ? 1 : 0;
+    return (void*) (uintptr_t) (!equal ? 1 : 0);
 }
 
 /* Benchmark: Integer equality */
-static int bench_int_equality(const char* input, size_t size) {
+static void* bench_int_equality(const char* input, size_t size) {
     (void) input;
     (void) size;
 
@@ -124,7 +124,7 @@ static int bench_int_equality(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     bool equal = edn_value_equal(res_a.value, res_b.value);
@@ -132,11 +132,11 @@ static int bench_int_equality(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return equal ? 1 : 0;
+    return (void*) (uintptr_t) (equal ? 1 : 0);
 }
 
 /* Benchmark: Map equality (small) */
-static int bench_map_equality_small(const char* input, size_t size) {
+static void* bench_map_equality_small(const char* input, size_t size) {
     (void) size;
 
     edn_result_t res_a = edn_parse(input, strlen(input));
@@ -145,7 +145,7 @@ static int bench_map_equality_small(const char* input, size_t size) {
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
         edn_free(res_b.value);
-        return 0;
+        return NULL;
     }
 
     bool equal = edn_value_equal(res_a.value, res_b.value);
@@ -153,7 +153,7 @@ static int bench_map_equality_small(const char* input, size_t size) {
     edn_free(res_a.value);
     edn_free(res_b.value);
 
-    return equal ? 1 : 0;
+    return (void*) (uintptr_t) (equal ? 1 : 0);
 }
 
 int main(void) {
@@ -165,28 +165,28 @@ int main(void) {
 
     printf("\n--- String Equality (No Decoding) ---\n");
     bench_result_t r1 = bench_run("Simple string", simple_string, strlen(simple_string), 100, 100,
-                                  bench_string_equality_simple);
+                                  bench_string_equality_simple, NULL, 0);
     bench_print_result("Simple string (\"hello world\")", r1);
 
     bench_result_t r2 = bench_run("Escaped string", escaped_string, strlen(escaped_string), 100,
-                                  100, bench_string_equality_escaped);
+                                  100, bench_string_equality_escaped, NULL, 0);
     bench_print_result("Escaped string (with \\n \\t)", r2);
 
     printf("\n--- String Inequality (Fast Paths) ---\n");
     bench_result_t r3 =
-        bench_run("Different length", "", 0, 100, 100, bench_string_inequality_length);
+        bench_run("Different length", "", 0, 100, 100, bench_string_inequality_length, NULL, 0);
     bench_print_result("Different length (fast path)", r3);
 
     bench_result_t r4 =
-        bench_run("Different content", "", 0, 100, 100, bench_string_inequality_content);
+        bench_run("Different content", "", 0, 100, 100, bench_string_inequality_content, NULL, 0);
     bench_print_result("Same length, diff content", r4);
 
     printf("\n--- Other Types ---\n");
-    bench_result_t r5 = bench_run("Integer", "", 0, 100, 100, bench_int_equality);
+    bench_result_t r5 = bench_run("Integer", "", 0, 100, 100, bench_int_equality, NULL, 0);
     bench_print_result("Integer equality (42)", r5);
 
-    bench_result_t r6 =
-        bench_run("Small map", small_map, strlen(small_map), 100, 10, bench_map_equality_small);
+    bench_result_t r6 = bench_run("Small map", small_map, strlen(small_map), 100, 10,
+                                  bench_map_equality_small, NULL, 0);
     bench_print_result("Small map equality", r6);
 
     printf("\nSummary:\n");

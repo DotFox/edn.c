@@ -30,6 +30,13 @@ else
     ARCH = generic
 endif
 
+# Platform-specific libraries
+ifeq ($(UNAME_S),Linux)
+    LDLIBS = -lm
+else
+    LDLIBS =
+endif
+
 # Debug build
 DEBUG ?= 0
 ifeq ($(DEBUG),1)
@@ -58,6 +65,12 @@ ifeq ($(METADATA),1)
     CFLAGS += -DEDN_ENABLE_METADATA
 endif
 
+# Text block parsing (experimental feature, disabled by default)
+TEXT_BLOCKS ?= 0
+ifeq ($(TEXT_BLOCKS),1)
+    CFLAGS += -DEDN_ENABLE_TEXT_BLOCKS
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -67,7 +80,7 @@ else
 endif
 
 # Source files
-SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c
+SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c src/text_block.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -115,7 +128,7 @@ test: $(TEST_BINS)
 # Build individual test
 test/%: test/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Build and run quick benchmark
 .PHONY: bench
@@ -146,12 +159,12 @@ bench-build: $(BENCH_BINS)
 
 bench/%: bench/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Build examples
 examples/%: examples/%.c $(LIB)
 	@echo "  CC      $@"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) -o $@
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Debug build
 .PHONY: debug
@@ -233,6 +246,7 @@ help:
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
+	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"...\"\"\" blocks)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 
 .DEFAULT_GOAL := all

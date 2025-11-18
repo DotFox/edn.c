@@ -376,6 +376,14 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
 };
 
 static edn_value_t* parse_string_value(edn_parser_t* parser) {
+#ifdef EDN_ENABLE_TEXT_BLOCKS
+    /* Check for text block pattern: """\n */
+    if (parser->current + 3 < parser->end && parser->current[0] == '"' &&
+        parser->current[1] == '"' && parser->current[2] == '"' && parser->current[3] == '\n') {
+        return edn_parse_text_block(parser);
+    }
+#endif
+
     edn_string_scan_t scan = edn_parse_string_lazy(parser->current, parser->end);
 
     if (!scan.valid) {

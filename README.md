@@ -18,6 +18,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **🗺️ Map Namespace Syntax**: Clojure-compatible `#:ns{...}` syntax (optional, disabled by default)
 - **🔤 Extended Characters**: `\formfeed`, `\backspace`, and octal `\oNNN` literals (optional, disabled by default)
 - **📝 Metadata**: Clojure-style metadata `^{...}` syntax (optional, disabled by default)
+- **📄 Text Blocks**: Java-style multi-line text blocks `"""\n...\n"""` (experimental, disabled by default)
 
 ## Table of Contents
 
@@ -34,6 +35,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Map Namespace Syntax](#map-namespace-syntax)
   - [Extended Character Literals](#extended-character-literals)
   - [Metadata](#metadata)
+  - [Text Blocks](#text-blocks)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -952,6 +954,110 @@ When disabled (default):
 
 See `examples/example_metadata.c` for more details.
 
+### Text Blocks
+
+**Experimental feature** that adds Java-style multi-line text blocks with automatic indentation stripping to EDN. Requires `EDN_ENABLE_TEXT_BLOCKS` compilation flag (disabled by default).
+
+Text blocks start with three double quotes followed by a newline (`"""\n`) and end with three double quotes (`"""`):
+
+```edn
+{:query """
+    SELECT *
+      FROM users
+    WHERE age > 21
+    """}
+```
+
+**Features:**
+- Automatic indentation stripping (common leading whitespace removed)
+- Closing `"""` position determines base indentation level
+- Closing on own line adds trailing newline, on same line doesn't
+- Trailing whitespace automatically removed from each line
+- Minimal escaping: only `\"""` to include literal triple quotes
+- Returns standard EDN string (no special type needed)
+
+**Example:**
+```c
+#include "edn.h"
+#include <stdio.h>
+
+int main(void) {
+    const char* input =
+        "{:sql \"\"\"\n"
+        "       SELECT * FROM users\n"
+        "       WHERE age > 21\n"
+        "       ORDER BY name\n"
+        "       \"\"\""}";
+
+    edn_result_t result = edn_parse(input, 0);
+
+    if (result.error == EDN_OK) {
+        edn_result_t key = edn_parse(":sql", 0);
+        edn_value_t* val = edn_map_lookup(result.value, key.value);
+
+        // Text block returns a regular string with indentation stripped
+        size_t len;
+        const char* sql = edn_string_get(val, &len);
+        printf("%s\n", sql);
+        // Output:
+        // SELECT * FROM users
+        // WHERE age > 21
+        // ORDER BY name
+
+        edn_free(key.value);
+        edn_free(result.value);
+    }
+
+    return 0;
+}
+```
+
+**Indentation Rules (Java JEP 378)**:
+1. Find minimum indentation across all non-blank lines
+2. Closing `"""` position also determines indentation
+3. Strip that amount from each line
+4. If closing `"""` is on its own line, add trailing `\n`
+
+```edn
+{:foo """
+        line1
+       line2
+      line3
+      """}
+```
+Result: `{:foo "  line1\n line2\nline3\n"}` (min indent 6, trailing newline added)
+
+```edn
+{:foo """
+        line1
+       line2
+      line3"""}
+```
+Result: `{:foo "  line1\n line2\nline3"}` (min indent 6, no trailing newline)
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make TEXT_BLOCKS=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_TEXT_BLOCKS=ON ..
+make
+```
+
+When disabled (default):
+- `"""\n` pattern is parsed as a regular string
+- No automatic indentation processing
+
+**Note:** Text blocks are an experimental feature and not part of the official EDN specification.
+
+See `examples/example_text_block.c` for more examples.
+
 ## Examples
 
 ### Complete Working Example
@@ -1189,8 +1295,6 @@ See `bench/` directory for detailed benchmarking tools and results.
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
   - ratio numbers ("1/2" => 0.5)
   - octal escape ("\"\\176\"" => "~")
-- Extra-extra features (EXPERIMENTAL!):
-  - support text blocks for raw multiline strings
 
 ## Contributing
 
