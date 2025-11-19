@@ -2,7 +2,7 @@
 
 A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD acceleration.
 
-[![CI](https://github.com/DeLaGuardo/edn.c/workflows/CI/badge.svg)](https://github.com/DeLaGuardo/edn.c/actions/workflows/ci.yml)
+[![CI](https://github.com/DotFox/edn.c/workflows/CI/badge.svg)](https://github.com/DotFox/edn.c/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
