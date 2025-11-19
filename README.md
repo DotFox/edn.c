@@ -1475,9 +1475,6 @@ See `bench/` directory for detailed benchmarking tools and results.
   - WebAssembly SIMD128 `__wasm__, __wasm32__, __wasm64__. uses <wasm_simd128.h>`
   - RISC-V Vector Extension (RVV) `__riscv, __riscv_vector. uses <riscv_vector.h>`
 - Extra features:
-  - octal number notation ("0713" => 459)
-  - hexadecimal number notation ("0xFF" => 255)
-  - radix number notation ("2r1111" => 15, "36rabcxyz" => 623741435)
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
   - octal escape ("\"\\176\"" => "~")
 

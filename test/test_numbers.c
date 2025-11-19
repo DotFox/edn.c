@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "../include/edn.h"
@@ -530,6 +531,463 @@ TEST(api_parse_bigdec_suffix_in_collection) {
     edn_free(r.value);
 }
 
+/* Comprehensive edn_parse tests for all number forms */
+
+/* Test decimal integer parsing */
+TEST(edn_parse_decimal_int_simple) {
+    edn_result_t r = edn_parse("42", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 42);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_decimal_int_negative) {
+    edn_result_t r = edn_parse("-123", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -123);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_decimal_int_zero) {
+    edn_result_t r = edn_parse("0", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 0);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_decimal_int_large) {
+    edn_result_t r = edn_parse("9876543210", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 9876543210LL);
+
+    edn_free(r.value);
+}
+
+/* Test hexadecimal parsing */
+TEST(edn_parse_hex_lowercase_x) {
+    edn_result_t r = edn_parse("0x2A", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 42);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_hex_uppercase_X) {
+    edn_result_t r = edn_parse("0XFF", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 255);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_hex_mixed_case) {
+    edn_result_t r = edn_parse("0xDeAdBeEf", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 0xDEADBEEF);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_hex_negative) {
+    edn_result_t r = edn_parse("-0x10", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -16);
+
+    edn_free(r.value);
+}
+
+/* Test octal parsing */
+TEST(edn_parse_octal_simple) {
+    edn_result_t r = edn_parse("0777", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 511); /* 7*64 + 7*8 + 7 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_octal_small) {
+    edn_result_t r = edn_parse("052", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 42); /* 5*8 + 2 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_octal_negative) {
+    edn_result_t r = edn_parse("-0123", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -83); /* -(1*64 + 2*8 + 3) */
+
+    edn_free(r.value);
+}
+
+/* Test binary (radix notation) */
+TEST(edn_parse_binary_simple) {
+    edn_result_t r = edn_parse("2r1010", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 10); /* 1*8 + 0*4 + 1*2 + 0 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_binary_negative) {
+    edn_result_t r = edn_parse("-2r1111", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -15);
+
+    edn_free(r.value);
+}
+
+/* Test arbitrary radix notation */
+TEST(edn_parse_radix_base8) {
+    edn_result_t r = edn_parse("8r77", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 63); /* 7*8 + 7 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_base16) {
+    edn_result_t r = edn_parse("16rFF", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 255);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_base36) {
+    edn_result_t r = edn_parse("36rZZ", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 1295); /* 35*36 + 35 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_negative) {
+    edn_result_t r = edn_parse("-36rABC", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -13368); /* -(10*36*36 + 11*36 + 12) */
+
+    edn_free(r.value);
+}
+
+/* Test floating point parsing */
+TEST(edn_parse_float_simple) {
+    edn_result_t r = edn_parse("3.14", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 3.14) < 0.0001);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_float_negative) {
+    edn_result_t r = edn_parse("-2.5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - (-2.5)) < 0.0001);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_float_leading_zero) {
+    edn_result_t r = edn_parse("0.5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 0.5) < 0.0001);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_float_no_leading_zero) {
+    /* EDN does not support numbers starting with '.' - this should parse as symbol */
+    edn_result_t r = edn_parse(".5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_SYMBOL);
+
+    edn_free(r.value);
+}
+
+/* Test scientific notation parsing */
+TEST(edn_parse_scientific_positive_exp) {
+    edn_result_t r = edn_parse("1.5e10", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 1.5e10) < 1e6);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_scientific_negative_exp) {
+    edn_result_t r = edn_parse("3e-5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 3e-5) < 1e-10);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_scientific_uppercase_E) {
+    edn_result_t r = edn_parse("2.5E3", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 2500.0) < 0.001);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_scientific_explicit_plus) {
+    edn_result_t r = edn_parse("1E+10", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 1e10) < 1e6);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_scientific_no_decimal) {
+    edn_result_t r = edn_parse("5e2", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT);
+
+    double val;
+    edn_double_get(r.value, &val);
+    assert(fabs(val - 500.0) < 0.001);
+
+    edn_free(r.value);
+}
+
+/* Test BigInt with N suffix */
+TEST(edn_parse_bigint_simple) {
+    edn_result_t r = edn_parse("42N", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGINT);
+
+    size_t length;
+    bool negative;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(r.value, &length, &negative, &radix);
+
+    assert(digits != NULL);
+    assert(negative == false);
+    assert(radix == 10);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_bigint_negative) {
+    edn_result_t r = edn_parse("-999N", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGINT);
+
+    size_t length;
+    bool negative;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(r.value, &length, &negative, &radix);
+
+    assert(digits != NULL);
+    assert(negative == true);
+    assert(radix == 10);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_bigint_very_large) {
+    edn_result_t r = edn_parse("12345678901234567890N", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGINT);
+
+    size_t length;
+    bool negative;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(r.value, &length, &negative, &radix);
+
+    assert(digits != NULL);
+    assert(negative == false);
+    assert(radix == 10);
+
+    edn_free(r.value);
+}
+
+/* Test BigDecimal with M suffix */
+TEST(edn_parse_bigdec_simple) {
+    edn_result_t r = edn_parse("3.14M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(r.value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(negative == false);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_bigdec_negative) {
+    edn_result_t r = edn_parse("-123.456M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(r.value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(negative == true);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_bigdec_with_exponent) {
+    edn_result_t r = edn_parse("1.5e10M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_bigdec_integer_with_M) {
+    edn_result_t r = edn_parse("42M", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
+
+    size_t length;
+    bool negative;
+    const char* decimal = edn_bigdec_get(r.value, &length, &negative);
+
+    assert(decimal != NULL);
+    assert(negative == false);
+
+    edn_free(r.value);
+}
+
 #ifdef EDN_ENABLE_RATIO
 
 TEST(api_ratio_get) {
@@ -1011,6 +1469,58 @@ int main(void) {
     /* Test that ratio syntax is rejected when disabled */
     run_test_api_parse_ratio_disabled();
 #endif
+
+    /* Comprehensive edn_parse tests for all number forms */
+    /* Decimal integers */
+    run_test_edn_parse_decimal_int_simple();
+    run_test_edn_parse_decimal_int_negative();
+    run_test_edn_parse_decimal_int_zero();
+    run_test_edn_parse_decimal_int_large();
+
+    /* Hexadecimal */
+    run_test_edn_parse_hex_lowercase_x();
+    run_test_edn_parse_hex_uppercase_X();
+    run_test_edn_parse_hex_mixed_case();
+    run_test_edn_parse_hex_negative();
+
+    /* Octal */
+    run_test_edn_parse_octal_simple();
+    run_test_edn_parse_octal_small();
+    run_test_edn_parse_octal_negative();
+
+    /* Binary (radix notation) */
+    run_test_edn_parse_binary_simple();
+    run_test_edn_parse_binary_negative();
+
+    /* Arbitrary radix */
+    run_test_edn_parse_radix_base8();
+    run_test_edn_parse_radix_base16();
+    run_test_edn_parse_radix_base36();
+    run_test_edn_parse_radix_negative();
+
+    /* Floating point */
+    run_test_edn_parse_float_simple();
+    run_test_edn_parse_float_negative();
+    run_test_edn_parse_float_leading_zero();
+    run_test_edn_parse_float_no_leading_zero();
+
+    /* Scientific notation */
+    run_test_edn_parse_scientific_positive_exp();
+    run_test_edn_parse_scientific_negative_exp();
+    run_test_edn_parse_scientific_uppercase_E();
+    run_test_edn_parse_scientific_explicit_plus();
+    run_test_edn_parse_scientific_no_decimal();
+
+    /* BigInt with N suffix */
+    run_test_edn_parse_bigint_simple();
+    run_test_edn_parse_bigint_negative();
+    run_test_edn_parse_bigint_very_large();
+
+    /* BigDecimal with M suffix */
+    run_test_edn_parse_bigdec_simple();
+    run_test_edn_parse_bigdec_negative();
+    run_test_edn_parse_bigdec_with_exponent();
+    run_test_edn_parse_bigdec_integer_with_M();
 
     TEST_SUMMARY("number parsing");
 }
