@@ -19,6 +19,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **🔤 Extended Characters**: `\formfeed`, `\backspace`, and octal `\oNNN` literals (optional, disabled by default)
 - **📝 Metadata**: Clojure-style metadata `^{...}` syntax (optional, disabled by default)
 - **📄 Text Blocks**: Java-style multi-line text blocks `"""\n...\n"""` (experimental, disabled by default)
+- **🔢 Ratio Numbers**: Clojure-compatible ratio literals `22/7` (optional, disabled by default)
 
 ## Table of Contents
 
@@ -36,6 +37,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Extended Character Literals](#extended-character-literals)
   - [Metadata](#metadata)
   - [Text Blocks](#text-blocks)
+  - [Ratio Numbers](#ratio-numbers)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -263,6 +265,7 @@ edn_type_t edn_type(const edn_value_t *value);
 - `EDN_TYPE_BIGINT` (arbitrary precision integer)
 - `EDN_TYPE_FLOAT` (double)
 - `EDN_TYPE_BIGDEC` (exact precision decimal)
+- `EDN_TYPE_RATIO` (rational number, requires `RATIO=1` build flag)
 - `EDN_TYPE_CHARACTER` (Unicode codepoint)
 - `EDN_TYPE_STRING`
 - `EDN_TYPE_SYMBOL`
@@ -438,6 +441,122 @@ decimal = edn_bigdec_get(r2.value, &len, &neg);
 // decimal = "42", application can convert to BigDecimal
 edn_free(r2.value);
 ```
+
+#### Ratio Numbers
+
+```c
+bool edn_ratio_get(const edn_value_t *value, int64_t *numerator, int64_t *denominator);
+```
+
+Get ratio numerator and denominator. Returns `true` if value is `EDN_TYPE_RATIO`, `false` otherwise.
+
+**Parameters:**
+- `value`: EDN ratio value
+- `numerator`: Output for numerator (may be NULL)
+- `denominator`: Output for denominator (may be NULL)
+
+**Returns:** `true` if value is a ratio, `false` otherwise.
+
+**Clojure Compatibility:** Ratios represent exact rational numbers as numerator/denominator pairs.
+- `22/7` → Ratio with numerator=22, denominator=7
+- `-3/4` → Ratio with numerator=-3, denominator=4 (negative numerator)
+- `1/2` → Ratio with numerator=1, denominator=2
+- `3/6` → Automatically reduced to ratio 1/2
+- `10/5` → Automatically reduced to integer 2 (ratios with denominator 1 become integers)
+- `0/5` → Returns integer 0 (zero numerator always becomes integer 0)
+
+**Automatic Reduction:**
+Ratios are automatically reduced to lowest terms using the Binary GCD algorithm (Stein's algorithm):
+- `6/9` → Reduced to `2/3`
+- `100/25` → Reduced to `4/1` → Returns as integer `4`
+
+**Restrictions:**
+- Only decimal (base-10) integers supported for both numerator and denominator
+- Both numerator and denominator must fit in `int64_t`
+- Denominator must be positive (negative denominators are rejected)
+- Denominator cannot be zero
+- No whitespace allowed around `/`
+- Hex, octal, binary notations not supported for ratios
+
+**Example:**
+```c
+// Parse ratio
+edn_result_t r = edn_parse("22/7", 0);
+
+if (r.error == EDN_OK && edn_type(r.value) == EDN_TYPE_RATIO) {
+    int64_t num, den;
+    edn_ratio_get(r.value, &num, &den);
+    printf("Ratio: %lld/%lld\n", (long long)num, (long long)den);
+    // Output: Ratio: 22/7
+
+    // Convert to double for approximation
+    double approx;
+    edn_number_as_double(r.value, &approx);
+    printf("Approximation: %.10f\n", approx);
+    // Output: Approximation: 3.1428571429
+}
+
+edn_free(r.value);
+
+// Automatic reduction
+edn_result_t r2 = edn_parse("3/6", 0);
+int64_t num2, den2;
+edn_ratio_get(r2.value, &num2, &den2);
+// num2 = 1, den2 = 2 (reduced from 3/6)
+edn_free(r2.value);
+
+// Reduction to integer
+edn_result_t r3 = edn_parse("10/5", 0);
+assert(edn_type(r3.value) == EDN_TYPE_INT);
+int64_t int_val;
+edn_int64_get(r3.value, &int_val);
+// int_val = 2 (10/5 reduced to 2/1, returned as integer)
+edn_free(r3.value);
+
+// Negative ratios
+edn_result_t r4 = edn_parse("-3/4", 0);
+int64_t num4, den4;
+edn_ratio_get(r4.value, &num4, &den4);
+// num4 = -3, den4 = 4 (numerator is negative, denominator is positive)
+edn_free(r4.value);
+
+// Error: zero denominator
+edn_result_t r5 = edn_parse("5/0", 0);
+// r5.error == EDN_ERROR_INVALID_NUMBER
+// r5.error_message == "Ratio denominator cannot be zero"
+
+// Error: negative denominator (denominators must be positive)
+edn_result_t r6 = edn_parse("3/-4", 0);
+// r6.error == EDN_ERROR_INVALID_NUMBER
+// r6.error_message == "Ratio denominator must be positive"
+
+// Error: hex not supported
+edn_result_t r7 = edn_parse("0x10/2", 0);
+// Parses 0x10 as int, not as ratio
+```
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make RATIO=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_RATIO=ON ..
+make
+```
+
+When disabled (default):
+- `EDN_TYPE_RATIO` enum value is not available
+- `edn_ratio_get()` function is not available
+
+**Note:** Ratios are a Clojure language feature, not part of the official EDN specification. They're provided here for compatibility with Clojure's clojure.edn parser.
+
+See `test/test_numbers.c` for comprehensive ratio test examples.
 
 #### Characters
 
@@ -1265,10 +1384,24 @@ For detailed Windows build instructions, see **[docs/WINDOWS.md](docs/WINDOWS.md
 
 ### Build Options
 
+**Standard options:**
 - `DEBUG=1` - Enable debug symbols, ASAN, and UBSAN
 - `SANITIZE=1` - Enable sanitizers without full debug build
 - `OPTIMIZE=0` - Disable optimizations
 - `VERBOSE=1` - Show full compiler commands
+
+**Optional EDN features (disabled by default):**
+- `MAP_NAMESPACE_SYNTAX=1` - Enable `#:ns{...}` map namespace syntax
+- `EXTENDED_CHARACTERS=1` - Enable `\formfeed`, `\backspace`, `\oNNN` octal escapes
+- `METADATA=1` - Enable Clojure-style metadata `^{...}` syntax
+- `TEXT_BLOCKS=1` - Enable Java-style text blocks `"""\n...\n"""`
+- `RATIO=1` - Enable ratio numbers `22/7`
+
+**Example:**
+```bash
+# Build with metadata and ratio support
+make METADATA=1 RATIO=1
+```
 
 ### Code Formatting
 
@@ -1346,7 +1479,6 @@ See `bench/` directory for detailed benchmarking tools and results.
   - hexadecimal number notation ("0xFF" => 255)
   - radix number notation ("2r1111" => 15, "36rabcxyz" => 623741435)
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
-  - ratio numbers ("1/2" => 0.5)
   - octal escape ("\"\\176\"" => "~")
 
 ## Contributing

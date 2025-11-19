@@ -111,6 +111,12 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             }
             return memcmp(a->as.bigdec.decimal, b->as.bigdec.decimal, a->as.bigdec.length) == 0;
 
+#ifdef EDN_ENABLE_RATIO
+        case EDN_TYPE_RATIO:
+            return a->as.ratio.numerator == b->as.ratio.numerator &&
+                   a->as.ratio.denominator == b->as.ratio.denominator;
+#endif
+
         case EDN_TYPE_CHARACTER:
             return a->as.character == b->as.character;
 
@@ -449,6 +455,20 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
                 hash *= FNV_PRIME;
             }
             break;
+
+#ifdef EDN_ENABLE_RATIO
+        case EDN_TYPE_RATIO: {
+            for (size_t i = 0; i < sizeof(int64_t); i++) {
+                hash ^= (value->as.ratio.numerator >> (i * 8)) & 0xFF;
+                hash *= FNV_PRIME;
+            }
+            for (size_t i = 0; i < sizeof(int64_t); i++) {
+                hash ^= (value->as.ratio.denominator >> (i * 8)) & 0xFF;
+                hash *= FNV_PRIME;
+            }
+            break;
+        }
+#endif
 
         case EDN_TYPE_CHARACTER:
             hash ^= value->as.character;

@@ -71,6 +71,12 @@ struct edn_value {
             size_t length;       /* Number of characters in decimal string */
             bool negative;       /* Sign bit */
         } bigdec;
+#ifdef EDN_ENABLE_RATIO
+        struct {
+            int64_t numerator;
+            int64_t denominator;
+        } ratio;
+#endif
         uint32_t character; /* Unicode codepoint */
         struct {
             const char* data;          /* Pointer to string content in input buffer (zero-copy) */

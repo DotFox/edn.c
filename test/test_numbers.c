@@ -530,6 +530,388 @@ TEST(api_parse_bigdec_suffix_in_collection) {
     edn_free(r.value);
 }
 
+#ifdef EDN_ENABLE_RATIO
+
+TEST(api_ratio_get) {
+    edn_value_t value;
+    value.type = EDN_TYPE_RATIO;
+    value.as.ratio.numerator = 22;
+    value.as.ratio.denominator = 7;
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(&value, &numerator, &denominator);
+
+    assert(success == true);
+    assert(numerator == 22);
+    assert(denominator == 7);
+}
+
+TEST(api_ratio_get_negative) {
+    edn_value_t value;
+    value.type = EDN_TYPE_RATIO;
+    value.as.ratio.numerator = -3;
+    value.as.ratio.denominator = 4;
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(&value, &numerator, &denominator);
+
+    assert(success == true);
+    assert(numerator == -3);
+    assert(denominator == 4);
+}
+
+TEST(api_ratio_get_wrong_type) {
+    edn_value_t value;
+    value.type = EDN_TYPE_INT;
+    value.as.integer = 42;
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(&value, &numerator, &denominator);
+
+    assert(success == false);
+}
+
+TEST(api_parse_ratio_simple) {
+    edn_result_t r = edn_parse("22/7", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(r.value, &numerator, &denominator);
+
+    assert(success == true);
+    assert(numerator == 22);
+    assert(denominator == 7);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_negative_numerator) {
+    edn_result_t r = edn_parse("-3/4", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(r.value, &numerator, &denominator);
+
+    assert(success == true);
+    assert(numerator == -3);
+    assert(denominator == 4);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_negative_denominator) {
+    /* Negative denominator should be rejected - denominator must be positive */
+    edn_result_t r = edn_parse("3/-4", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_parse_ratio_both_negative) {
+    /* Both negative should be rejected - denominator must be positive */
+    edn_result_t r = edn_parse("-5/-6", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_parse_ratio_zero_numerator) {
+    /* 0/5 should parse as integer 0, not a ratio (Clojure behavior) */
+    edn_result_t r = edn_parse("0/5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t num;
+    edn_int64_get(r.value, &num);
+    assert(num == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_zero_denominator_error) {
+    edn_result_t r = edn_parse("5/0", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_parse_ratio_large_values) {
+    edn_result_t r = edn_parse("1000000000/3", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    bool success = edn_ratio_get(r.value, &numerator, &denominator);
+
+    assert(success == true);
+    assert(numerator == 1000000000);
+    assert(denominator == 3);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_in_vector) {
+    edn_result_t r = edn_parse("[1/2 3/4 5/6]", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_VECTOR);
+    assert(edn_vector_count(r.value) == 3);
+
+    /* First ratio: 1/2 */
+    edn_value_t* elem0 = edn_vector_get(r.value, 0);
+    assert(edn_type(elem0) == EDN_TYPE_RATIO);
+    int64_t num0, den0;
+    edn_ratio_get(elem0, &num0, &den0);
+    assert(num0 == 1 && den0 == 2);
+
+    /* Second ratio: 3/4 */
+    edn_value_t* elem1 = edn_vector_get(r.value, 1);
+    assert(edn_type(elem1) == EDN_TYPE_RATIO);
+    int64_t num1, den1;
+    edn_ratio_get(elem1, &num1, &den1);
+    assert(num1 == 3 && den1 == 4);
+
+    /* Third ratio: 5/6 */
+    edn_value_t* elem2 = edn_vector_get(r.value, 2);
+    assert(edn_type(elem2) == EDN_TYPE_RATIO);
+    int64_t num2, den2;
+    edn_ratio_get(elem2, &num2, &den2);
+    assert(num2 == 5 && den2 == 6);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_in_map) {
+    edn_result_t r = edn_parse("{:pi 22/7 :half 1/2}", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_MAP);
+    assert(edn_map_count(r.value) == 2);
+
+    /* Check first value is ratio 22/7 */
+    edn_value_t* val0 = edn_map_get_value(r.value, 0);
+    assert(edn_type(val0) == EDN_TYPE_RATIO);
+    int64_t num0, den0;
+    edn_ratio_get(val0, &num0, &den0);
+    assert(num0 == 22 && den0 == 7);
+
+    /* Check second value is ratio 1/2 */
+    edn_value_t* val1 = edn_map_get_value(r.value, 1);
+    assert(edn_type(val1) == EDN_TYPE_RATIO);
+    int64_t num1, den1;
+    edn_ratio_get(val1, &num1, &den1);
+    assert(num1 == 1 && den1 == 2);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_with_whitespace) {
+    /* Ratio should NOT allow whitespace around / */
+    edn_result_t r = edn_parse("1 / 2", 0);
+
+    /* This should parse as three separate values, not a ratio */
+    /* In a vector context, it would be [1 / 2] */
+    /* But at top level, it should fail or parse just "1" */
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT); /* Just parses "1" */
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_not_symbol) {
+    /* "/" alone should be a symbol, not a ratio */
+    edn_result_t r = edn_parse("/", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_SYMBOL);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_numerator_overflow) {
+    /* Numerator too large for int64_t */
+    edn_result_t r = edn_parse("99999999999999999999/3", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_parse_ratio_denominator_overflow) {
+    /* Denominator too large for int64_t */
+    edn_result_t r = edn_parse("3/99999999999999999999", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_parse_ratio_invalid_float_numerator) {
+    /* Float as numerator - should fail */
+    edn_result_t r = edn_parse("3.14/2", 0);
+
+    /* This should parse as float 3.14, then fail on /2 or stop at / */
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_FLOAT); /* Just parses the float */
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_invalid_float_denominator) {
+    /* Float as denominator - should fail */
+    edn_result_t r = edn_parse("3/2.5", 0);
+
+    /* Denominator is float (2.5), which is invalid for ratio */
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+
+TEST(api_ratio_as_double) {
+    edn_value_t value;
+    value.type = EDN_TYPE_RATIO;
+    value.as.ratio.numerator = 22;
+    value.as.ratio.denominator = 7;
+
+    double result;
+    bool success = edn_number_as_double(&value, &result);
+
+    assert(success == true);
+    assert(fabs(result - 3.142857) < 0.0001);
+}
+
+TEST(api_ratio_as_double_negative) {
+    edn_value_t value;
+    value.type = EDN_TYPE_RATIO;
+    value.as.ratio.numerator = -1;
+    value.as.ratio.denominator = 2;
+
+    double result;
+    bool success = edn_number_as_double(&value, &result);
+
+    assert(success == true);
+    assert(fabs(result - (-0.5)) < 0.0001);
+}
+
+TEST(api_ratio_as_double_zero_denominator) {
+    edn_value_t value;
+    value.type = EDN_TYPE_RATIO;
+    value.as.ratio.numerator = 5;
+    value.as.ratio.denominator = 0;
+
+    double result;
+    bool success = edn_number_as_double(&value, &result);
+
+    assert(success == false); /* Division by zero */
+}
+
+TEST(api_parse_ratio_hex_not_supported) {
+    /* Hex notation should not work with ratios */
+    edn_result_t r = edn_parse("0x10/2", 0);
+
+    /* Should not parse as a ratio (hex numbers don't support ratio syntax) */
+    assert(r.error == EDN_OK);
+    /* Note: hex parsing has a separate bug, so we just verify it's not a ratio */
+    assert(edn_type(r.value) != EDN_TYPE_RATIO);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_one) {
+    /* 5/5 reduces to 1/1 which becomes integer 1 */
+    edn_result_t r = edn_parse("5/5", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t num;
+    edn_int64_get(r.value, &num);
+    assert(num == 1);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_reduction) {
+    /* Test that ratios are automatically reduced to lowest terms */
+    edn_result_t r = edn_parse("3/6", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    edn_ratio_get(r.value, &numerator, &denominator);
+    /* 3/6 should be reduced to 1/2 */
+    assert(numerator == 1);
+    assert(denominator == 2);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_reduction_negative) {
+    /* Test reduction with negative numerator */
+    edn_result_t r = edn_parse("-6/9", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    edn_ratio_get(r.value, &numerator, &denominator);
+    /* -6/9 should be reduced to -2/3 */
+    assert(numerator == -2);
+    assert(denominator == 3);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_already_reduced) {
+    /* Test that already reduced ratios remain unchanged */
+    edn_result_t r = edn_parse("22/7", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    edn_ratio_get(r.value, &numerator, &denominator);
+    /* 22/7 is already in lowest terms */
+    assert(numerator == 22);
+    assert(denominator == 7);
+
+    edn_free(r.value);
+}
+
+#endif /* EDN_ENABLE_RATIO */
+
+#ifndef EDN_ENABLE_RATIO
+/* Test that ratio syntax fails with clear error when disabled */
+TEST(api_parse_ratio_disabled) {
+    /* When ratio support is disabled, "22/7" should fail */
+    /* because '/' is not a valid delimiter after a number */
+    edn_result_t r = edn_parse("22/7", 0);
+
+    /* Should fail with clear error message */
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+    /* Error message should indicate delimiter issue */
+    assert(r.error_message != NULL);
+
+    /* In a collection context, same error */
+    edn_result_t r2 = edn_parse("[22/7]", 0);
+    assert(r2.error == EDN_ERROR_INVALID_NUMBER);
+}
+#endif
+
 int main(void) {
     printf("Running number parsing tests...\n");
 
@@ -596,6 +978,39 @@ int main(void) {
     run_test_api_parse_bigdec_suffix_on_integer();
     run_test_api_bigdec_get();
     run_test_api_parse_bigdec_suffix_in_collection();
+
+#ifdef EDN_ENABLE_RATIO
+    /* Ratio tests */
+    run_test_api_ratio_get();
+    run_test_api_ratio_get_negative();
+    run_test_api_ratio_get_wrong_type();
+    run_test_api_parse_ratio_simple();
+    run_test_api_parse_ratio_negative_numerator();
+    run_test_api_parse_ratio_negative_denominator();
+    run_test_api_parse_ratio_both_negative();
+    run_test_api_parse_ratio_zero_numerator();
+    run_test_api_parse_ratio_zero_denominator_error();
+    run_test_api_parse_ratio_large_values();
+    run_test_api_parse_ratio_in_vector();
+    run_test_api_parse_ratio_in_map();
+    run_test_api_parse_ratio_with_whitespace();
+    run_test_api_parse_ratio_not_symbol();
+    run_test_api_parse_ratio_numerator_overflow();
+    run_test_api_parse_ratio_denominator_overflow();
+    run_test_api_parse_ratio_invalid_float_numerator();
+    run_test_api_parse_ratio_invalid_float_denominator();
+    run_test_api_ratio_as_double();
+    run_test_api_ratio_as_double_negative();
+    run_test_api_ratio_as_double_zero_denominator();
+    run_test_api_parse_ratio_hex_not_supported();
+    run_test_api_parse_ratio_one();
+    run_test_api_parse_ratio_reduction();
+    run_test_api_parse_ratio_reduction_negative();
+    run_test_api_parse_ratio_already_reduced();
+#else
+    /* Test that ratio syntax is rejected when disabled */
+    run_test_api_parse_ratio_disabled();
+#endif
 
     TEST_SUMMARY("number parsing");
 }

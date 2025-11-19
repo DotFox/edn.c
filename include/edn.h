@@ -23,6 +23,9 @@ typedef enum {
     EDN_TYPE_BIGINT,
     EDN_TYPE_FLOAT,
     EDN_TYPE_BIGDEC,
+#ifdef EDN_ENABLE_RATIO
+    EDN_TYPE_RATIO,
+#endif
     EDN_TYPE_CHARACTER,
     EDN_TYPE_STRING,
     EDN_TYPE_SYMBOL,
@@ -154,6 +157,18 @@ bool edn_double_get(const edn_value_t* value, double* out);
  * The string contains the exact decimal representation (e.g., "3.14159265358979323846").
  */
 const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negative);
+
+#ifdef EDN_ENABLE_RATIO
+/**
+ * Get numerator and denominator from an EDN ratio.
+ *
+ * @param value EDN ratio value
+ * @param numerator Pointer to store the numerator
+ * @param denominator Pointer to store the denominator
+ * @return true if value is EDN_TYPE_RATIO, false otherwise
+ */
+bool edn_ratio_get(const edn_value_t* value, int64_t* numerator, int64_t* denominator);
+#endif
 
 /**
  * Convert any EDN number type to double.

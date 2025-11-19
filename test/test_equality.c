@@ -843,6 +843,124 @@ TEST(not_equal_bigint_vs_int) {
     edn_free(b);
 }
 
+/* Ratio equality */
+#ifdef EDN_ENABLE_RATIO
+TEST(equal_ratio) {
+    edn_value_t* a = parse_helper("22/7");
+    edn_value_t* b = parse_helper("22/7");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_RATIO);
+    assert(edn_type(b) == EDN_TYPE_RATIO);
+    assert(edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(not_equal_ratio_different_numerator) {
+    edn_value_t* a = parse_helper("22/7");
+    edn_value_t* b = parse_helper("21/7");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(not_equal_ratio_different_denominator) {
+    edn_value_t* a = parse_helper("22/7");
+    edn_value_t* b = parse_helper("22/8");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(not_equal_ratio_vs_int) {
+    /* 10/5 reduces to 2/1 which becomes integer 2, so this test now checks */
+    /* that a ratio that doesn't reduce to an integer is not equal to an int */
+    edn_value_t* a = parse_helper("5/2"); /* 5/2 stays as ratio */
+    edn_value_t* b = parse_helper("2");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_RATIO);
+    assert(edn_type(b) == EDN_TYPE_INT);
+    /* Different types, not equal even if mathematically similar */
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(not_equal_ratio_vs_float) {
+    edn_value_t* a = parse_helper("1/2");
+    edn_value_t* b = parse_helper("0.5");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_RATIO);
+    assert(edn_type(b) == EDN_TYPE_FLOAT);
+    /* Different types, not equal even if mathematically equivalent */
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(equal_ratio_negative) {
+    edn_value_t* a = parse_helper("-3/4");
+    edn_value_t* b = parse_helper("-3/4");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(hash_ratio_same_value) {
+    edn_value_t* a = parse_helper("22/7");
+    edn_value_t* b = parse_helper("22/7");
+
+    assert(a != NULL);
+    assert(b != NULL);
+
+    uint64_t hash_a = edn_value_hash(a);
+    uint64_t hash_b = edn_value_hash(b);
+
+    assert(hash_a == hash_b);
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(hash_ratio_different_value) {
+    edn_value_t* a = parse_helper("22/7");
+    edn_value_t* b = parse_helper("1/3");
+
+    assert(a != NULL);
+    assert(b != NULL);
+
+    uint64_t hash_a = edn_value_hash(a);
+    uint64_t hash_b = edn_value_hash(b);
+
+    /* Different values should (usually) have different hashes */
+    assert(hash_a != hash_b);
+
+    edn_free(a);
+    edn_free(b);
+}
+#endif /* EDN_ENABLE_RATIO */
+
 int main(void) {
     printf("Running equality tests...\n");
 
@@ -950,6 +1068,18 @@ int main(void) {
     RUN_TEST(equal_bigint);
     RUN_TEST(not_equal_bigint);
     RUN_TEST(not_equal_bigint_vs_int);
+
+#ifdef EDN_ENABLE_RATIO
+    /* Ratio */
+    RUN_TEST(equal_ratio);
+    RUN_TEST(not_equal_ratio_different_numerator);
+    RUN_TEST(not_equal_ratio_different_denominator);
+    RUN_TEST(not_equal_ratio_vs_int);
+    RUN_TEST(not_equal_ratio_vs_float);
+    RUN_TEST(equal_ratio_negative);
+    RUN_TEST(hash_ratio_same_value);
+    RUN_TEST(hash_ratio_different_value);
+#endif
 
     TEST_SUMMARY("equality");
 }

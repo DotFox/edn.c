@@ -71,6 +71,12 @@ ifeq ($(TEXT_BLOCKS),1)
     CFLAGS += -DEDN_ENABLE_TEXT_BLOCKS
 endif
 
+# Ratio numbers (Clojure extension, disabled by default)
+RATIO ?= 0
+ifeq ($(RATIO),1)
+    CFLAGS += -DEDN_ENABLE_RATIO
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -247,6 +253,7 @@ help:
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
 	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"...\"\"\" blocks)"
+	@echo "  RATIO=1                     - Enable ratio numbers (22/7, disabled by default)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 
 .DEFAULT_GOAL := all
