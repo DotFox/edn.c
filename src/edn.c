@@ -411,6 +411,59 @@ static edn_value_t* parse_string_value(edn_parser_t* parser) {
     return value;
 }
 
+#ifdef EDN_ENABLE_RATIO
+/*
+ * Binary GCD algorithm (Stein's algorithm)
+ */
+static int64_t edn_gcd(int64_t a, int64_t b) {
+    /* Make both values positive for GCD calculation */
+    if (a < 0)
+        a = -a;
+    if (b < 0)
+        b = -b;
+
+    /* Handle edge cases */
+    if (a == 0)
+        return b;
+    if (b == 0)
+        return a;
+
+    /* Find common factor of 2 */
+    int shift = 0;
+    while (((a | b) & 1) == 0) {
+        a >>= 1;
+        b >>= 1;
+        shift++;
+    }
+
+    /* Remove remaining factors of 2 from a */
+    while ((a & 1) == 0) {
+        a >>= 1;
+    }
+
+    /* Main loop */
+    do {
+        /* Remove factors of 2 from b */
+        while ((b & 1) == 0) {
+            b >>= 1;
+        }
+
+        /* Ensure a <= b, swap if needed */
+        if (a > b) {
+            int64_t temp = a;
+            a = b;
+            b = temp;
+        }
+
+        /* Subtract: b = b - a (both are odd) */
+        b = b - a;
+    } while (b != 0);
+
+    /* Restore common factors of 2 */
+    return a << shift;
+}
+#endif
+
 static edn_value_t* parse_number_value(edn_parser_t* parser) {
     edn_number_scan_t scan = edn_scan_number(parser->current, parser->end);
 
@@ -419,6 +472,98 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         parser->error_message = "Invalid number format";
         return NULL;
     }
+
+#ifdef EDN_ENABLE_RATIO
+    if (scan.end < parser->end && *scan.end == '/' && scan.type == EDN_NUMBER_INT64 &&
+        scan.radix == 10) {
+        int64_t numerator;
+        if (!edn_parse_int64(scan.start, scan.digits_end, &numerator, scan.radix)) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Ratio numerator must fit in int64";
+            return NULL;
+        }
+
+        /* Move past the / */
+        parser->current = scan.end + 1;
+
+        edn_number_scan_t denom_scan = edn_scan_number(parser->current, parser->end);
+        if (!denom_scan.valid || denom_scan.type != EDN_NUMBER_INT64 || denom_scan.radix != 10) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Invalid ratio denominator";
+            return NULL;
+        }
+
+        int64_t denominator;
+        if (!edn_parse_int64(denom_scan.start, denom_scan.digits_end, &denominator,
+                             denom_scan.radix)) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Ratio denominator must fit in int64";
+            return NULL;
+        }
+
+        if (denominator == 0) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Ratio denominator cannot be zero";
+            return NULL;
+        }
+
+        if (denominator < 0) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Ratio denominator must be positive";
+            return NULL;
+        }
+
+        /* Reduce the ratio to lowest terms using GCD */
+        int64_t g = edn_gcd(numerator, denominator);
+        if (g > 1) {
+            numerator /= g;
+            denominator /= g;
+        }
+
+        if (numerator == 0) {
+            edn_value_t* value = edn_arena_alloc_value(parser->arena);
+            if (!value) {
+                parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                parser->error_message = "Out of memory";
+                return NULL;
+            }
+            value->arena = parser->arena;
+            value->type = EDN_TYPE_INT;
+            value->as.integer = 0;
+            parser->current = denom_scan.end;
+            return value;
+        }
+
+        if (denominator == 1) {
+            edn_value_t* value = edn_arena_alloc_value(parser->arena);
+            if (!value) {
+                parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                parser->error_message = "Out of memory";
+                return NULL;
+            }
+            value->arena = parser->arena;
+            value->type = EDN_TYPE_INT;
+            value->as.integer = numerator;
+            parser->current = denom_scan.end;
+            return value;
+        }
+
+        edn_value_t* value = edn_arena_alloc_value(parser->arena);
+        if (!value) {
+            parser->error = EDN_ERROR_OUT_OF_MEMORY;
+            parser->error_message = "Out of memory";
+            return NULL;
+        }
+
+        value->arena = parser->arena;
+        value->type = EDN_TYPE_RATIO;
+        value->as.ratio.numerator = numerator;
+        value->as.ratio.denominator = denominator;
+
+        parser->current = denom_scan.end;
+        return value;
+    }
+#endif
 
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
@@ -459,6 +604,36 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         parser->error = EDN_ERROR_INVALID_NUMBER;
         parser->error_message = "Invalid number type";
         return NULL;
+    }
+
+    /* Validate that number is followed by valid delimiter or EOF */
+    if (scan.end < parser->end) {
+        unsigned char next = (unsigned char) *scan.end;
+
+        bool valid_delimiter = false;
+
+        /* Whitespace: space, tab, newline, CR, comma, etc. */
+        if (next == ' ' || next == ',' || next == ';' || (next >= 0x09 && next <= 0x0D) ||
+            (next >= 0x1C && next <= 0x1F)) {
+            valid_delimiter = true;
+        }
+        /* Structural delimiters: ), ], }, ", #, (, [ */
+        else if (next == ')' || next == ']' || next == '}' || next == '"' || next == '#' ||
+                 next == '(' || next == '[') {
+            valid_delimiter = true;
+        }
+#ifdef EDN_ENABLE_RATIO
+        /* When ratio support is enabled, '/' is also valid (for ratios) */
+        else if (next == '/') {
+            valid_delimiter = true;
+        }
+#endif
+
+        if (!valid_delimiter) {
+            parser->error = EDN_ERROR_INVALID_NUMBER;
+            parser->error_message = "Number must be followed by whitespace or delimiter";
+            return NULL;
+        }
     }
 
     parser->current = scan.end;
@@ -672,6 +847,19 @@ const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negat
     return value->as.bigdec.decimal;
 }
 
+#ifdef EDN_ENABLE_RATIO
+bool edn_ratio_get(const edn_value_t* value, int64_t* numerator, int64_t* denominator) {
+    if (!value || value->type != EDN_TYPE_RATIO) {
+        return false;
+    }
+    if (numerator)
+        *numerator = value->as.ratio.numerator;
+    if (denominator)
+        *denominator = value->as.ratio.denominator;
+    return true;
+}
+#endif
+
 bool edn_number_as_double(const edn_value_t* value, double* out) {
     if (!value || !out) {
         return false;
@@ -729,6 +917,16 @@ bool edn_number_as_double(const edn_value_t* value, double* out) {
                 *out = value->as.bigdec.negative ? -result : result;
                 return true;
             }
+
+#ifdef EDN_ENABLE_RATIO
+        case EDN_TYPE_RATIO:
+            /* Convert ratio to double */
+            if (value->as.ratio.denominator == 0) {
+                return false;
+            }
+            *out = (double) value->as.ratio.numerator / (double) value->as.ratio.denominator;
+            return true;
+#endif
 
         default:
             return false;

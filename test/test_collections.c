@@ -10,13 +10,13 @@
 /* Complex nested structure */
 TEST(parse_complex_nested) {
     const char* input = "{"
-                        ":name \"Alice\""
-                        ":age 30"
-                        ":languages [:clojure :rust \"C\"]"
+                        ":name \"Alice\" "
+                        ":age 30 "
+                        ":languages [:clojure :rust \"C\"] "
                         ":projects #{"
-                        "{:name \"edn.c\" :stars 100}"
+                        "{:name \"edn.c\" :stars 100} "
                         "{:name \"other\" :stars 50}"
-                        "}"
+                        "} "
                         ":metadata {:created 2024 :updated 2024}"
                         "}";
 
