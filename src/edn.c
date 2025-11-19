@@ -577,7 +577,11 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
     if (scan.type == EDN_NUMBER_INT64) {
         int64_t num;
         /* For radix != 10, digits_start skips prefix; for radix == 10, it's same as after sign */
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
         const char* parse_start = (scan.radix == 10) ? scan.start : scan.digits_start;
+#else
+        const char* parse_start = scan.start;
+#endif
         if (!edn_parse_int64(parse_start, scan.digits_end, &num, scan.radix)) {
             value->type = EDN_TYPE_BIGINT;
             value->as.bigint.digits = scan.digits_start;
@@ -587,7 +591,11 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         } else {
             value->type = EDN_TYPE_INT;
             /* For non-decimal radix, apply the sign from scan.negative */
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
             value->as.integer = (scan.radix != 10 && scan.negative) ? -num : num;
+#else
+            value->as.integer = num;
+#endif
         }
     } else if (scan.type == EDN_NUMBER_BIGINT) {
         value->type = EDN_TYPE_BIGINT;

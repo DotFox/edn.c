@@ -20,6 +20,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 - **📝 Metadata**: Clojure-style metadata `^{...}` syntax (optional, disabled by default)
 - **📄 Text Blocks**: Java-style multi-line text blocks `"""\n...\n"""` (experimental, disabled by default)
 - **🔢 Ratio Numbers**: Clojure-compatible ratio literals `22/7` (optional, disabled by default)
+- **🔣 Extended Integers**: Hex (`0xFF`), octal (`0777`), binary (`2r1010`), and arbitrary radix (`36rZZ`) formats (optional, disabled by default)
 
 ## Table of Contents
 
@@ -38,6 +39,7 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
   - [Metadata](#metadata)
   - [Text Blocks](#text-blocks)
   - [Ratio Numbers](#ratio-numbers)
+  - [Extended Integer Formats](#extended-integer-formats)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -557,6 +559,83 @@ When disabled (default):
 **Note:** Ratios are a Clojure language feature, not part of the official EDN specification. They're provided here for compatibility with Clojure's clojure.edn parser.
 
 See `test/test_numbers.c` for comprehensive ratio test examples.
+
+### Extended Integer Formats
+
+EDN.C supports Clojure-style special integer formats for hexadecimal, octal, binary, and arbitrary radix numbers. These are **disabled by default** as they are not part of the base EDN specification.
+
+**Supported formats:**
+- **Hexadecimal**: `0xFF`, `0x2A`, `-0x10` (base-16, prefix `0x` or `0X`)
+- **Octal**: `0777`, `052`, `-0123` (base-8, leading zero followed by `0-7`)
+- **Binary**: `2r1010`, `-2r1111` (base-2, radix notation)
+- **Arbitrary radix**: `8r77`, `16rFF`, `36rZZ` (bases 2-36, radix notation `NrDDDD`)
+
+**Examples:**
+```c
+// Hexadecimal
+edn_result_t r1 = edn_parse("0xFF", 0);
+int64_t val1;
+edn_int64_get(r1.value, &val1);
+// val1 = 255
+edn_free(r1.value);
+
+// Octal
+edn_result_t r2 = edn_parse("0777", 0);
+int64_t val2;
+edn_int64_get(r2.value, &val2);
+// val2 = 511 (7*64 + 7*8 + 7)
+edn_free(r2.value);
+
+// Binary (radix notation)
+edn_result_t r3 = edn_parse("2r1010", 0);
+int64_t val3;
+edn_int64_get(r3.value, &val3);
+// val3 = 10
+edn_free(r3.value);
+
+// Base-36 (radix notation)
+edn_result_t r4 = edn_parse("36rZZ", 0);
+int64_t val4;
+edn_int64_get(r4.value, &val4);
+// val4 = 1295 (35*36 + 35)
+edn_free(r4.value);
+
+// Negative hex
+edn_result_t r5 = edn_parse("-0x10", 0);
+int64_t val5;
+edn_int64_get(r5.value, &val5);
+// val5 = -16
+edn_free(r5.value);
+```
+
+**Radix notation:** `NrDDDD` where:
+- `N` is the radix (base) from 2 to 36
+- `r` is the radix separator
+- `DDDD` are the digits (0-9, A-Z, case-insensitive for bases > 10)
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make EXTENDED_INTEGERS=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_EXTENDED_INTEGERS=ON ..
+make
+```
+
+When disabled (default):
+- Hexadecimal (`0xFF`), binary (`2r1010`), and radix notation (`36rZZ`) will fail to parse
+- **Leading zeros are forbidden**: Numbers like `01`, `0123`, `0777` are rejected (per EDN spec)
+- Only `0` itself, or `0.5`, `0e10` (floats starting with zero) are allowed
+
+**Note:** Extended integer formats are a Clojure language feature, not part of the official EDN specification. They're provided here for compatibility with Clojure's reader.
+
+See `test/test_numbers.c` for comprehensive extended integer format test examples.
 
 #### Characters
 

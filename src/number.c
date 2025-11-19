@@ -187,6 +187,7 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
         return result;
     }
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     if (*ptr == '0' && ptr + 1 < end) {
         if (ptr[1] == 'x' || ptr[1] == 'X') {
             result.radix = 16;
@@ -219,6 +220,20 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
             }
         }
     }
+#else
+    /* Standard EDN: reject leading zeros except for "0", "0.", "0eN" */
+    if (*ptr == '0' && ptr + 1 < end) {
+        if (ptr[1] == '.' || ptr[1] == 'e' || ptr[1] == 'E') {
+            /* 0.5 or 0e10 - valid float */
+            result.radix = 10;
+        } else if (ptr[1] >= '0' && ptr[1] <= '9') {
+            /* 01, 0123, etc. - invalid leading zero */
+            result.valid = false;
+            return result;
+        }
+        /* else: just "0" followed by delimiter - valid */
+    }
+#endif
 
     if (ptr >= end) {
         result.valid = false;

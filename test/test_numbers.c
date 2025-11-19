@@ -67,6 +67,8 @@ TEST(scan_number_scientific) {
     assert(scan.type == EDN_NUMBER_DOUBLE);
 }
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+
 TEST(scan_number_hex) {
     const char* input = "0x2A";
     edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
@@ -82,6 +84,8 @@ TEST(scan_number_binary) {
     assert(scan.valid == true);
     assert(scan.radix == 2);
 }
+
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
 
 /* Test int64_t parsing */
 TEST(parse_int64_simple) {
@@ -136,6 +140,8 @@ TEST(parse_int64_overflow) {
 
     assert(success == false); /* Should overflow and return false */
 }
+
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
 
 TEST(parse_int64_hex) {
     const char* input = "2A";
@@ -197,6 +203,8 @@ TEST(scan_number_octal_edge_09) {
 
     assert(scan.valid == false); /* Invalid number */
 }
+
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
 
 TEST(scan_number_zero) {
     const char* input = "0";
@@ -334,6 +342,8 @@ TEST(scan_number_bigint_suffix_negative) {
     assert(scan.negative == true);
 }
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+
 TEST(scan_number_bigint_suffix_hex) {
     /* Hex numbers don't support N suffix - N is a hex digit */
     const char* input = "0xDEADBEEFN";
@@ -344,7 +354,10 @@ TEST(scan_number_bigint_suffix_hex) {
     assert(scan.radix == 16);
 }
 
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+
 TEST(scan_number_bigint_suffix_only_decimal) {
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     /* N suffix only applies to base-10, not radix notation */
     const char* input = "36rZZ"; /* No N suffix for non-decimal */
     edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
@@ -352,6 +365,10 @@ TEST(scan_number_bigint_suffix_only_decimal) {
     assert(scan.valid == true);
     assert(scan.type == EDN_NUMBER_INT64);
     assert(scan.radix == 36);
+#else
+    /* Without EXTENDED_INTEGERS, this should parse as standard decimal */
+    assert(true); /* Test is N/A without the feature */
+#endif
 }
 
 TEST(scan_number_bigint_suffix_on_float_invalid) {
@@ -586,6 +603,8 @@ TEST(edn_parse_decimal_int_large) {
     edn_free(r.value);
 }
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+
 /* Test hexadecimal parsing */
 TEST(edn_parse_hex_lowercase_x) {
     edn_result_t r = edn_parse("0x2A", 0);
@@ -758,6 +777,31 @@ TEST(edn_parse_radix_negative) {
 
     edn_free(r.value);
 }
+
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+
+#ifndef EDN_ENABLE_EXTENDED_INTEGERS
+/* Test that special integer formats fail when disabled */
+TEST(edn_parse_special_integers_disabled_hex) {
+    edn_result_t r = edn_parse("0x2A", 0);
+    assert(r.error != EDN_OK);
+}
+
+TEST(edn_parse_special_integers_disabled_octal) {
+    edn_result_t r = edn_parse("0777", 0);
+    assert(r.error != EDN_OK);
+}
+
+TEST(edn_parse_special_integers_disabled_binary) {
+    edn_result_t r = edn_parse("2r1010", 0);
+    assert(r.error != EDN_OK);
+}
+
+TEST(edn_parse_special_integers_disabled_radix) {
+    edn_result_t r = edn_parse("36rZZ", 0);
+    assert(r.error != EDN_OK);
+}
+#endif
 
 /* Test floating point parsing */
 TEST(edn_parse_float_simple) {
@@ -1383,8 +1427,10 @@ int main(void) {
     run_test_scan_number_negative_int();
     run_test_scan_number_double();
     run_test_scan_number_scientific();
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     run_test_scan_number_hex();
     run_test_scan_number_binary();
+#endif
 
     /* int64_t parsing tests */
     run_test_parse_int64_simple();
@@ -1393,6 +1439,7 @@ int main(void) {
     run_test_parse_int64_max();
     run_test_parse_int64_min();
     run_test_parse_int64_overflow();
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     run_test_parse_int64_hex();
     run_test_parse_int64_binary();
     run_test_parse_int64_octal();
@@ -1402,6 +1449,7 @@ int main(void) {
     run_test_scan_number_octal();
     run_test_scan_number_octal_edge_08();
     run_test_scan_number_octal_edge_09();
+#endif
     run_test_scan_number_zero();
     run_test_scan_number_zero_float();
 
@@ -1420,7 +1468,9 @@ int main(void) {
     /* BigInt N suffix tests */
     run_test_scan_number_bigint_suffix_simple();
     run_test_scan_number_bigint_suffix_negative();
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     run_test_scan_number_bigint_suffix_hex();
+#endif
     run_test_scan_number_bigint_suffix_only_decimal();
     run_test_scan_number_bigint_suffix_on_float_invalid();
     run_test_scan_number_bigint_suffix_on_exponent_invalid();
@@ -1477,6 +1527,7 @@ int main(void) {
     run_test_edn_parse_decimal_int_zero();
     run_test_edn_parse_decimal_int_large();
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     /* Hexadecimal */
     run_test_edn_parse_hex_lowercase_x();
     run_test_edn_parse_hex_uppercase_X();
@@ -1497,6 +1548,13 @@ int main(void) {
     run_test_edn_parse_radix_base16();
     run_test_edn_parse_radix_base36();
     run_test_edn_parse_radix_negative();
+#else
+    /* Test that special integer formats are rejected when disabled */
+    run_test_edn_parse_special_integers_disabled_hex();
+    run_test_edn_parse_special_integers_disabled_octal();
+    run_test_edn_parse_special_integers_disabled_binary();
+    run_test_edn_parse_special_integers_disabled_radix();
+#endif
 
     /* Floating point */
     run_test_edn_parse_float_simple();

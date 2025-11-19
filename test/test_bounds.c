@@ -85,12 +85,16 @@ TEST(bounds_check_zero_x) {
 
 TEST(bounds_check_zero_digit) {
     edn_result_t result = edn_parse("07", 2);
-    /* Should parse as octal */
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);
     assert(result.value->as.integer == 7);
     edn_free(result.value);
+#else
+    assert(result.error != EDN_OK);
+    assert(result.value == NULL);
+#endif
 }
 
 TEST(bounds_check_empty_after_whitespace) {

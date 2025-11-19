@@ -77,6 +77,13 @@ ifeq ($(RATIO),1)
     CFLAGS += -DEDN_ENABLE_RATIO
 endif
 
+# Special integer formats: hex (0xFF), octal (0777), binary (2r1010), arbitrary radix (36rZZ)
+# Clojure extension, disabled by default
+EXTENDED_INTEGERS ?= 0
+ifeq ($(EXTENDED_INTEGERS),1)
+    CFLAGS += -DEDN_ENABLE_EXTENDED_INTEGERS
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -248,12 +255,13 @@ help:
 	@echo "  make help             - Show this help message"
 	@echo ""
 	@echo "Options:"
-	@echo "  DEBUG=1                     - Enable debug build"
+	@echo "  EXTENDED_INTEGERS=1         - Enable hex (0xFF), octal (0777), binary (2r1010), and radix (36rZZ) integers"
+	@echo "  RATIO=1                     - Enable ratio numbers (22/7)"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
 	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"...\"\"\" blocks)"
-	@echo "  RATIO=1                     - Enable ratio numbers (22/7, disabled by default)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
+	@echo "  DEBUG=1                     - Enable debug build"
 
 .DEFAULT_GOAL := all
