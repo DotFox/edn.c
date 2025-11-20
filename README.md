@@ -320,6 +320,39 @@ printf("%.*s\n", (int)len, str);
 edn_free(r.value);
 ```
 
+#### Booleans and Nil
+
+```c
+bool edn_is_nil(const edn_value_t *value);
+```
+
+Check if value is nil. Returns `true` if value is `EDN_TYPE_NIL`, `false` otherwise.
+
+**Example:**
+```c
+edn_result_t r = edn_parse("nil", 0);
+if (edn_is_nil(r.value)) {
+    printf("Value is nil\n");
+}
+edn_free(r.value);
+```
+
+```c
+bool edn_bool_get(const edn_value_t *value, bool *out);
+```
+
+Get boolean value. Returns `true` if value is `EDN_TYPE_BOOL`, `false` otherwise.
+
+**Example:**
+```c
+edn_result_t r = edn_parse("true", 0);
+bool val;
+if (edn_bool_get(r.value, &val)) {
+    printf("Boolean: %s\n", val ? "true" : "false");
+}
+edn_free(r.value);
+```
+
 #### Integers
 
 ```c
@@ -661,6 +694,66 @@ edn_free(r1.value);
 edn_free(r2.value);
 ```
 
+### Type Predicates
+
+Convenience functions for type checking:
+
+```c
+bool edn_is_nil(const edn_value_t *value);
+bool edn_is_string(const edn_value_t *value);
+bool edn_is_number(const edn_value_t *value);
+bool edn_is_integer(const edn_value_t *value);
+bool edn_is_collection(const edn_value_t *value);
+```
+
+**Type predicate details:**
+- `edn_is_nil()` - Returns `true` for `EDN_TYPE_NIL`
+- `edn_is_string()` - Returns `true` for `EDN_TYPE_STRING`
+- `edn_is_number()` - Returns `true` for any numeric type (INT, BIGINT, FLOAT, BIGDEC, RATIO)
+- `edn_is_integer()` - Returns `true` for integer types (INT, BIGINT)
+- `edn_is_collection()` - Returns `true` for collections (LIST, VECTOR, MAP, SET)
+
+**Example:**
+```c
+edn_result_t r = edn_parse("[42 \"hello\" [1 2] {:a 1}]", 0);
+
+if (edn_is_collection(r.value)) {
+    for (size_t i = 0; i < edn_vector_count(r.value); i++) {
+        edn_value_t* elem = edn_vector_get(r.value, i);
+
+        if (edn_is_number(elem)) {
+            printf("Found number\n");
+        } else if (edn_is_string(elem)) {
+            printf("Found string\n");
+        } else if (edn_is_collection(elem)) {
+            printf("Found nested collection\n");
+        }
+    }
+}
+
+edn_free(r.value);
+```
+
+### String Utilities
+
+```c
+bool edn_string_equals(const edn_value_t *value, const char *str);
+```
+
+Compare EDN string with C string for equality. Returns `true` if equal, `false` otherwise.
+
+**Example:**
+```c
+edn_result_t r = edn_parse("{:status \"active\"}", 0);
+edn_value_t* status = edn_map_get_keyword(r.value, "status");
+
+if (edn_string_equals(status, "active")) {
+    printf("Status is active\n");
+}
+
+edn_free(r.value);
+```
+
 #### Symbols
 
 ```c
@@ -837,6 +930,41 @@ if (name != NULL) {
 }
 
 edn_free(key.value);
+edn_free(r.value);
+```
+
+**Map Convenience Functions:**
+
+```c
+edn_value_t *edn_map_get_keyword(const edn_value_t *map, const char *keyword);
+edn_value_t *edn_map_get_namespaced_keyword(const edn_value_t *map, const char *namespace, const char *name);
+edn_value_t *edn_map_get_string_key(const edn_value_t *map, const char *key);
+```
+
+Convenience wrappers that simplify common map lookup patterns by creating the key internally.
+
+**Example:**
+```c
+edn_result_t r = edn_parse("{:name \"Alice\" :family/name \"Black\" :age 30 \"config\" true}", 0);
+
+// Keyword lookup
+edn_value_t* name = edn_map_get_keyword(r.value, "name");
+if (name && edn_is_string(name)) {
+    // name is "Alice"
+}
+
+edn_value_t* name = edn_map_get_namespaced_keyword(r.value, "family", "name");
+if (name && edn_is_string(name)) {
+    // name is "Black"
+}
+
+// String key lookup
+edn_value_t* config = edn_map_get_string_key(r.value, "config");
+if (config) {
+    bool val;
+    edn_bool_get(config, &val);  // val is true
+}
+
 edn_free(r.value);
 ```
 

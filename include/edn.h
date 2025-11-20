@@ -108,6 +108,23 @@ edn_type_t edn_type(const edn_value_t* value);
 const char* edn_string_get(const edn_value_t* value, size_t* length);
 
 /**
+ * Check if value is nil.
+ *
+ * @param value EDN value
+ * @return true if value is nil, false otherwise
+ */
+bool edn_is_nil(const edn_value_t* value);
+
+/**
+ * Get boolean value from an EDN boolean.
+ *
+ * @param value EDN boolean value
+ * @param out Pointer to store the result
+ * @return true if value is EDN_TYPE_BOOL, false otherwise
+ */
+bool edn_bool_get(const edn_value_t* value, bool* out);
+
+/**
  * Get int64_t value from an EDN integer.
  * 
  * @param value EDN integer value
@@ -189,6 +206,63 @@ bool edn_number_as_double(const edn_value_t* value, double* out);
  * @return true if value is EDN_TYPE_CHARACTER, false otherwise
  */
 bool edn_character_get(const edn_value_t* value, uint32_t* out);
+
+/**
+ * Type Predicates
+ */
+
+/**
+ * Check if value is a string.
+ *
+ * @param value EDN value
+ * @return true if value is EDN_TYPE_STRING, false otherwise
+ */
+bool edn_is_string(const edn_value_t* value);
+
+/**
+ * Check if value is any numeric type.
+ *
+ * Returns true for INT, BIGINT, FLOAT, BIGDEC, and RATIO (if enabled).
+ *
+ * @param value EDN value
+ * @return true if value is a numeric type, false otherwise
+ */
+bool edn_is_number(const edn_value_t* value);
+
+/**
+ * Check if value is an integer type.
+ *
+ * Returns true for INT or BIGINT.
+ *
+ * @param value EDN value
+ * @return true if value is an integer type, false otherwise
+ */
+bool edn_is_integer(const edn_value_t* value);
+
+/**
+ * Check if value is a collection type.
+ *
+ * Returns true for LIST, VECTOR, MAP, or SET.
+ *
+ * @param value EDN value
+ * @return true if value is a collection type, false otherwise
+ */
+bool edn_is_collection(const edn_value_t* value);
+
+/**
+ * String Utilities
+ */
+
+/**
+ * Compare EDN string with C string for equality.
+ *
+ * @param value EDN string value
+ * @param str C string to compare against (null-terminated)
+ * @return true if strings are equal, false otherwise
+ *
+ * Returns false if value is NULL or not a string.
+ */
+bool edn_string_equals(const edn_value_t* value, const char* str);
 
 /**
  * Get symbol name and optional namespace from an EDN symbol.
@@ -341,6 +415,60 @@ edn_value_t* edn_map_lookup(const edn_value_t* value, const edn_value_t* key);
  * @return true if key is in map, false otherwise
  */
 bool edn_map_contains_key(const edn_value_t* value, const edn_value_t* key);
+
+/**
+ * Map Convenience Functions
+ */
+
+/**
+ * Look up value by keyword name in a map.
+ *
+ * Convenience wrapper that creates a keyword key internally and performs lookup.
+ * Equivalent to creating ":keyword" and calling edn_map_lookup().
+ *
+ * @param map EDN map value
+ * @param keyword Keyword name (without the leading ':')
+ * @return Value associated with keyword, or NULL if not found or not a map
+ *
+ * Example:
+ *   edn_value_t* name = edn_map_get_keyword(map, "name");
+ *   // Equivalent to: edn_map_lookup(map, parse(":name"))
+ */
+edn_value_t* edn_map_get_keyword(const edn_value_t* map, const char* keyword);
+
+/**
+ * Look up value by namespaced keyword in a map.
+ *
+ * Convenience wrapper that creates a keyword key internally and performs lookup.
+ * Equivalent to creating ":namespaced/keyword" and calling edn_map_lookup().
+ *
+ * @param map EDN map value
+ * @param namespace Keyword namespace (without the leading ':')
+ * @param name Keyword name
+ * @return Value associated with keyword, or NULL if not found or not a map
+ *
+ * Example:
+ *   edn_value_t* name = edn_map_get_keyword(map, "namespace", "name");
+ *   // Equivalent to: edn_map_lookup(map, parse(":namespace/name"))
+ */
+edn_value_t* edn_map_get_namespaced_keyword(const edn_value_t* map, const char* namespace,
+                                            const char* name);
+
+/**
+ * Look up value by string key in a map.
+ *
+ * Convenience wrapper that creates a string key internally and performs lookup.
+ * Equivalent to creating "\"key\"" and calling edn_map_lookup().
+ *
+ * @param map EDN map value
+ * @param key String key value
+ * @return Value associated with key, or NULL if not found or not a map
+ *
+ * Example:
+ *   edn_value_t* val = edn_map_get_string_key(map, "mykey");
+ *   // Equivalent to: edn_map_lookup(map, parse("\"mykey\""))
+ */
+edn_value_t* edn_map_get_string_key(const edn_value_t* map, const char* key);
 
 /**
  * Tagged Literal API

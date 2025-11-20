@@ -811,6 +811,18 @@ bool edn_int64_get(const edn_value_t* value, int64_t* out) {
     return true;
 }
 
+bool edn_is_nil(const edn_value_t* value) {
+    return value && value->type == EDN_TYPE_NIL;
+}
+
+bool edn_bool_get(const edn_value_t* value, bool* out) {
+    if (!value || !out || value->type != EDN_TYPE_BOOL) {
+        return false;
+    }
+    *out = value->as.boolean;
+    return true;
+}
+
 const char* edn_bigint_get(const edn_value_t* value, size_t* length, bool* negative,
                            uint8_t* radix) {
     if (!value || value->type != EDN_TYPE_BIGINT) {
@@ -950,6 +962,70 @@ bool edn_character_get(const edn_value_t* value, uint32_t* out) {
     }
     *out = value->as.character;
     return true;
+}
+
+/* Type Predicates */
+
+bool edn_is_string(const edn_value_t* value) {
+    return value && value->type == EDN_TYPE_STRING;
+}
+
+bool edn_is_number(const edn_value_t* value) {
+    if (!value) {
+        return false;
+    }
+    switch (value->type) {
+        case EDN_TYPE_INT:
+        case EDN_TYPE_BIGINT:
+        case EDN_TYPE_FLOAT:
+        case EDN_TYPE_BIGDEC:
+#ifdef EDN_ENABLE_RATIO
+        case EDN_TYPE_RATIO:
+#endif
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool edn_is_integer(const edn_value_t* value) {
+    return value && (value->type == EDN_TYPE_INT || value->type == EDN_TYPE_BIGINT);
+}
+
+bool edn_is_collection(const edn_value_t* value) {
+    if (!value) {
+        return false;
+    }
+    switch (value->type) {
+        case EDN_TYPE_LIST:
+        case EDN_TYPE_VECTOR:
+        case EDN_TYPE_MAP:
+        case EDN_TYPE_SET:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* String Utilities */
+
+bool edn_string_equals(const edn_value_t* value, const char* str) {
+    if (!value || !str || value->type != EDN_TYPE_STRING) {
+        return false;
+    }
+
+    size_t len;
+    const char* edn_str = edn_string_get(value, &len);
+    if (!edn_str) {
+        return false;
+    }
+
+    size_t str_len = strlen(str);
+    if (len != str_len) {
+        return false;
+    }
+
+    return memcmp(edn_str, str, len) == 0;
 }
 
 bool edn_symbol_get(const edn_value_t* value, const char** namespace, size_t* ns_length,
@@ -1106,6 +1182,70 @@ bool edn_map_contains_key(const edn_value_t* value, const edn_value_t* key) {
     }
 
     return false;
+}
+
+/* Map Convenience Functions */
+
+edn_value_t* edn_map_get_keyword(const edn_value_t* map, const char* keyword) {
+    if (!map || !keyword || map->type != EDN_TYPE_MAP) {
+        return NULL;
+    }
+
+    edn_value_t temp_key;
+    temp_key.type = EDN_TYPE_KEYWORD;
+    temp_key.as.keyword.namespace = NULL;
+    temp_key.as.keyword.ns_length = 0;
+    temp_key.as.keyword.name = keyword;
+    temp_key.as.keyword.name_length = strlen(keyword);
+    temp_key.arena = NULL;
+    temp_key.cached_hash = 0;
+#ifdef EDN_ENABLE_METADATA
+    temp_key.metadata = NULL;
+#endif
+
+    return edn_map_lookup(map, &temp_key);
+}
+
+edn_value_t* edn_map_get_namespaced_keyword(const edn_value_t* map, const char* namespace,
+                                            const char* name) {
+    if (!map || !namespace || !name || map->type != EDN_TYPE_MAP) {
+        return NULL;
+    }
+
+    edn_value_t temp_key;
+    temp_key.type = EDN_TYPE_KEYWORD;
+    temp_key.as.keyword.namespace = namespace;
+    temp_key.as.keyword.ns_length = strlen(namespace);
+    temp_key.as.keyword.name = name;
+    temp_key.as.keyword.name_length = strlen(name);
+    temp_key.arena = NULL;
+    temp_key.cached_hash = 0;
+#ifdef EDN_ENABLE_METADATA
+    temp_key.metadata = NULL;
+#endif
+
+    return edn_map_lookup(map, &temp_key);
+}
+
+edn_value_t* edn_map_get_string_key(const edn_value_t* map, const char* key) {
+    if (!map || !key || map->type != EDN_TYPE_MAP) {
+        return NULL;
+    }
+
+    /* Create temporary string value for lookup */
+    edn_value_t temp_key;
+    temp_key.type = EDN_TYPE_STRING;
+    temp_key.as.string.data = key;
+    size_t key_len = strlen(key);
+    temp_key.as.string.length_and_flags = key_len; /* No escapes, not decoded */
+    temp_key.as.string.decoded = NULL;
+    temp_key.arena = NULL;
+    temp_key.cached_hash = 0;
+#ifdef EDN_ENABLE_METADATA
+    temp_key.metadata = NULL;
+#endif
+
+    return edn_map_lookup(map, &temp_key);
 }
 
 /* Tagged Literal API */
