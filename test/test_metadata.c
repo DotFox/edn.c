@@ -171,6 +171,31 @@ TEST(mixed_chained_metadata) {
     edn_free(result.value);
 }
 
+TEST(overlapping_chained_metadata) {
+    /* ^{:a "outer"} ^{:a "inner"} [1 2 3] should merge */
+    edn_result_t result = edn_parse("^{:a \"outer\"} ^{:a \"inner\"} [1 2 3]", 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_VECTOR);
+
+    assert_true(edn_value_has_meta(result.value));
+    edn_value_t* meta = edn_value_meta(result.value);
+    assert(meta != NULL);
+    assert(edn_type(meta) == EDN_TYPE_MAP);
+    assert_uint_eq(edn_map_count(meta), 1);
+
+    edn_result_t key_a = edn_parse(":a", 0);
+    edn_value_t* val_a = edn_map_lookup(meta, key_a.value);
+    assert(val_a != NULL);
+    assert(edn_type(val_a) == EDN_TYPE_STRING);
+    size_t len;
+    const char* str = edn_string_get(val_a, &len);
+    assert_str_eq(str, "outer");
+
+    edn_free(key_a.value);
+    edn_free(result.value);
+}
+
 TEST(metadata_on_map) {
     /* ^:test {:a 1 :b 2} */
     edn_result_t result = edn_parse("^:test {:a 1 :b 2}", 0);
@@ -450,6 +475,7 @@ int main(void) {
     RUN_TEST(symbol_metadata_tag);
     RUN_TEST(chained_metadata);
     RUN_TEST(mixed_chained_metadata);
+    RUN_TEST(overlapping_chained_metadata);
     RUN_TEST(metadata_on_map);
     RUN_TEST(metadata_on_list);
     RUN_TEST(metadata_on_set);
