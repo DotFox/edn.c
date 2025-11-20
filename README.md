@@ -1047,6 +1047,7 @@ A reader function receives the wrapped value and transforms it into a new repres
 ```c
 typedef struct {
     edn_reader_registry_t *reader_registry;  // Optional reader registry
+    edn_value_t *eof_value;                  // Optional value to return on EOF
     edn_default_reader_mode_t default_reader_mode;
 } edn_parse_options_t;
 
@@ -1054,10 +1055,45 @@ edn_result_t edn_parse_with_options(const char *input, size_t length,
                                     const edn_parse_options_t *options);
 ```
 
+**Parse options fields:**
+- `reader_registry`: Optional reader registry for tagged literal transformations
+- `eof_value`: Optional value to return when EOF is encountered instead of an error
+- `default_reader_mode`: Behavior for unregistered tags (see below)
+
 **Default reader modes:**
 - `EDN_DEFAULT_READER_PASSTHROUGH`: Return `EDN_TYPE_TAGGED` for unregistered tags (default)
 - `EDN_DEFAULT_READER_UNWRAP`: Discard tag, return wrapped value
 - `EDN_DEFAULT_READER_ERROR`: Fail with `EDN_ERROR_UNKNOWN_TAG`
+
+**EOF Value Handling:**
+
+By default, when the parser encounters end-of-file (empty input, whitespace-only input, or after `#_` discard), it returns `EDN_ERROR_UNEXPECTED_EOF`. You can customize this behavior by providing an `eof_value` in the parse options:
+
+```c
+// First, create an EOF sentinel value
+edn_result_t eof_sentinel = edn_parse(":eof", 0);
+
+// Configure parse options with EOF value
+edn_parse_options_t options = {
+    .reader_registry = NULL,
+    .eof_value = eof_sentinel.value,
+    .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH
+};
+
+// Parse input that results in EOF
+edn_result_t result = edn_parse_with_options("   ", 3, &options);
+
+// Instead of EDN_ERROR_UNEXPECTED_EOF, returns EDN_OK with eof_value
+if (result.error == EDN_OK) {
+    // result.value == eof_sentinel.value
+    const char* name;
+    edn_keyword_get(result.value, NULL, NULL, &name, NULL);
+    // name == "eof"
+}
+
+// Clean up
+edn_free(eof_sentinel.value);
+```
 
 #### Reader Example
 
@@ -1716,8 +1752,6 @@ See `bench/` directory for detailed benchmarking tools and results.
 📋 **Roadmap:**
 - Performance profiling and further optimization
 - Extended documentation and tutorials
-- Public helper functions (`edn_bool_get()`, `edn_nil_p()`, etc.)
-- EOF configuration
 - Streaming/Incremental parsing
 - Additional SIMD Platform Support:
   - 32-bit x86 (i386/i686) `__i386__, _M_IX86. mostly the same as x86-64`

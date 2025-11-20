@@ -592,6 +592,11 @@ typedef struct {
     edn_reader_registry_t* reader_registry;
 
     /**
+     * Optional value to return on end-of-file. When not supplied, return error.
+     * */
+    edn_value_t* eof_value;
+
+    /**
      * Default behavior for tags without registered readers.
      */
     edn_default_reader_mode_t default_reader_mode;
