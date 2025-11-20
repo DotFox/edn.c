@@ -175,9 +175,20 @@ bench/%: bench/%.c $(LIB)
 	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -D_POSIX_C_SOURCE=200809L -O3 $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 # Build examples
+.PHONY: examples
+examples: $(EXAMPLES_BINS)
+
 examples/%: examples/%.c $(LIB)
 	@echo "  CC      $@"
 	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
+
+# Build CLI tool
+.PHONY: cli
+cli: examples/edn_cli
+
+# Build TUI tool
+.PHONY: tui
+tui: examples/edn_tui
 
 # Debug build
 .PHONY: debug
@@ -213,13 +224,13 @@ info:
 .PHONY: format
 format:
 	@echo "  FORMAT  all C files"
-	$(Q)find src include test bench -name '*.[ch]' -exec clang-format -i {} +
+	$(Q)find src include test bench examples -name '*.[ch]' -exec clang-format -i {} +
 
 # Check formatting without modifying files
 .PHONY: format-check
 format-check:
 	@echo "  FORMAT-CHECK"
-	$(Q)find src include test bench -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
+	$(Q)find src include test bench examples -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
 
 # Generate compile_commands.json for LSP (requires bear or compiledb)
 .PHONY: compile-commands
@@ -241,6 +252,9 @@ help:
 	@echo "EDN.C Makefile targets:"
 	@echo "  make                  - Build library ($(LIB))"
 	@echo "  make test             - Build and run all tests"
+	@echo "  make cli              - Build CLI tool (examples/edn_cli)"
+	@echo "  make tui              - Build TUI viewer (examples/edn_tui)"
+	@echo "  make examples         - Build all example programs"
 	@echo "  make bench            - Build and run quick benchmark (C integration)"
 	@echo "  make bench-clj        - Run Clojure benchmarks (clojure.edn and fast-edn)"
 	@echo "  make bench-compare    - Run C and Clojure benchmarks for comparison"
@@ -258,9 +272,9 @@ help:
 	@echo "  EXTENDED_INTEGERS=1         - Enable hex (0xFF), octal (0777), binary (2r1010), and radix (36rZZ) integers"
 	@echo "  RATIO=1                     - Enable ratio numbers (22/7)"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
-	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\formfeed, \\backspace, \\oNNN)"
+	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\\formfeed, \\\backspace, \oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
-	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"...\"\"\" blocks)"
+	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"\\\n...\"\"\" blocks)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 	@echo "  DEBUG=1                     - Enable debug build"
 

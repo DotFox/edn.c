@@ -1453,6 +1453,35 @@ See `examples/example_text_block.c` for more examples.
 
 ## Examples
 
+### Interactive TUI Viewer
+
+EDN.C includes an interactive terminal viewer for exploring EDN data:
+
+```bash
+# Build the TUI
+make tui
+
+# Explore data interactively
+./examples/edn_tui data.edn
+
+# Use arrow keys to navigate, Enter/Space to expand/collapse, q to quit
+```
+
+### CLI Tool
+
+EDN.C includes a command-line tool for parsing and pretty-printing EDN files:
+
+```bash
+# Build the CLI
+make cli
+
+# Parse and pretty-print a file
+./examples/edn_cli data.edn
+
+# Or from stdin
+echo '{:name "Alice" :age 30}' | ./examples/edn_cli
+```
+
 ### Complete Working Example
 
 ```c
