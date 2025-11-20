@@ -5,6 +5,20 @@ A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD
 [![CI](https://github.com/DotFox/edn.c/workflows/CI/badge.svg)](https://github.com/DotFox/edn.c/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+## TL;DR - What is EDN?
+
+**[EDN (Extensible Data Notation)](https://github.com/edn-format/edn)** is a data format similar to JSON, but richer and more extensible. Think of it as "JSON with superpowers":
+
+- **JSON-like foundation**: Maps `{:key value}`, vectors `[1 2 3]`, strings, numbers, booleans, null (`nil`)
+- **Additional built-in types**: Sets `#{:a :b}`, keywords `:keyword`, symbols `my-symbol`, characters `\newline`, lists `(1 2 3)`
+- **Extensible via tagged literals**: `#inst "2024-01-01"`, `#uuid "..."`—transform data at parse time with custom readers
+- **Human-friendly**: Comments, flexible whitespace, designed to be readable and writable by both humans and programs
+- **Language-agnostic**: Originally from Clojure, but useful anywhere you need rich, extensible data interchange
+
+**Why EDN over JSON?** More expressive types (keywords, symbols, sets), native extensibility through tags (no more `{"__type": "Date", "value": "..."}` hacks), and better support for configuration files and data interchange in functional programming environments.
+
+**Learn more:** [Official EDN specification](https://github.com/edn-format/edn)
+
 ## Features
 
 - **🚀 Fast**: SIMD-accelerated parsing with NEON (ARM64) and SSE4.2 (x86_64) support
