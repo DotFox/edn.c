@@ -21,7 +21,8 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
 
 ## Features
 
-- **🚀 Fast**: SIMD-accelerated parsing with NEON (ARM64) and SSE4.2 (x86_64) support
+- **🚀 Fast**: SIMD-accelerated parsing with NEON (ARM64), SSE4.2 (x86_64) and SIMD128 (WebAssembly) support
+- **🌐 WebAssembly**: Full WASM SIMD128 support for high-performance parsing in browsers and Node.js
 - **💾 Zero-copy**: Minimal allocations, references input data where possible
 - **🎯 Simple API**: Easy-to-use interface with comprehensive type support
 - **🧹 Memory-safe**: Arena allocator for efficient cleanup - single `edn_free()` call
@@ -70,6 +71,7 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
   - **macOS** (Apple Silicon M1/M2/M3, Intel) - NEON/SSE4.2 SIMD
   - **Linux** (ARM64, x86_64) - NEON/SSE4.2 SIMD
   - **Windows** (x86_64, ARM64) - NEON/SSE4.2 SIMD via MSVC/MinGW/Clang
+  - **WebAssembly** - SIMD128 support for browsers and Node.js
 
 ### Build Library
 
@@ -1756,7 +1758,6 @@ See `bench/` directory for detailed benchmarking tools and results.
 - Additional SIMD Platform Support:
   - 32-bit x86 (i386/i686) `__i386__, _M_IX86. mostly the same as x86-64`
   - 32-bit ARM (ARMv7) `__arm__, _M_ARM. mostly the same as ARM64 NEON`
-  - WebAssembly SIMD128 `__wasm__, __wasm32__, __wasm64__. uses <wasm_simd128.h>`
   - RISC-V Vector Extension (RVV) `__riscv, __riscv_vector. uses <riscv_vector.h>`
 - Extra features:
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)

@@ -52,7 +52,9 @@
 #include "edn_internal.h"
 
 /* Platform-specific SIMD headers */
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+#include <wasm_simd128.h>
+#elif defined(__aarch64__) || defined(_M_ARM64)
 #include <arm_neon.h>
 #elif defined(__x86_64__) || defined(_M_X64)
 #if defined(_MSC_VER)
@@ -86,7 +88,28 @@ typedef struct {
     bool terminal;             /* True if line ends with """ */
 } text_block_line_t;
 
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+
+static inline const char* simd_scan_line_content(const char* ptr, const char* end) {
+    while (ptr + 16 <= end) {
+        v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+        v128_t is_newline = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\n'));
+        v128_t is_quote = wasm_i8x16_eq(chunk, wasm_i8x16_splat('"'));
+        v128_t is_backslash = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\\'));
+
+        v128_t specials = wasm_v128_or(wasm_v128_or(is_newline, is_quote), is_backslash);
+        int mask = wasm_i8x16_bitmask(specials);
+
+        if (mask != 0) {
+            int offset = CTZ((unsigned int) mask);
+            return ptr + offset;
+        }
+        ptr += 16;
+    }
+    return ptr;
+}
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
 
 static inline uint16_t neon_movemask_u8(uint8x16_t input) {
     static const uint8x16_t bitmask = {1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128};
@@ -152,7 +175,25 @@ static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
     const char* line_start = scan;
     const char* p = scan;
 
-#if defined(__aarch64__) || defined(_M_ARM64) || defined(__x86_64__) || defined(_M_X64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+    while (p + 16 <= end) {
+        v128_t chunk = wasm_v128_load((const v128_t*) p);
+        v128_t is_space = wasm_i8x16_eq(chunk, wasm_i8x16_splat(' '));
+        v128_t is_tab = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\t'));
+        v128_t is_ws = wasm_v128_or(is_space, is_tab);
+        int mask = wasm_i8x16_bitmask(is_ws);
+
+        if (mask == 0xFFFF) {
+            p += 16;
+        } else if (mask == 0) {
+            break;
+        } else {
+            int offset = CTZ((unsigned int) (~mask & 0xFFFF));
+            p += offset;
+            break;
+        }
+    }
+#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__x86_64__) || defined(_M_X64)
     while (p + 16 <= end) {
 #if defined(__aarch64__) || defined(_M_ARM64)
         uint8x16_t chunk = vld1q_u8((const uint8_t*) p);

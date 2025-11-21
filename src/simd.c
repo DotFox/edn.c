@@ -21,7 +21,81 @@ static inline int msvc_ctz(unsigned int mask) {
 
 /* SIMD whitespace skipping - platform-specific implementations */
 
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+
+#include <wasm_simd128.h>
+
+static inline const char* edn_simd_find_newline_wasm(const char* ptr, const char* end) {
+    /* Process 16 bytes at a time with WASM SIMD128 */
+    while (ptr + 16 <= end) {
+        v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+        v128_t newline = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\n'));
+
+        int mask = wasm_i8x16_bitmask(newline);
+        if (mask != 0) {
+            int offset = CTZ((unsigned int) mask);
+            return ptr + offset;
+        }
+        ptr += 16;
+    }
+
+    while (ptr < end && *ptr != '\n') {
+        ptr++;
+    }
+    return ptr;
+}
+
+const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
+    while (ptr < end) {
+        if (*ptr == ';') {
+            ptr++;
+            ptr = edn_simd_find_newline_wasm(ptr, end);
+            if (ptr < end && *ptr == '\n') {
+                ptr++;
+            }
+            continue;
+        }
+
+        if (ptr + 16 <= end) {
+            v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+
+            v128_t is_space = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x20));
+            v128_t is_tab = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x09));
+            v128_t is_newline = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0A));
+            v128_t is_vt = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0B));
+            v128_t is_formfeed = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0C));
+            v128_t is_cr = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0D));
+            v128_t is_comma = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x2C));
+            v128_t is_fs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1C));
+            v128_t is_gs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1D));
+            v128_t is_rs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1E));
+            v128_t is_us = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1F));
+
+            v128_t ws_group1 =
+                wasm_v128_or(wasm_v128_or(is_space, is_tab), wasm_v128_or(is_newline, is_vt));
+            v128_t ws_group2 = wasm_v128_or(wasm_v128_or(is_formfeed, is_cr), is_comma);
+            v128_t ws_group3 = wasm_v128_or(wasm_v128_or(is_fs, is_gs), wasm_v128_or(is_rs, is_us));
+            v128_t is_ws = wasm_v128_or(wasm_v128_or(ws_group1, ws_group2), ws_group3);
+
+            int mask = wasm_i8x16_bitmask(is_ws);
+            if (mask == 0xFFFF) {
+                ptr += 16;
+                continue;
+            }
+        }
+
+        unsigned char c = (unsigned char) *ptr;
+        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
+            ptr++;
+        } else {
+            break;
+        }
+    }
+
+    return ptr;
+}
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
 /* ARM64 NEON implementation */
 #include <arm_neon.h>
 
@@ -257,8 +331,66 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
 
 #endif
 
-/* SIMD function to find closing quote in string */
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+
+const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash) {
+    bool has_backslash = false;
+
+    while (ptr + 16 <= end) {
+        v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+        v128_t quote_v = wasm_i8x16_eq(chunk, wasm_i8x16_splat('"'));
+        v128_t bs_v = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\\'));
+        v128_t specials = wasm_v128_or(quote_v, bs_v);
+
+        int bs_mask = wasm_i8x16_bitmask(bs_v);
+        int special_mask = wasm_i8x16_bitmask(specials);
+
+        if (special_mask == 0) {
+            ptr += 16;
+            continue;
+        }
+
+        int idx = CTZ((unsigned int) special_mask);
+        char c = ptr[idx];
+
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + idx + 1 >= end) {
+                /* trailing backslash without following char */
+                return NULL;
+            }
+            ptr += idx + 2;
+            continue;
+        }
+
+        if (out_has_backslash) {
+            *out_has_backslash = has_backslash || (bs_mask != 0);
+        }
+        return ptr + idx;
+    }
+
+    while (ptr < end) {
+        char c = *ptr;
+        if (c == '\\') {
+            has_backslash = true;
+            if (ptr + 1 >= end) {
+                return NULL;
+            }
+            ptr += 2;
+        } else if (c == '"') {
+            if (out_has_backslash) {
+                *out_has_backslash = has_backslash;
+            }
+            return ptr;
+        } else {
+            ++ptr;
+        }
+    }
+
+    return NULL;
+}
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
 
 const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash) {
     bool has_backslash = false;
@@ -417,7 +549,45 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
 #endif
 
 /* SIMD digit scanning for number parsing */
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+
+const char* edn_simd_scan_digits(const char* ptr, const char* end) {
+    while (ptr + 16 <= end) {
+        v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+
+        v128_t ge_0 = wasm_u8x16_ge(chunk, wasm_i8x16_splat('0'));
+        v128_t le_9 = wasm_u8x16_le(chunk, wasm_i8x16_splat('9'));
+        v128_t is_digit = wasm_v128_and(ge_0, le_9);
+
+        int mask = wasm_i8x16_bitmask(is_digit);
+
+        if (mask == 0xFFFF) {
+            ptr += 16;
+            continue;
+        }
+
+        if (mask == 0) {
+            return ptr;
+        }
+
+        unsigned int non_mask = (~mask) & 0xFFFF;
+        int idx = CTZ(non_mask);
+
+        return ptr + idx;
+    }
+
+    while (ptr < end) {
+        unsigned char c = (unsigned char) *ptr;
+        if (c < '0' || c > '9') {
+            break;
+        }
+        ++ptr;
+    }
+
+    return ptr;
+}
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
 
 const char* edn_simd_scan_digits(const char* ptr, const char* end) {
     /* Process 16 bytes at a time with NEON */
@@ -503,7 +673,118 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
 /* SIMD identifier scanner - finds first delimiter AND first slash */
 /* Delimiter detection now provided by identifier_internal.h lookup table */
 
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if defined(__wasm__) && defined(__wasm_simd128__)
+
+edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end) {
+    edn_identifier_scan_result_t result = {.end = ptr, .first_slash = NULL};
+
+    size_t remaining = end - ptr;
+
+    if (remaining <= 8) {
+        while (ptr < end) {
+            char c = *ptr;
+            if (is_delimiter(c)) {
+                result.end = ptr;
+                return result;
+            }
+            if (c == '/' && !result.first_slash) {
+                result.first_slash = ptr;
+            }
+            ptr++;
+        }
+        result.end = ptr;
+        return result;
+    }
+
+    while (remaining >= 16) {
+        v128_t chunk = wasm_v128_load((const v128_t*) ptr);
+
+        v128_t is_slash = wasm_i8x16_eq(chunk, wasm_i8x16_splat('/'));
+
+        v128_t is_control = wasm_u8x16_lt(chunk, wasm_i8x16_splat(0x20));
+
+        v128_t is_space = wasm_i8x16_eq(chunk, wasm_i8x16_splat(' '));
+        v128_t is_quote = wasm_i8x16_eq(chunk, wasm_i8x16_splat('"'));
+        v128_t is_hash = wasm_i8x16_eq(chunk, wasm_i8x16_splat('#'));
+        v128_t is_lparen = wasm_i8x16_eq(chunk, wasm_i8x16_splat('('));
+        v128_t is_rparen = wasm_i8x16_eq(chunk, wasm_i8x16_splat(')'));
+        v128_t is_comma = wasm_i8x16_eq(chunk, wasm_i8x16_splat(','));
+        v128_t is_semi = wasm_i8x16_eq(chunk, wasm_i8x16_splat(';'));
+        v128_t is_at = wasm_i8x16_eq(chunk, wasm_i8x16_splat('@'));
+        v128_t is_lbracket = wasm_i8x16_eq(chunk, wasm_i8x16_splat('['));
+        v128_t is_backslash = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\\'));
+        v128_t is_rbracket = wasm_i8x16_eq(chunk, wasm_i8x16_splat(']'));
+        v128_t is_caret = wasm_i8x16_eq(chunk, wasm_i8x16_splat('^'));
+        v128_t is_backtick = wasm_i8x16_eq(chunk, wasm_i8x16_splat('`'));
+        v128_t is_lbrace = wasm_i8x16_eq(chunk, wasm_i8x16_splat('{'));
+        v128_t is_rbrace = wasm_i8x16_eq(chunk, wasm_i8x16_splat('}'));
+        v128_t is_tilde = wasm_i8x16_eq(chunk, wasm_i8x16_splat('~'));
+
+        v128_t delim_low =
+            wasm_v128_or(wasm_v128_or(is_control, is_space), wasm_v128_or(is_quote, is_hash));
+
+        v128_t delim_mid1 =
+            wasm_v128_or(wasm_v128_or(is_lparen, is_rparen), wasm_v128_or(is_comma, is_semi));
+
+        v128_t delim_mid2 =
+            wasm_v128_or(wasm_v128_or(is_at, is_lbracket), wasm_v128_or(is_backslash, is_rbracket));
+
+        v128_t delim_high =
+            wasm_v128_or(wasm_v128_or(is_caret, is_backtick),
+                         wasm_v128_or(wasm_v128_or(is_lbrace, is_rbrace), is_tilde));
+
+        v128_t delim =
+            wasm_v128_or(wasm_v128_or(delim_low, delim_mid1), wasm_v128_or(delim_mid2, delim_high));
+
+        int delim_mask = wasm_i8x16_bitmask(delim);
+        int slash_mask = wasm_i8x16_bitmask(is_slash);
+
+        bool has_delim = (delim_mask != 0);
+        bool has_slash = (slash_mask != 0);
+
+        if (!has_delim && (!has_slash || result.first_slash)) {
+            ptr += 16;
+            remaining -= 16;
+            continue;
+        }
+
+        for (int i = 0; i < 16; i++) {
+            unsigned char c = (unsigned char) ptr[i];
+
+            if (c == '/' && !result.first_slash) {
+                result.first_slash = ptr + i;
+            }
+
+            if (is_delimiter(c)) {
+                result.end = ptr + i;
+                return result;
+            }
+        }
+
+        ptr += 16;
+        remaining -= 16;
+    }
+
+    while (ptr < end) {
+        unsigned char c = (unsigned char) *ptr;
+
+        if (c == '/' && !result.first_slash) {
+            result.first_slash = ptr;
+        }
+
+        if (is_delimiter(c)) {
+            result.end = ptr;
+            return result;
+        }
+
+        ptr++;
+    }
+
+    result.end = ptr;
+    return result;
+}
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
 
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end) {
     edn_identifier_scan_result_t result = {.end = ptr, .first_slash = NULL};
