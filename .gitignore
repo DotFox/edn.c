@@ -41,6 +41,7 @@ compile_commands.json
 .lsp/
 .nrepl-port
 .cpcache/
+.clangd
 
 # OS files
 .DS_Store

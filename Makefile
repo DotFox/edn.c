@@ -232,10 +232,10 @@ format-check:
 	@echo "  FORMAT-CHECK"
 	$(Q)find src include test bench examples -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
 
-# Generate compile_commands.json for LSP (requires bear or compiledb)
+# Generate compile_commands.json and .clangd for LSP
 .PHONY: compile-commands
 compile-commands: clean
-	@echo "  GEN     compile_commands.json"
+	@echo "  GEN     compile_commands.json + .clangd"
 	@if command -v bear >/dev/null 2>&1; then \
 		bear -- $(MAKE) all test; \
 	elif command -v compiledb >/dev/null 2>&1; then \
@@ -246,6 +246,12 @@ compile-commands: clean
 		echo "  Linux: apt-get install bear (or pip install compiledb)"; \
 		exit 1; \
 	fi
+	@./generate_clangd.sh
+
+# Generate .clangd configuration with auto-detected Emscripten paths
+.PHONY: clangd
+clangd:
+	@./generate_clangd.sh
 
 .PHONY: help
 help:
