@@ -30,7 +30,7 @@ jobs:
     - name: Run tests with enabled features
       run: |
         make clean
-        make test CC=${{ matrix.compiler }} MAP_NAMESPACE_SYNTAX=1
+        make test CC=${{ matrix.compiler }} METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 RATIO=1
 
     - name: Run tests with sanitizers
       env:
@@ -66,7 +66,7 @@ jobs:
     - name: Run tests with enabled features
       run: |
         make clean
-        make test MAP_NAMESPACE_SYNTAX=1
+        make METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 RATIO=1
 
     - name: Run tests with sanitizers
       run: |
@@ -103,7 +103,7 @@ jobs:
     - name: Run tests with enabled features
       run: |
         make clean
-        make test MAP_NAMESPACE_SYNTAX=1
+        make test METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 RATIO=1
 
   test-windows-msvc:
     name: Test on Windows (MSVC + CMake)

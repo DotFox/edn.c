@@ -1316,15 +1316,11 @@ TEST(api_ratio_as_double_zero_denominator) {
 }
 
 TEST(api_parse_ratio_hex_not_supported) {
-    /* Hex notation should not work with ratios */
     edn_result_t r = edn_read("0x10/2", 0);
 
     /* Should not parse as a ratio (hex numbers don't support ratio syntax) */
-    assert(r.error == EDN_OK);
-    /* Note: hex parsing has a separate bug, so we just verify it's not a ratio */
-    assert(edn_type(r.value) != EDN_TYPE_RATIO);
-
-    edn_free(r.value);
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
 }
 
 TEST(api_parse_ratio_one) {
