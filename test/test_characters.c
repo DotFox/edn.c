@@ -9,7 +9,7 @@
 
 /* Test named characters */
 TEST(named_newline) {
-    edn_result_t result = edn_parse("\\newline", 0);
+    edn_result_t result = edn_read("\\newline", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -22,7 +22,7 @@ TEST(named_newline) {
 }
 
 TEST(named_space) {
-    edn_result_t result = edn_parse("\\space", 0);
+    edn_result_t result = edn_read("\\space", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -35,7 +35,7 @@ TEST(named_space) {
 }
 
 TEST(named_tab) {
-    edn_result_t result = edn_parse("\\tab", 0);
+    edn_result_t result = edn_read("\\tab", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -48,7 +48,7 @@ TEST(named_tab) {
 }
 
 TEST(named_return) {
-    edn_result_t result = edn_parse("\\return", 0);
+    edn_result_t result = edn_read("\\return", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -61,7 +61,7 @@ TEST(named_return) {
 }
 
 TEST(single_lowercase) {
-    edn_result_t result = edn_parse("\\a", 0);
+    edn_result_t result = edn_read("\\a", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -74,7 +74,7 @@ TEST(single_lowercase) {
 }
 
 TEST(single_uppercase) {
-    edn_result_t result = edn_parse("\\Z", 0);
+    edn_result_t result = edn_read("\\Z", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -87,7 +87,7 @@ TEST(single_uppercase) {
 }
 
 TEST(single_digit) {
-    edn_result_t result = edn_parse("\\5", 0);
+    edn_result_t result = edn_read("\\5", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -100,7 +100,7 @@ TEST(single_digit) {
 }
 
 TEST(special_backslash) {
-    edn_result_t result = edn_parse("\\\\", 0);
+    edn_result_t result = edn_read("\\\\", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -113,7 +113,7 @@ TEST(special_backslash) {
 }
 
 TEST(special_quote) {
-    edn_result_t result = edn_parse("\\\"", 0);
+    edn_result_t result = edn_read("\\\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -126,7 +126,7 @@ TEST(special_quote) {
 }
 
 TEST(special_parens) {
-    edn_result_t result = edn_parse("\\(", 0);
+    edn_result_t result = edn_read("\\(", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -135,7 +135,7 @@ TEST(special_parens) {
     assert(codepoint == '(');
     edn_free(result.value);
 
-    result = edn_parse("\\)", 0);
+    result = edn_read("\\)", 0);
     assert(result.error == EDN_OK);
     assert(edn_character_get(result.value, &codepoint));
     assert(codepoint == ')');
@@ -143,7 +143,7 @@ TEST(special_parens) {
 }
 
 TEST(special_brackets) {
-    edn_result_t result = edn_parse("\\[", 0);
+    edn_result_t result = edn_read("\\[", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -152,7 +152,7 @@ TEST(special_brackets) {
     assert(codepoint == '[');
     edn_free(result.value);
 
-    result = edn_parse("\\]", 0);
+    result = edn_read("\\]", 0);
     assert(result.error == EDN_OK);
     assert(edn_character_get(result.value, &codepoint));
     assert(codepoint == ']');
@@ -160,7 +160,7 @@ TEST(special_brackets) {
 }
 
 TEST(special_braces) {
-    edn_result_t result = edn_parse("\\{", 0);
+    edn_result_t result = edn_read("\\{", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -169,7 +169,7 @@ TEST(special_braces) {
     assert(codepoint == '{');
     edn_free(result.value);
 
-    result = edn_parse("\\}", 0);
+    result = edn_read("\\}", 0);
     assert(result.error == EDN_OK);
     assert(edn_character_get(result.value, &codepoint));
     assert(codepoint == '}');
@@ -177,7 +177,7 @@ TEST(special_braces) {
 }
 
 TEST(special_semicolon) {
-    edn_result_t result = edn_parse("\\;", 0);
+    edn_result_t result = edn_read("\\;", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -190,7 +190,7 @@ TEST(special_semicolon) {
 }
 
 TEST(special_at_sign) {
-    edn_result_t result = edn_parse("\\@", 0);
+    edn_result_t result = edn_read("\\@", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -203,7 +203,7 @@ TEST(special_at_sign) {
 }
 
 TEST(special_hash) {
-    edn_result_t result = edn_parse("\\#", 0);
+    edn_result_t result = edn_read("\\#", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -216,7 +216,7 @@ TEST(special_hash) {
 }
 
 TEST(special_comma) {
-    edn_result_t result = edn_parse("\\,", 0);
+    edn_result_t result = edn_read("\\,", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -229,7 +229,7 @@ TEST(special_comma) {
 }
 
 TEST(unicode_basic_latin) {
-    edn_result_t result = edn_parse("\\u0041", 0);
+    edn_result_t result = edn_read("\\u0041", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -242,7 +242,7 @@ TEST(unicode_basic_latin) {
 }
 
 TEST(unicode_greek) {
-    edn_result_t result = edn_parse("\\u03B1", 0);
+    edn_result_t result = edn_read("\\u03B1", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -255,7 +255,7 @@ TEST(unicode_greek) {
 }
 
 TEST(unicode_cjk) {
-    edn_result_t result = edn_parse("\\u4E2D", 0);
+    edn_result_t result = edn_read("\\u4E2D", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -268,7 +268,7 @@ TEST(unicode_cjk) {
 }
 
 TEST(unicode_lowercase_hex) {
-    edn_result_t result = edn_parse("\\u00e9", 0);
+    edn_result_t result = edn_read("\\u00e9", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -281,50 +281,50 @@ TEST(unicode_lowercase_hex) {
 }
 
 TEST(invalid_no_backslash) {
-    edn_result_t result = edn_parse("a", 0);
+    edn_result_t result = edn_read("a", 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
     edn_free(result.value);
 }
 
 TEST(invalid_backslash_only) {
-    edn_result_t result = edn_parse("\\", 0);
+    edn_result_t result = edn_read("\\", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_character_u_with_text) {
-    edn_result_t result = edn_parse("\\unknown", 0);
+    edn_result_t result = edn_read("\\unknown", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_character_u_in_vector) {
-    edn_result_t result = edn_parse("[\\unknown]", 0);
+    edn_result_t result = edn_read("[\\unknown]", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_unicode_long) {
-    edn_result_t result = edn_parse("\\uffffff", 0);
+    edn_result_t result = edn_read("\\uffffff", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_unicode_short) {
-    edn_result_t result = edn_parse("\\u12", 0);
+    edn_result_t result = edn_read("\\u12", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_unicode_bad_hex) {
-    edn_result_t result = edn_parse("\\uXYZW", 0);
+    edn_result_t result = edn_read("\\uXYZW", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(single_u_no_hex) {
-    edn_result_t result = edn_parse("\\u", 0);
+    edn_result_t result = edn_read("\\u", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -337,7 +337,7 @@ TEST(single_u_no_hex) {
 }
 
 TEST(single_u_not_hex) {
-    edn_result_t result = edn_parse("[\\u x]", 0);
+    edn_result_t result = edn_read("[\\u x]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -361,19 +361,19 @@ TEST(single_u_not_hex) {
 }
 
 TEST(invalid_whitespace_space) {
-    edn_result_t result = edn_parse("\\ ", 0);
+    edn_result_t result = edn_read("\\ ", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_whitespace_tab) {
-    edn_result_t result = edn_parse("\\\t", 0);
+    edn_result_t result = edn_read("\\\t", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
@@ -390,7 +390,7 @@ TEST(api_null_value) {
 }
 
 TEST(api_null_out) {
-    edn_result_t result = edn_parse("\\a", 0);
+    edn_result_t result = edn_read("\\a", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -402,7 +402,7 @@ TEST(api_null_out) {
 #ifdef EDN_ENABLE_EXTENDED_CHARACTERS
 
 TEST(extended_formfeed) {
-    edn_result_t result = edn_parse("\\formfeed", 0);
+    edn_result_t result = edn_read("\\formfeed", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -415,7 +415,7 @@ TEST(extended_formfeed) {
 }
 
 TEST(extended_backspace) {
-    edn_result_t result = edn_parse("\\backspace", 0);
+    edn_result_t result = edn_read("\\backspace", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -428,7 +428,7 @@ TEST(extended_backspace) {
 }
 
 TEST(octal_single_digit) {
-    edn_result_t result = edn_parse("\\o7", 0);
+    edn_result_t result = edn_read("\\o7", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -441,7 +441,7 @@ TEST(octal_single_digit) {
 }
 
 TEST(octal_two_digits) {
-    edn_result_t result = edn_parse("\\o12", 0);
+    edn_result_t result = edn_read("\\o12", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -454,7 +454,7 @@ TEST(octal_two_digits) {
 }
 
 TEST(octal_three_digits) {
-    edn_result_t result = edn_parse("\\o101", 0);
+    edn_result_t result = edn_read("\\o101", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -467,7 +467,7 @@ TEST(octal_three_digits) {
 }
 
 TEST(octal_max_value) {
-    edn_result_t result = edn_parse("\\o377", 0);
+    edn_result_t result = edn_read("\\o377", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -480,19 +480,19 @@ TEST(octal_max_value) {
 }
 
 TEST(octal_above_max) {
-    edn_result_t result = edn_parse("\\o400", 0);
+    edn_result_t result = edn_read("\\o400", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(octal_777_invalid) {
-    edn_result_t result = edn_parse("\\o777", 0);
+    edn_result_t result = edn_read("\\o777", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(octal_zero) {
-    edn_result_t result = edn_parse("\\o0", 0);
+    edn_result_t result = edn_read("\\o0", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -505,7 +505,7 @@ TEST(octal_zero) {
 }
 
 TEST(single_o_no_digits) {
-    edn_result_t result = edn_parse("\\o", 0);
+    edn_result_t result = edn_read("\\o", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -518,25 +518,25 @@ TEST(single_o_no_digits) {
 }
 
 TEST(invalid_octal_digit_8) {
-    edn_result_t result = edn_parse("\\o8", 0);
+    edn_result_t result = edn_read("\\o8", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_octal_digit_9) {
-    edn_result_t result = edn_parse("\\o9", 0);
+    edn_result_t result = edn_read("\\o9", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_octal_78) {
-    edn_result_t result = edn_parse("\\o78", 0);
+    edn_result_t result = edn_read("\\o78", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(extended_in_vector) {
-    edn_result_t result = edn_parse("[\\formfeed \\backspace]", 0);
+    edn_result_t result = edn_read("[\\formfeed \\backspace]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -555,7 +555,7 @@ TEST(extended_in_vector) {
 }
 
 TEST(octal_in_vector) {
-    edn_result_t result = edn_parse("[\\o101 \\o102 \\o103]", 0);
+    edn_result_t result = edn_read("[\\o101 \\o102 \\o103]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -580,7 +580,7 @@ TEST(octal_in_vector) {
 #else /* !EDN_ENABLE_EXTENDED_CHARACTERS */
 
 TEST(fallback_formfeed) {
-    edn_result_t result = edn_parse("[\\f ormfeed]", 0);
+    edn_result_t result = edn_read("[\\f ormfeed]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -604,7 +604,7 @@ TEST(fallback_formfeed) {
 }
 
 TEST(fallback_backspace) {
-    edn_result_t result = edn_parse("[\\b ackspace]", 0);
+    edn_result_t result = edn_read("[\\b ackspace]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -628,7 +628,7 @@ TEST(fallback_backspace) {
 }
 
 TEST(fallback_octal) {
-    edn_result_t result = edn_parse("[\\o 123]", 0);
+    edn_result_t result = edn_read("[\\o 123]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -650,7 +650,7 @@ TEST(fallback_octal) {
 }
 
 TEST(fallback_single_f) {
-    edn_result_t result = edn_parse("\\f", 0);
+    edn_result_t result = edn_read("\\f", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -663,7 +663,7 @@ TEST(fallback_single_f) {
 }
 
 TEST(fallback_single_b) {
-    edn_result_t result = edn_parse("\\b", 0);
+    edn_result_t result = edn_read("\\b", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);
@@ -676,7 +676,7 @@ TEST(fallback_single_b) {
 }
 
 TEST(fallback_single_o) {
-    edn_result_t result = edn_parse("\\o", 0);
+    edn_result_t result = edn_read("\\o", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_CHARACTER);

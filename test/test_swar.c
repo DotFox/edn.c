@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "../include/edn.h"
-#include "../src/edn_internal.h"
 #include "test_framework.h"
 
 /* Test SWAR 8-digit parsing specifically */
@@ -9,7 +8,7 @@
 TEST(test_swar_eight_digits) {
     /* Test parsing exactly 8 digits */
     const char* input = "12345678";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -23,7 +22,7 @@ TEST(test_swar_eight_digits) {
 TEST(test_swar_sixteen_digits) {
     /* Test parsing 16 digits (two 8-digit chunks) */
     const char* input = "1234567890123456";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -37,7 +36,7 @@ TEST(test_swar_sixteen_digits) {
 TEST(test_swar_long_number) {
     /* Test parsing very long number (multiple 8-digit chunks) */
     const char* input = "123456789012345678"; /* 18 digits */
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -51,7 +50,7 @@ TEST(test_swar_long_number) {
 TEST(test_swar_with_remainder) {
     /* Test parsing number where digits don't align to 8 */
     const char* input = "1234567890"; /* 10 digits: 8 + 2 */
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -65,7 +64,7 @@ TEST(test_swar_with_remainder) {
 TEST(test_swar_negative_long) {
     /* Test negative number with SWAR */
     const char* input = "-12345678901234";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -79,7 +78,7 @@ TEST(test_swar_negative_long) {
 TEST(test_swar_all_nines) {
     /* Test SWAR with all nines */
     const char* input = "99999999";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -93,7 +92,7 @@ TEST(test_swar_all_nines) {
 TEST(test_swar_max_int64) {
     /* Test INT64_MAX (19 digits) */
     const char* input = "9223372036854775807";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_INT);
 
@@ -107,7 +106,7 @@ TEST(test_swar_max_int64) {
 TEST(test_swar_overflow_detection) {
     /* Test that overflow is detected correctly with SWAR */
     const char* input = "9223372036854775808"; /* INT64_MAX + 1 */
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_BIGINT); /* Should overflow to BigInt */
 
@@ -117,7 +116,7 @@ TEST(test_swar_overflow_detection) {
 TEST(test_swar_in_vector) {
     /* Test SWAR parsing in a vector context */
     const char* input = "[12345678 87654321 11111111]";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
 
@@ -148,7 +147,7 @@ TEST(test_swar_short_numbers_still_work) {
     int64_t expected[] = {1, 12, 123, 1234, 12345, 123456, 1234567};
 
     for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
-        edn_result_t result = edn_parse(inputs[i], strlen(inputs[i]));
+        edn_result_t result = edn_read(inputs[i], strlen(inputs[i]));
         assert(result.value != NULL);
         assert(edn_type(result.value) == EDN_TYPE_INT);
 

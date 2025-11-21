@@ -10,7 +10,7 @@
 
 /* Helper to create test arrays */
 static edn_value_t* parse_helper(const char* input) {
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     if (result.error != EDN_OK) {
         return NULL;
     }
@@ -431,7 +431,7 @@ TEST(hash_large_strings) {
     }
     pos += snprintf(input + pos, sizeof(input) - pos, "]");
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -465,7 +465,7 @@ TEST(hash_large_keywords) {
     }
     pos += snprintf(input + pos, sizeof(input) - pos, "]");
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -501,7 +501,7 @@ TEST(hash_large_keywords_with_duplicate) {
     pos += snprintf(input + pos, sizeof(input) - pos, " :keyword0");
     pos += snprintf(input + pos, sizeof(input) - pos, "]");
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);

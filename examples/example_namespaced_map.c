@@ -83,7 +83,7 @@ static void example(const char* input, const char* description) {
     printf("\n%s\n", description);
     printf("Input:  %s\n", input);
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     if (result.error != EDN_OK) {
         printf("Error:  %s\n", result.error_message);

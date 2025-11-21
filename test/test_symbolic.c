@@ -9,7 +9,7 @@
 
 /* Test ##Inf */
 TEST(parse_inf) {
-    edn_result_t result = edn_parse("##Inf", 0);
+    edn_result_t result = edn_read("##Inf", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -20,7 +20,7 @@ TEST(parse_inf) {
 
 /* Test ##-Inf */
 TEST(parse_neg_inf) {
-    edn_result_t result = edn_parse("##-Inf", 0);
+    edn_result_t result = edn_read("##-Inf", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -31,7 +31,7 @@ TEST(parse_neg_inf) {
 
 /* Test ##NaN */
 TEST(parse_nan) {
-    edn_result_t result = edn_parse("##NaN", 0);
+    edn_result_t result = edn_read("##NaN", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -41,7 +41,7 @@ TEST(parse_nan) {
 
 /* Test with whitespace */
 TEST(parse_inf_with_whitespace) {
-    edn_result_t result = edn_parse("  ##Inf  ", 0);
+    edn_result_t result = edn_read("  ##Inf  ", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -51,7 +51,7 @@ TEST(parse_inf_with_whitespace) {
 }
 
 TEST(parse_nan_with_comment) {
-    edn_result_t result = edn_parse("; comment\n##NaN", 0);
+    edn_result_t result = edn_read("; comment\n##NaN", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -61,7 +61,7 @@ TEST(parse_nan_with_comment) {
 
 /* Test API functions */
 TEST(api_double_get_inf) {
-    edn_result_t result = edn_parse("##Inf", 0);
+    edn_result_t result = edn_read("##Inf", 0);
     assert(result.error == EDN_OK);
 
     double value;
@@ -73,7 +73,7 @@ TEST(api_double_get_inf) {
 }
 
 TEST(api_double_get_neg_inf) {
-    edn_result_t result = edn_parse("##-Inf", 0);
+    edn_result_t result = edn_read("##-Inf", 0);
     assert(result.error == EDN_OK);
 
     double value;
@@ -85,7 +85,7 @@ TEST(api_double_get_neg_inf) {
 }
 
 TEST(api_double_get_nan) {
-    edn_result_t result = edn_parse("##NaN", 0);
+    edn_result_t result = edn_read("##NaN", 0);
     assert(result.error == EDN_OK);
 
     double value;
@@ -98,38 +98,38 @@ TEST(api_double_get_nan) {
 
 /* Test invalid symbolic values */
 TEST(invalid_only_hash_hash) {
-    edn_result_t result = edn_parse("##", 0);
+    edn_result_t result = edn_read("##", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }
 
 TEST(invalid_unknown_symbolic) {
-    edn_result_t result = edn_parse("##Foo", 0);
+    edn_result_t result = edn_read("##Foo", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }
 
 TEST(invalid_incomplete_inf) {
-    edn_result_t result = edn_parse("##In", 0);
+    edn_result_t result = edn_read("##In", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }
 
 TEST(invalid_incomplete_nan) {
-    edn_result_t result = edn_parse("##Na", 0);
+    edn_result_t result = edn_read("##Na", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }
 
 /* Test case sensitivity */
 TEST(case_sensitive_inf) {
-    edn_result_t result = edn_parse("##inf", 0);
+    edn_result_t result = edn_read("##inf", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }
 
 TEST(case_sensitive_nan) {
-    edn_result_t result = edn_parse("##nan", 0);
+    edn_result_t result = edn_read("##nan", 0);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
 }

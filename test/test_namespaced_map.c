@@ -14,7 +14,7 @@
 
 TEST(basic_namespaced_map) {
     /* #:foo{:x 1 :y 2} should be equivalent to {:foo/x 1 :foo/y 2} */
-    edn_result_t result = edn_parse("#:foo{:x 1 :y 2}", 0);
+    edn_result_t result = edn_read("#:foo{:x 1 :y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -67,7 +67,7 @@ TEST(basic_namespaced_map) {
 TEST(namespaced_map_with_already_namespaced_keys) {
     /* #:foo{:x 1 :bar/y 2} should be {:foo/x 1 :bar/y 2} */
     /* Keys with existing namespace should not be transformed */
-    edn_result_t result = edn_parse("#:foo{:x 1 :bar/y 2}", 0);
+    edn_result_t result = edn_read("#:foo{:x 1 :bar/y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -127,7 +127,7 @@ TEST(namespaced_map_with_already_namespaced_keys) {
 TEST(namespaced_map_with_non_keyword_keys) {
     /* #:foo{"x" 1 :y 2} should be {"x" 1 :foo/y 2} */
     /* Non-keyword keys should not be transformed */
-    edn_result_t result = edn_parse("#:foo{\"x\" 1 :y 2}", 0);
+    edn_result_t result = edn_read("#:foo{\"x\" 1 :y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -183,7 +183,7 @@ TEST(namespaced_map_with_non_keyword_keys) {
 }
 
 TEST(namespaced_map_empty) {
-    edn_result_t result = edn_parse("#:foo{}", 0);
+    edn_result_t result = edn_read("#:foo{}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -193,7 +193,7 @@ TEST(namespaced_map_empty) {
 }
 
 TEST(namespaced_map_whitespace) {
-    edn_result_t result = edn_parse("#:foo  { :x  1  :y  2 }", 0);
+    edn_result_t result = edn_read("#:foo  { :x  1  :y  2 }", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -203,35 +203,35 @@ TEST(namespaced_map_whitespace) {
 }
 
 TEST(namespaced_map_error_namespace_not_keyword) {
-    edn_result_t result = edn_parse("#:\"foo\"{:x 1}", 0);
+    edn_result_t result = edn_read("#:\"foo\"{:x 1}", 0);
     assert(result.error != EDN_OK);
 }
 
 TEST(namespaced_map_error_namespace_has_namespace) {
-    edn_result_t result = edn_parse("#:foo/bar{:x 1}", 0);
+    edn_result_t result = edn_read("#:foo/bar{:x 1}", 0);
     assert(result.error != EDN_OK);
 }
 
 TEST(namespaced_map_error_not_followed_by_map) {
-    edn_result_t result = edn_parse("#:foo[:x 1]", 0);
+    edn_result_t result = edn_read("#:foo[:x 1]", 0);
     assert(result.error != EDN_OK);
 }
 
 TEST(namespaced_map_duplicate_keys) {
-    edn_result_t result = edn_parse("#:foo{:x 1 :x 2}", 0);
+    edn_result_t result = edn_read("#:foo{:x 1 :x 2}", 0);
     assert(result.error == EDN_ERROR_DUPLICATE_KEY);
 }
 
 TEST(namespaced_map_duplicate_keys_extra) {
     /* After transformation, these become duplicates: :foo/x and :foo/x */
-    edn_result_t result = edn_parse("#:foo{:x 1 :foo/x 2}", 0);
+    edn_result_t result = edn_read("#:foo{:x 1 :foo/x 2}", 0);
     assert(result.error == EDN_ERROR_DUPLICATE_KEY);
 }
 
 TEST(namespaced_map_with_symbol_keys) {
     /* #:foo{x 1 y 2} should be {foo/x 1 foo/y 2} */
     /* Symbol keys without namespace should be transformed */
-    edn_result_t result = edn_parse("#:foo{x 1 y 2}", 0);
+    edn_result_t result = edn_read("#:foo{x 1 y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -287,7 +287,7 @@ TEST(namespaced_map_with_symbol_keys) {
 TEST(namespaced_map_with_mixed_symbol_keyword_keys) {
     /* #:foo{x 1 :y 2} should be {foo/x 1 :foo/y 2} */
     /* Both symbols and keywords should be namespaced */
-    edn_result_t result = edn_parse("#:foo{x 1 :y 2}", 0);
+    edn_result_t result = edn_read("#:foo{x 1 :y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -360,7 +360,7 @@ TEST(namespaced_map_with_mixed_symbol_keyword_keys) {
 TEST(namespaced_map_with_already_namespaced_symbol_keys) {
     /* #:foo{x 1 bar/y 2} should be {foo/x 1 bar/y 2} */
     /* Symbols with existing namespace should not be transformed */
-    edn_result_t result = edn_parse("#:foo{x 1 bar/y 2}", 0);
+    edn_result_t result = edn_read("#:foo{x 1 bar/y 2}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -422,7 +422,7 @@ TEST(namespaced_map_with_already_namespaced_symbol_keys) {
 
 /* Test that namespaced map syntax fails when disabled */
 TEST(namespaced_map_syntax_disabled) {
-    edn_result_t result = edn_parse("#:foo{:x 1}", 0);
+    edn_result_t result = edn_read("#:foo{:x 1}", 0);
     assert(result.error != EDN_OK);
     assert_ptr_eq(result.value, NULL);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);

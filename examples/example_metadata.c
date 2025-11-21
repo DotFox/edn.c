@@ -73,7 +73,7 @@ int main(void) {
     /* Example 1: Keyword shorthand */
     {
         printf("Example 1: ^:test [1 2 3]\n");
-        edn_result_t result = edn_parse("^:test [1 2 3]", 0);
+        edn_result_t result = edn_read("^:test [1 2 3]", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -92,7 +92,7 @@ int main(void) {
     /* Example 2: Map metadata */
     {
         printf("Example 2: ^{:doc \"A vector\" :test true} [1 2 3]\n");
-        edn_result_t result = edn_parse("^{:doc \"A vector\" :test true} [1 2 3]", 0);
+        edn_result_t result = edn_read("^{:doc \"A vector\" :test true} [1 2 3]", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -111,7 +111,7 @@ int main(void) {
     /* Example 3: String tag */
     {
         printf("Example 3: ^\"String\" [1 2 3]\n");
-        edn_result_t result = edn_parse("^\"String\" [1 2 3]", 0);
+        edn_result_t result = edn_read("^\"String\" [1 2 3]", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -130,7 +130,7 @@ int main(void) {
     /* Example 4: Symbol tag */
     {
         printf("Example 4: ^Vector [1 2 3]\n");
-        edn_result_t result = edn_parse("^Vector [1 2 3]", 0);
+        edn_result_t result = edn_read("^Vector [1 2 3]", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -149,7 +149,7 @@ int main(void) {
     /* Example 5: Chained metadata */
     {
         printf("Example 5: ^:private ^:dynamic my-var\n");
-        edn_result_t result = edn_parse("^:private ^:dynamic my-var", 0);
+        edn_result_t result = edn_read("^:private ^:dynamic my-var", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -176,8 +176,7 @@ int main(void) {
     /* Example 6: Complex metadata */
     {
         printf("Example 6: ^{:doc \"A function\" :tag Fn :arglists ([x y])} my-fn\n");
-        edn_result_t result =
-            edn_parse("^{:doc \"A function\" :tag Fn :arglists ([x y])} my-fn", 0);
+        edn_result_t result = edn_read("^{:doc \"A function\" :tag Fn :arglists ([x y])} my-fn", 0);
 
         if (result.error == EDN_OK) {
             printf("Parsed successfully!\n");
@@ -204,7 +203,7 @@ int main(void) {
 
         for (size_t i = 0; i < 4; i++) {
             printf("  %s: ", examples[i]);
-            edn_result_t result = edn_parse(examples[i], 0);
+            edn_result_t result = edn_read(examples[i], 0);
 
             if (result.error == EDN_OK && edn_value_has_meta(result.value)) {
                 printf("✓ (metadata attached to %s)\n", type_names[i]);

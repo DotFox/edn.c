@@ -64,7 +64,7 @@ int main(void) {
 
     while (time(NULL) < end) {
         /* Parse the integer array */
-        edn_result_t result = edn_parse(data, size);
+        edn_result_t result = edn_read(data, size);
 
         if (result.value) {
             /* Count numbers (should be 1400) */

@@ -2,7 +2,6 @@
  * Test value equality and comparison functions
  */
 
-#include <math.h>
 #include <string.h>
 
 #include "../include/edn.h"
@@ -11,7 +10,7 @@
 
 /* Helper function to create values for testing */
 static edn_value_t* parse_helper(const char* input) {
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     if (result.error != EDN_OK) {
         return NULL;
     }

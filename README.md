@@ -1,6 +1,6 @@
 # EDN.C
 
-A fast, zero-copy EDN (Extensible Data Notation) parser written in C11 with SIMD acceleration.
+A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD acceleration.
 
 [![CI](https://github.com/DotFox/edn.c/workflows/CI/badge.svg)](https://github.com/DotFox/edn.c/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -127,8 +127,8 @@ Copy `include/edn.h` and all files from `src/` into your project and compile the
 int main(void) {
     const char *input = "{:name \"Alice\" :age 30 :languages [:clojure :rust]}";
     
-    // Parse EDN string
-    edn_result_t result = edn_parse(input, 0);
+    // Read EDN string
+    edn_result_t result = edn_read(input, 0);
     
     if (result.error != EDN_OK) {
         fprintf(stderr, "Parse error at line %zu, column %zu: %s\n",
@@ -141,7 +141,7 @@ int main(void) {
     printf("Parsed map with %zu entries\n", edn_map_count(map));
     
     // Look up a value by key
-    edn_result_t key_result = edn_parse(":name", 0);
+    edn_result_t key_result = edn_read(":name", 0);
     edn_value_t *name_value = edn_map_lookup(map, key_result.value);
     
     if (name_value != NULL && edn_type(name_value) == EDN_TYPE_STRING) {
@@ -189,10 +189,10 @@ The following characters act as **whitespace delimiters** (separate tokens):
 **Examples:**
 ```c
 // All of these parse as vectors with 3 elements:
-edn_parse("[1 2 3]", 0);          // spaces
-edn_parse("[1,2,3]", 0);          // commas
-edn_parse("[1\t2\n3]", 0);        // tabs and newlines
-edn_parse("[1\f2\x1C3]", 0);      // formfeed and file separator
+edn_read("[1 2 3]", 0);          // spaces
+edn_read("[1,2,3]", 0);          // commas
+edn_read("[1\t2\n3]", 0);        // tabs and newlines
+edn_read("[1\f2\x1C3]", 0);      // formfeed and file separator
 ```
 
 ### Control Characters in Identifiers
@@ -206,18 +206,18 @@ Control characters `0x00-0x1F` (except whitespace delimiters) are **valid in ide
 **Examples:**
 ```c
 // Backspace in symbol - valid!
-edn_result_t r = edn_parse("[\bfoo]", 0);  // 1-element vector
+edn_result_t r = edn_read("[\bfoo]", 0);  // 1-element vector
 edn_vector_count(r.value);  // Returns 1
 edn_free(r.value);
 
 // Control characters in middle of identifier
 const char input[] = {'[', 'f', 'o', 'o', 0x08, 'b', 'a', 'r', ']', 0};
-r = edn_parse(input, sizeof(input) - 1);
+r = edn_read(input, sizeof(input) - 1);
 edn_vector_count(r.value);  // Returns 1 (symbol: "foo\bbar")
 edn_free(r.value);
 
 // Versus whitespace - separates into 2 elements
-edn_result_t r2 = edn_parse("[foo\tbar]", 0);  // Tab is whitespace
+edn_result_t r2 = edn_read("[foo\tbar]", 0);  // Tab is whitespace
 edn_vector_count(r2.value);  // Returns 2 (symbols: "foo" and "bar")
 edn_free(r2.value);
 ```
@@ -226,19 +226,19 @@ edn_free(r2.value);
 
 ```c
 const char data[] = {'[', 'a', 0x00, 'b', ']', 0};
-edn_result_t r = edn_parse(data, 5);  // Pass exact length: 5 bytes (excluding terminator)
+edn_result_t r = edn_read(data, 5);  // Pass exact length: 5 bytes (excluding terminator)
 ```
 
 ## API Reference
 
 ### Core Functions
 
-#### `edn_parse()`
+#### `edn_read()`
 
-Parse EDN from a UTF-8 string.
+Read EDN from a UTF-8 string.
 
 ```c
-edn_result_t edn_parse(const char *input, size_t length);
+edn_result_t edn_read(const char *input, size_t length);
 ```
 
 **Parameters:**
@@ -327,7 +327,7 @@ Get UTF-8 string data. Returns NULL if value is not a string.
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("\"Hello, world!\"", 0);
+edn_result_t r = edn_read("\"Hello, world!\"", 0);
 size_t len;
 const char *str = edn_string_get(r.value, &len);
 printf("%.*s\n", (int)len, str);
@@ -344,7 +344,7 @@ Check if value is nil. Returns `true` if value is `EDN_TYPE_NIL`, `false` otherw
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("nil", 0);
+edn_result_t r = edn_read("nil", 0);
 if (edn_is_nil(r.value)) {
     printf("Value is nil\n");
 }
@@ -359,7 +359,7 @@ Get boolean value. Returns `true` if value is `EDN_TYPE_BOOL`, `false` otherwise
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("true", 0);
+edn_result_t r = edn_read("true", 0);
 bool val;
 if (edn_bool_get(r.value, &val)) {
     printf("Boolean: %s\n", val ? "true" : "false");
@@ -377,7 +377,7 @@ Get int64_t value. Returns `true` if value is `EDN_TYPE_INT`, `false` otherwise.
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("42", 0);
+edn_result_t r = edn_read("42", 0);
 int64_t num;
 if (edn_int64_get(r.value, &num)) {
     printf("Number: %lld\n", (long long)num);
@@ -410,7 +410,7 @@ Get big integer digit string for use with external libraries (GMP, OpenSSL BIGNU
 **Example:**
 ```c
 // BigInt from overflow
-edn_result_t r = edn_parse("999999999999999999999999999", 0);
+edn_result_t r = edn_read("999999999999999999999999999", 0);
 size_t len;
 bool neg;
 uint8_t radix;
@@ -421,7 +421,7 @@ if (digits) {
 edn_free(r.value);
 
 // BigInt with N suffix
-edn_result_t r2 = edn_parse("42N", 0);
+edn_result_t r2 = edn_read("42N", 0);
 digits = edn_bigint_get(r2.value, &len, &neg, &radix);
 // digits = "42", len = 2, use with GMP: mpz_set_str(bigint, digits, radix)
 edn_free(r2.value);
@@ -443,7 +443,7 @@ Convert any numeric type (INT, BIGINT, FLOAT, BIGDEC) to double. May lose precis
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("3.14159", 0);
+edn_result_t r = edn_read("3.14159", 0);
 double num;
 if (edn_double_get(r.value, &num)) {
     printf("Pi: %.5f\n", num);
@@ -474,7 +474,7 @@ Get big decimal string for use with external libraries (Java BigDecimal, Python 
 **Example:**
 ```c
 // BigDecimal from float
-edn_result_t r1 = edn_parse("3.14159265358979323846M", 0);
+edn_result_t r1 = edn_read("3.14159265358979323846M", 0);
 size_t len;
 bool neg;
 const char *decimal = edn_bigdec_get(r1.value, &len, &neg);
@@ -485,7 +485,7 @@ if (decimal) {
 edn_free(r1.value);
 
 // BigDecimal from integer with M suffix
-edn_result_t r2 = edn_parse("42M", 0);
+edn_result_t r2 = edn_read("42M", 0);
 decimal = edn_bigdec_get(r2.value, &len, &neg);
 // decimal = "42", application can convert to BigDecimal
 edn_free(r2.value);
@@ -530,7 +530,7 @@ Ratios are automatically reduced to lowest terms using the Binary GCD algorithm 
 **Example:**
 ```c
 // Parse ratio
-edn_result_t r = edn_parse("22/7", 0);
+edn_result_t r = edn_read("22/7", 0);
 
 if (r.error == EDN_OK && edn_type(r.value) == EDN_TYPE_RATIO) {
     int64_t num, den;
@@ -548,14 +548,14 @@ if (r.error == EDN_OK && edn_type(r.value) == EDN_TYPE_RATIO) {
 edn_free(r.value);
 
 // Automatic reduction
-edn_result_t r2 = edn_parse("3/6", 0);
+edn_result_t r2 = edn_read("3/6", 0);
 int64_t num2, den2;
 edn_ratio_get(r2.value, &num2, &den2);
 // num2 = 1, den2 = 2 (reduced from 3/6)
 edn_free(r2.value);
 
 // Reduction to integer
-edn_result_t r3 = edn_parse("10/5", 0);
+edn_result_t r3 = edn_read("10/5", 0);
 assert(edn_type(r3.value) == EDN_TYPE_INT);
 int64_t int_val;
 edn_int64_get(r3.value, &int_val);
@@ -563,24 +563,24 @@ edn_int64_get(r3.value, &int_val);
 edn_free(r3.value);
 
 // Negative ratios
-edn_result_t r4 = edn_parse("-3/4", 0);
+edn_result_t r4 = edn_read("-3/4", 0);
 int64_t num4, den4;
 edn_ratio_get(r4.value, &num4, &den4);
 // num4 = -3, den4 = 4 (numerator is negative, denominator is positive)
 edn_free(r4.value);
 
 // Error: zero denominator
-edn_result_t r5 = edn_parse("5/0", 0);
+edn_result_t r5 = edn_read("5/0", 0);
 // r5.error == EDN_ERROR_INVALID_NUMBER
 // r5.error_message == "Ratio denominator cannot be zero"
 
 // Error: negative denominator (denominators must be positive)
-edn_result_t r6 = edn_parse("3/-4", 0);
+edn_result_t r6 = edn_read("3/-4", 0);
 // r6.error == EDN_ERROR_INVALID_NUMBER
 // r6.error_message == "Ratio denominator must be positive"
 
 // Error: hex not supported
-edn_result_t r7 = edn_parse("0x10/2", 0);
+edn_result_t r7 = edn_read("0x10/2", 0);
 // Parses 0x10 as int, not as ratio
 ```
 
@@ -620,35 +620,35 @@ EDN.C supports Clojure-style special integer formats for hexadecimal, octal, bin
 **Examples:**
 ```c
 // Hexadecimal
-edn_result_t r1 = edn_parse("0xFF", 0);
+edn_result_t r1 = edn_read("0xFF", 0);
 int64_t val1;
 edn_int64_get(r1.value, &val1);
 // val1 = 255
 edn_free(r1.value);
 
 // Octal
-edn_result_t r2 = edn_parse("0777", 0);
+edn_result_t r2 = edn_read("0777", 0);
 int64_t val2;
 edn_int64_get(r2.value, &val2);
 // val2 = 511 (7*64 + 7*8 + 7)
 edn_free(r2.value);
 
 // Binary (radix notation)
-edn_result_t r3 = edn_parse("2r1010", 0);
+edn_result_t r3 = edn_read("2r1010", 0);
 int64_t val3;
 edn_int64_get(r3.value, &val3);
 // val3 = 10
 edn_free(r3.value);
 
 // Base-36 (radix notation)
-edn_result_t r4 = edn_parse("36rZZ", 0);
+edn_result_t r4 = edn_read("36rZZ", 0);
 int64_t val4;
 edn_int64_get(r4.value, &val4);
 // val4 = 1295 (35*36 + 35)
 edn_free(r4.value);
 
 // Negative hex
-edn_result_t r5 = edn_parse("-0x10", 0);
+edn_result_t r5 = edn_read("-0x10", 0);
 int64_t val5;
 edn_int64_get(r5.value, &val5);
 // val5 = -16
@@ -695,12 +695,12 @@ Get Unicode codepoint. Returns `true` if value is `EDN_TYPE_CHARACTER`, `false` 
 **Example:**
 ```c
 // Named characters: \newline, \tab, \space, \return
-edn_result_t r1 = edn_parse("\\newline", 0);
+edn_result_t r1 = edn_read("\\newline", 0);
 uint32_t cp1;
 edn_character_get(r1.value, &cp1);  // cp1 = 0x0A
 
 // Unicode: \uXXXX or literal character
-edn_result_t r2 = edn_parse("\\u03B1", 0);  // Greek alpha
+edn_result_t r2 = edn_read("\\u03B1", 0);  // Greek alpha
 uint32_t cp2;
 edn_character_get(r2.value, &cp2);  // cp2 = 0x03B1
 
@@ -729,7 +729,7 @@ bool edn_is_collection(const edn_value_t *value);
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("[42 \"hello\" [1 2] {:a 1}]", 0);
+edn_result_t r = edn_read("[42 \"hello\" [1 2] {:a 1}]", 0);
 
 if (edn_is_collection(r.value)) {
     for (size_t i = 0; i < edn_vector_count(r.value); i++) {
@@ -758,7 +758,7 @@ Compare EDN string with C string for equality. Returns `true` if equal, `false` 
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("{:status \"active\"}", 0);
+edn_result_t r = edn_read("{:status \"active\"}", 0);
 edn_value_t* status = edn_map_get_keyword(r.value, "status");
 
 if (edn_string_equals(status, "active")) {
@@ -781,14 +781,14 @@ Get symbol components. Returns `true` if value is `EDN_TYPE_SYMBOL`, `false` oth
 **Example:**
 ```c
 // Simple symbol
-edn_result_t r1 = edn_parse("foo", 0);
+edn_result_t r1 = edn_read("foo", 0);
 const char *name;
 size_t name_len;
 edn_symbol_get(r1.value, NULL, NULL, &name, &name_len);
 printf("Symbol: %.*s\n", (int)name_len, name);
 
 // Namespaced symbol
-edn_result_t r2 = edn_parse("clojure.core/map", 0);
+edn_result_t r2 = edn_read("clojure.core/map", 0);
 const char *ns, *n;
 size_t ns_len, n_len;
 edn_symbol_get(r2.value, &ns, &ns_len, &n, &n_len);
@@ -810,7 +810,7 @@ Get keyword components. Returns `true` if value is `EDN_TYPE_KEYWORD`, `false` o
 
 **Example:**
 ```c
-edn_result_t r = edn_parse(":name", 0);
+edn_result_t r = edn_read(":name", 0);
 const char *name;
 size_t name_len;
 edn_keyword_get(r.value, NULL, NULL, &name, &name_len);
@@ -831,7 +831,7 @@ edn_value_t *edn_list_get(const edn_value_t *value, size_t index);
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("(1 2 3)", 0);
+edn_result_t r = edn_read("(1 2 3)", 0);
 size_t count = edn_list_count(r.value);
 
 for (size_t i = 0; i < count; i++) {
@@ -856,7 +856,7 @@ edn_value_t *edn_vector_get(const edn_value_t *value, size_t index);
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("[\"a\" \"b\" \"c\"]", 0);
+edn_result_t r = edn_read("[\"a\" \"b\" \"c\"]", 0);
 size_t count = edn_vector_count(r.value);
 
 for (size_t i = 0; i < count; i++) {
@@ -882,10 +882,10 @@ bool edn_set_contains(const edn_value_t *value, const edn_value_t *element);
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("#{:a :b :c}", 0);
+edn_result_t r = edn_read("#{:a :b :c}", 0);
 printf("Set has %zu elements\n", edn_set_count(r.value));
 
-edn_result_t key = edn_parse(":a", 0);
+edn_result_t key = edn_read(":a", 0);
 if (edn_set_contains(r.value, key.value)) {
     printf(":a is in set\n");
 }
@@ -910,7 +910,7 @@ bool edn_map_contains_key(const edn_value_t *value, const edn_value_t *key);
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("{:name \"Alice\" :age 30}", 0);
+edn_result_t r = edn_read("{:name \"Alice\" :age 30}", 0);
 
 // Iterate over all entries
 size_t count = edn_map_count(r.value);
@@ -935,7 +935,7 @@ for (size_t i = 0; i < count; i++) {
 }
 
 // Lookup by key
-edn_result_t key = edn_parse(":name", 0);
+edn_result_t key = edn_read(":name", 0);
 edn_value_t *name = edn_map_lookup(r.value, key.value);
 if (name != NULL) {
     size_t len;
@@ -959,7 +959,7 @@ Convenience wrappers that simplify common map lookup patterns by creating the ke
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("{:name \"Alice\" :family/name \"Black\" :age 30 \"config\" true}", 0);
+edn_result_t r = edn_read("{:name \"Alice\" :family/name \"Black\" :age 30 \"config\" true}", 0);
 
 // Keyword lookup
 edn_value_t* name = edn_map_get_keyword(r.value, "name");
@@ -996,7 +996,7 @@ bool edn_tagged_get(const edn_value_t *value,
 
 **Example:**
 ```c
-edn_result_t r = edn_parse("#inst \"2024-01-01T00:00:00Z\"", 0);
+edn_result_t r = edn_read("#inst \"2024-01-01T00:00:00Z\"", 0);
 
 const char *tag;
 size_t tag_len;
@@ -1051,7 +1051,7 @@ typedef struct {
     edn_default_reader_mode_t default_reader_mode;
 } edn_parse_options_t;
 
-edn_result_t edn_parse_with_options(const char *input, size_t length,
+edn_result_t edn_read_with_options(const char *input, size_t length,
                                     const edn_parse_options_t *options);
 ```
 
@@ -1071,7 +1071,7 @@ By default, when the parser encounters end-of-file (empty input, whitespace-only
 
 ```c
 // First, create an EOF sentinel value
-edn_result_t eof_sentinel = edn_parse(":eof", 0);
+edn_result_t eof_sentinel = edn_read(":eof", 0);
 
 // Configure parse options with EOF value
 edn_parse_options_t options = {
@@ -1081,7 +1081,7 @@ edn_parse_options_t options = {
 };
 
 // Parse input that results in EOF
-edn_result_t result = edn_parse_with_options("   ", 3, &options);
+edn_result_t result = edn_read_with_options("   ", 3, &options);
 
 // Instead of EDN_ERROR_UNEXPECTED_EOF, returns EDN_OK with eof_value
 if (result.error == EDN_OK) {
@@ -1154,7 +1154,7 @@ int main(void) {
         .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH
     };
 
-    edn_result_t r = edn_parse_with_options("#upper :hello", 0, &opts);
+    edn_result_t r = edn_read_with_options("#upper :hello", 0, &opts);
     if (r.error == EDN_OK) {
         const char *name;
         size_t len;
@@ -1178,7 +1178,7 @@ EDN.C supports Clojure's map namespace syntax extension, which allows you to spe
 
 **Example:**
 ```c
-edn_result_t result = edn_parse("#:person{:name \"Alice\" :age 30}", 0);
+edn_result_t result = edn_read("#:person{:name \"Alice\" :age 30}", 0);
 // Equivalent to: {:person/name "Alice" :person/age 30}
 
 if (result.error == EDN_OK) {
@@ -1238,7 +1238,7 @@ EDN.C supports optional extended character literal features that are disabled by
 
 **Example:**
 ```c
-edn_result_t result = edn_parse("\\formfeed", 0);
+edn_result_t result = edn_read("\\formfeed", 0);
 if (result.error == EDN_OK) {
     uint32_t codepoint;
     edn_character_get(result.value, &codepoint);
@@ -1247,7 +1247,7 @@ if (result.error == EDN_OK) {
 }
 
 // Octal escapes
-result = edn_parse("[\\o101 \\o102 \\o103]", 0);
+result = edn_read("[\\o101 \\o102 \\o103]", 0);
 // Parses as vector ['A', 'B', 'C']
 ```
 
@@ -1294,7 +1294,7 @@ EDN.C supports Clojure-style metadata syntax, which allows attaching metadata ma
 
 int main(void) {
     // Parse with keyword shorthand
-    edn_result_t result = edn_parse("^:private my-var", 0);
+    edn_result_t result = edn_read("^:private my-var", 0);
 
     if (result.error == EDN_OK) {
         // Check if value has metadata
@@ -1305,7 +1305,7 @@ int main(void) {
             printf("Metadata entries: %zu\n", edn_map_count(meta));
 
             // Look up specific metadata key
-            edn_result_t key = edn_parse(":private", 0);
+            edn_result_t key = edn_read(":private", 0);
             edn_value_t* val = edn_map_lookup(meta, key.value);
             // val will be boolean true
 
@@ -1322,22 +1322,22 @@ int main(void) {
 **More examples:**
 ```c
 // Map metadata
-edn_parse("^{:doc \"A function\" :test true} my-fn", 0);
+edn_read("^{:doc \"A function\" :test true} my-fn", 0);
 
 // String tag
-edn_parse("^\"String\" [1 2 3]", 0);
+edn_read("^\"String\" [1 2 3]", 0);
 // Expands to: ^{:tag "String"} [1 2 3]
 
 // Symbol tag
-edn_parse("^Vector [1 2 3]", 0);
+edn_read("^Vector [1 2 3]", 0);
 // Expands to: ^{:tag Vector} [1 2 3]
 
 // Vector param-tags
-edn_parse("^[String long _] my-fn", 0);
+edn_read("^[String long _] my-fn", 0);
 // Expands to: ^{:param-tags [String long _]} my-fn
 
 // Chained metadata
-edn_parse("^:private ^:dynamic ^{:doc \"My var\"} x", 0);
+edn_read("^:private ^:dynamic ^{:doc \"My var\"} x", 0);
 // All metadata merged into one map
 ```
 
@@ -1418,10 +1418,10 @@ int main(void) {
         "       ORDER BY name\n"
         "       \"\"\""}";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     if (result.error == EDN_OK) {
-        edn_result_t key = edn_parse(":sql", 0);
+        edn_result_t key = edn_read(":sql", 0);
         edn_value_t* val = edn_map_lookup(result.value, key.value);
 
         // Text block returns a regular string with indentation stripped
@@ -1593,7 +1593,7 @@ int main(void) {
         "         {:name \"Bob\" :age 25}]\n"
         " :status :active}";
     
-    edn_result_t result = edn_parse(edn, 0);
+    edn_result_t result = edn_read(edn, 0);
     
     if (result.error != EDN_OK) {
         fprintf(stderr, "Error at %zu:%zu - %s\n",

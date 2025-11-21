@@ -9,7 +9,7 @@
 
 /* Empty vector */
 TEST(parse_empty_vector) {
-    edn_result_t result = edn_parse("[]", 0);
+    edn_result_t result = edn_read("[]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -21,7 +21,7 @@ TEST(parse_empty_vector) {
 
 /* Single element */
 TEST(parse_single_element_vector) {
-    edn_result_t result = edn_parse("[42]", 0);
+    edn_result_t result = edn_read("[42]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -41,7 +41,7 @@ TEST(parse_single_element_vector) {
 
 /* Multiple elements */
 TEST(parse_multiple_elements_vector) {
-    edn_result_t result = edn_parse("[1 2 3]", 0);
+    edn_result_t result = edn_read("[1 2 3]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -63,7 +63,7 @@ TEST(parse_multiple_elements_vector) {
 
 /* Mixed types */
 TEST(parse_mixed_types_vector) {
-    edn_result_t result = edn_parse("[1 \"two\" :three]", 0);
+    edn_result_t result = edn_read("[1 \"two\" :three]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -90,7 +90,7 @@ TEST(parse_mixed_types_vector) {
 
 /* Nested vectors */
 TEST(parse_nested_vectors) {
-    edn_result_t result = edn_parse("[[1 2] [3 4]]", 0);
+    edn_result_t result = edn_read("[[1 2] [3 4]]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -114,7 +114,7 @@ TEST(parse_nested_vectors) {
 
 /* Mixed with lists */
 TEST(parse_vector_with_list) {
-    edn_result_t result = edn_parse("[(1 2) [3 4]]", 0);
+    edn_result_t result = edn_read("[(1 2) [3 4]]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -136,7 +136,7 @@ TEST(parse_vector_with_list) {
 
 /* With whitespace */
 TEST(parse_vector_with_whitespace) {
-    edn_result_t result = edn_parse("[  1   2   3  ]", 0);
+    edn_result_t result = edn_read("[  1   2   3  ]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -148,7 +148,7 @@ TEST(parse_vector_with_whitespace) {
 
 /* With newlines */
 TEST(parse_vector_with_newlines) {
-    edn_result_t result = edn_parse("[1\n2\n3]", 0);
+    edn_result_t result = edn_read("[1\n2\n3]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -160,7 +160,7 @@ TEST(parse_vector_with_newlines) {
 
 /* Error: unterminated vector */
 TEST(error_unterminated_vector) {
-    edn_result_t result = edn_parse("[1 2 3", 0);
+    edn_result_t result = edn_read("[1 2 3", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -169,7 +169,7 @@ TEST(error_unterminated_vector) {
 
 /* Out of bounds access */
 TEST(vector_get_out_of_bounds) {
-    edn_result_t result = edn_parse("[1 2 3]", 0);
+    edn_result_t result = edn_read("[1 2 3]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -188,7 +188,7 @@ TEST(vector_get_out_of_bounds) {
 
 /* API with wrong type */
 TEST(vector_api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

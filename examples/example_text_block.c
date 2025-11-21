@@ -27,9 +27,9 @@ int main(void) {
     printf("Example 1: SQL query in EDN map\n");
     printf("Input (with indentation):\n%s\n\n", example1);
 
-    edn_result_t result1 = edn_parse(example1, 0);
+    edn_result_t result1 = edn_read(example1, 0);
     if (result1.error == EDN_OK) {
-        edn_result_t key = edn_parse(":query", 0);
+        edn_result_t key = edn_read(":query", 0);
         edn_value_t* query_val = edn_map_lookup(result1.value, key.value);
 
         if (query_val) {
@@ -51,9 +51,9 @@ int main(void) {
     printf("Example 2: Closing delimiter on same line\n");
     printf("Input:\n%s\n\n", example2);
 
-    edn_result_t result2 = edn_parse(example2, 0);
+    edn_result_t result2 = edn_read(example2, 0);
     if (result2.error == EDN_OK) {
-        edn_result_t key = edn_parse(":greeting", 0);
+        edn_result_t key = edn_read(":greeting", 0);
         edn_value_t* val = edn_map_lookup(result2.value, key.value);
 
         if (val) {
@@ -77,9 +77,9 @@ int main(void) {
     printf("Example 3: Closing delimiter on own line\n");
     printf("Input:\n%s\n\n", example3);
 
-    edn_result_t result3 = edn_parse(example3, 0);
+    edn_result_t result3 = edn_read(example3, 0);
     if (result3.error == EDN_OK) {
-        edn_result_t key = edn_parse(":greeting", 0);
+        edn_result_t key = edn_read(":greeting", 0);
         edn_value_t* val = edn_map_lookup(result3.value, key.value);
 
         if (val) {
@@ -104,9 +104,9 @@ int main(void) {
     printf("Example 4: Closing delimiter determines base indentation\n");
     printf("Input:\n%s\n\n", example4);
 
-    edn_result_t result4 = edn_parse(example4, 0);
+    edn_result_t result4 = edn_read(example4, 0);
     if (result4.error == EDN_OK) {
-        edn_result_t key = edn_parse(":message", 0);
+        edn_result_t key = edn_read(":message", 0);
         edn_value_t* val = edn_map_lookup(result4.value, key.value);
 
         if (val) {
@@ -144,10 +144,10 @@ int main(void) {
     printf("Example 5: Multiple text blocks in one map\n");
     printf("Input:\n%s\n\n", example5);
 
-    edn_result_t result5 = edn_parse(example5, 0);
+    edn_result_t result5 = edn_read(example5, 0);
     if (result5.error == EDN_OK) {
         printf("Database config:\n");
-        edn_result_t db_key = edn_parse(":database", 0);
+        edn_result_t db_key = edn_read(":database", 0);
         edn_value_t* db_val = edn_map_lookup(result5.value, db_key.value);
         if (db_val) {
             const char* db_str = edn_string_get(db_val, NULL);
@@ -155,7 +155,7 @@ int main(void) {
         }
 
         printf("Cache config:\n");
-        edn_result_t cache_key = edn_parse(":cache", 0);
+        edn_result_t cache_key = edn_read(":cache", 0);
         edn_value_t* cache_val = edn_map_lookup(result5.value, cache_key.value);
         if (cache_val) {
             const char* cache_str = edn_string_get(cache_val, NULL);
@@ -178,7 +178,7 @@ int main(void) {
     printf("Example 6: Preserving code indentation\n");
     printf("Input:\n%s\n\n", example6);
 
-    edn_result_t result6 = edn_parse(example6, 0);
+    edn_result_t result6 = edn_read(example6, 0);
     if (result6.error == EDN_OK) {
         size_t len;
         const char* code = edn_string_get(result6.value, &len);
@@ -207,7 +207,7 @@ int main(void) {
 
     printf("Example 7: Automatic trailing whitespace removal\n");
 
-    edn_result_t result7 = edn_parse(example7, 0);
+    edn_result_t result7 = edn_read(example7, 0);
     if (result7.error == EDN_OK) {
         size_t len;
         const char* str = edn_string_get(result7.value, &len);

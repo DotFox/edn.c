@@ -6,14 +6,14 @@
 /* Simple test to verify build system and API */
 
 TEST(parse_null_input) {
-    edn_result_t result = edn_parse(NULL, 0);
+    edn_result_t result = edn_read(NULL, 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.error_message != NULL);
 }
 
 TEST(parse_empty_string) {
-    edn_result_t result = edn_parse("", 0);
+    edn_result_t result = edn_read("", 0);
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
 }
@@ -30,7 +30,7 @@ TEST(edn_type_null) {
 
 TEST(parse_eof_with_eof_value) {
     /* First, parse a simple value to use as eof_value */
-    edn_result_t eof_result = edn_parse(":eof", 0);
+    edn_result_t eof_result = edn_read(":eof", 0);
     assert(eof_result.error == EDN_OK);
     assert(eof_result.value != NULL);
     assert(edn_type(eof_result.value) == EDN_TYPE_KEYWORD);
@@ -41,7 +41,7 @@ TEST(parse_eof_with_eof_value) {
     options.reader_registry = NULL;
     options.default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH;
 
-    edn_result_t result = edn_parse_with_options("   ", 3, &options);
+    edn_result_t result = edn_read_with_options("   ", 3, &options);
 
     /* Should return EDN_OK with the eof_value */
     assert(result.error == EDN_OK);
@@ -65,7 +65,7 @@ TEST(parse_eof_without_eof_value) {
     options.reader_registry = NULL;
     options.default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH;
 
-    edn_result_t result = edn_parse_with_options("   ", 3, &options);
+    edn_result_t result = edn_read_with_options("   ", 3, &options);
 
     /* Should return EOF error */
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);

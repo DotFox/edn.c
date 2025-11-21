@@ -9,7 +9,7 @@
 
 /* Empty set */
 TEST(parse_empty_set) {
-    edn_result_t result = edn_parse("#{}", 0);
+    edn_result_t result = edn_read("#{}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -21,7 +21,7 @@ TEST(parse_empty_set) {
 
 /* Single element */
 TEST(parse_single_element_set) {
-    edn_result_t result = edn_parse("#{42}", 0);
+    edn_result_t result = edn_read("#{42}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -41,7 +41,7 @@ TEST(parse_single_element_set) {
 
 /* Multiple unique elements */
 TEST(parse_multiple_unique_elements_set) {
-    edn_result_t result = edn_parse("#{1 2 3}", 0);
+    edn_result_t result = edn_read("#{1 2 3}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -53,7 +53,7 @@ TEST(parse_multiple_unique_elements_set) {
 
 /* Mixed types */
 TEST(parse_mixed_types_set) {
-    edn_result_t result = edn_parse("#{1 \"two\" :three}", 0);
+    edn_result_t result = edn_read("#{1 \"two\" :three}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -65,13 +65,13 @@ TEST(parse_mixed_types_set) {
 
 /* Set contains */
 TEST(set_contains_element) {
-    edn_result_t result = edn_parse("#{1 2 3}", 0);
+    edn_result_t result = edn_read("#{1 2 3}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
     /* Create test element */
-    edn_result_t elem_result = edn_parse("2", 0);
+    edn_result_t elem_result = edn_read("2", 0);
     assert(elem_result.error == EDN_OK);
 
     /* Should contain 2 */
@@ -80,7 +80,7 @@ TEST(set_contains_element) {
     edn_free(elem_result.value);
 
     /* Create element not in set */
-    edn_result_t not_in_result = edn_parse("42", 0);
+    edn_result_t not_in_result = edn_read("42", 0);
     assert(not_in_result.error == EDN_OK);
 
     /* Should not contain 42 */
@@ -92,7 +92,7 @@ TEST(set_contains_element) {
 
 /* Reject duplicate integers (EDN spec requirement) */
 TEST(reject_duplicate_integers) {
-    edn_result_t result = edn_parse("#{1 2 1}", 0);
+    edn_result_t result = edn_read("#{1 2 1}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -100,7 +100,7 @@ TEST(reject_duplicate_integers) {
 
 /* Reject duplicate strings (EDN spec requirement) */
 TEST(reject_duplicate_strings) {
-    edn_result_t result = edn_parse("#{\"foo\" \"bar\" \"foo\"}", 0);
+    edn_result_t result = edn_read("#{\"foo\" \"bar\" \"foo\"}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -108,7 +108,7 @@ TEST(reject_duplicate_strings) {
 
 /* Reject duplicate keywords (EDN spec requirement) */
 TEST(reject_duplicate_keywords) {
-    edn_result_t result = edn_parse("#{:a :b :a}", 0);
+    edn_result_t result = edn_read("#{:a :b :a}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -116,7 +116,7 @@ TEST(reject_duplicate_keywords) {
 
 /* Reject all duplicates (EDN spec requirement) */
 TEST(reject_all_duplicates) {
-    edn_result_t result = edn_parse("#{42 42 42}", 0);
+    edn_result_t result = edn_read("#{42 42 42}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -124,7 +124,7 @@ TEST(reject_all_duplicates) {
 
 /* Nested collections - unique */
 TEST(parse_set_with_vectors_unique) {
-    edn_result_t result = edn_parse("#{[1 2] [3 4]}", 0);
+    edn_result_t result = edn_read("#{[1 2] [3 4]}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -136,7 +136,7 @@ TEST(parse_set_with_vectors_unique) {
 
 /* Reject duplicate nested collections (EDN spec requirement) */
 TEST(reject_duplicate_nested_collections) {
-    edn_result_t result = edn_parse("#{[1 2] [1 2]}", 0);
+    edn_result_t result = edn_read("#{[1 2] [1 2]}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -144,7 +144,7 @@ TEST(reject_duplicate_nested_collections) {
 
 /* With whitespace */
 TEST(parse_set_with_whitespace) {
-    edn_result_t result = edn_parse("#{  1   2   3  }", 0);
+    edn_result_t result = edn_read("#{  1   2   3  }", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -155,7 +155,7 @@ TEST(parse_set_with_whitespace) {
 
 /* Error: unterminated set */
 TEST(error_unterminated_set) {
-    edn_result_t result = edn_parse("#{1 2 3", 0);
+    edn_result_t result = edn_read("#{1 2 3", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -163,7 +163,7 @@ TEST(error_unterminated_set) {
 
 /* Large set - no duplicates */
 TEST(parse_large_set_unique) {
-    edn_result_t result = edn_parse("#{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20}", 0);
+    edn_result_t result = edn_read("#{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -174,7 +174,7 @@ TEST(parse_large_set_unique) {
 
 /* Large set - with duplicates (EDN spec - should reject) */
 TEST(parse_large_set_with_duplicates) {
-    edn_result_t result = edn_parse("#{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 1}", 0);
+    edn_result_t result = edn_read("#{1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 1}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
     assert(result.value == NULL);
@@ -182,7 +182,7 @@ TEST(parse_large_set_with_duplicates) {
 
 /* Out of bounds access */
 TEST(set_get_out_of_bounds) {
-    edn_result_t result = edn_parse("#{1 2 3}", 0);
+    edn_result_t result = edn_read("#{1 2 3}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -201,7 +201,7 @@ TEST(set_get_out_of_bounds) {
 
 /* API with wrong type */
 TEST(set_api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

@@ -132,7 +132,7 @@ TEST(very_long_comment) {
 TEST(formfeed_in_vector) {
     /* Test formfeed as delimiter in parsed EDN */
     const char* input = "[1\f2\f3]";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
     assert(edn_vector_count(result.value) == 3);
@@ -142,7 +142,7 @@ TEST(formfeed_in_vector) {
 TEST(formfeed_as_delimiter) {
     /* Test formfeed stops identifier scanning */
     const char* input = "[:a\f:b]";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
     assert(edn_vector_count(result.value) == 2);
@@ -158,7 +158,7 @@ TEST(formfeed_as_delimiter) {
 TEST(vertical_tab_as_whitespace) {
     /* Vertical tab (0x0B) should act as whitespace */
     const char input[] = {'[', '1', 0x0B, '2', ']', 0};
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
     assert(edn_vector_count(result.value) == 2);
@@ -174,22 +174,22 @@ TEST(separator_chars_as_whitespace) {
 
     edn_result_t result;
 
-    result = edn_parse(input_fs, strlen(input_fs));
+    result = edn_read(input_fs, strlen(input_fs));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 2);
     edn_free(result.value);
 
-    result = edn_parse(input_gs, strlen(input_gs));
+    result = edn_read(input_gs, strlen(input_gs));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 2);
     edn_free(result.value);
 
-    result = edn_parse(input_rs, strlen(input_rs));
+    result = edn_read(input_rs, strlen(input_rs));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 2);
     edn_free(result.value);
 
-    result = edn_parse(input_us, strlen(input_us));
+    result = edn_read(input_us, strlen(input_us));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 2);
     edn_free(result.value);
@@ -204,22 +204,22 @@ TEST(control_chars_in_identifiers) {
 
     edn_result_t result;
 
-    result = edn_parse(input1, strlen(input1));
+    result = edn_read(input1, strlen(input1));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 1);
     edn_free(result.value);
 
-    result = edn_parse(input2, strlen(input2));
+    result = edn_read(input2, strlen(input2));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 1);
     edn_free(result.value);
 
-    result = edn_parse(input3, strlen(input3));
+    result = edn_read(input3, strlen(input3));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 1);
     edn_free(result.value);
 
-    result = edn_parse(input4, strlen(input4));
+    result = edn_read(input4, strlen(input4));
     assert(result.error == EDN_OK);
     assert(edn_vector_count(result.value) == 1);
     edn_free(result.value);

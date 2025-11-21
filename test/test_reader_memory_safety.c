@@ -38,7 +38,7 @@ TEST(registry_destroyed_before_values) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#test 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#test 42", 0, &opts);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -67,15 +67,15 @@ TEST(multiple_parses_one_registry) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* First parse */
-    edn_result_t result1 = edn_parse_with_options("#test 10", 0, &opts);
+    edn_result_t result1 = edn_read_with_options("#test 10", 0, &opts);
     assert(result1.error == EDN_OK);
 
     /* Second parse (reusing registry) */
-    edn_result_t result2 = edn_parse_with_options("#test 20", 0, &opts);
+    edn_result_t result2 = edn_read_with_options("#test 20", 0, &opts);
     assert(result2.error == EDN_OK);
 
     /* Third parse (reusing registry) */
-    edn_result_t result3 = edn_parse_with_options("#test 30", 0, &opts);
+    edn_result_t result3 = edn_read_with_options("#test 30", 0, &opts);
     assert(result3.error == EDN_OK);
 
     /* Destroy registry after all parses */
@@ -108,7 +108,7 @@ TEST(registry_recreated) {
     edn_parse_options_t opts1 = {.reader_registry = registry1,
                                  .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result1 = edn_parse_with_options("#test 100", 0, &opts1);
+    edn_result_t result1 = edn_read_with_options("#test 100", 0, &opts1);
     assert(result1.error == EDN_OK);
 
     /* Destroy first registry */
@@ -123,7 +123,7 @@ TEST(registry_recreated) {
     edn_parse_options_t opts2 = {.reader_registry = registry2,
                                  .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result2 = edn_parse_with_options("#test 200", 0, &opts2);
+    edn_result_t result2 = edn_read_with_options("#test 200", 0, &opts2);
     assert(result2.error == EDN_OK);
 
     /* Destroy second registry */
@@ -184,7 +184,7 @@ TEST(reader_string_allocation_safety) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#str 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#str 42", 0, &opts);
     assert(result.error == EDN_OK);
 
     /* Destroy registry */
@@ -211,7 +211,7 @@ TEST(nested_tagged_reader_safety) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Outer tag has no reader, inner tag has reader */
-    edn_result_t result = edn_parse_with_options("#outer #inner 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#outer #inner 42", 0, &opts);
     assert(result.error == EDN_OK);
 
     /* Destroy registry */
@@ -244,7 +244,7 @@ TEST(collection_with_readers_safety) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("[#test 1 #test 2 #test 3]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[#test 1 #test 2 #test 3]", 0, &opts);
     assert(result.error == EDN_OK);
 
     /* Destroy registry */

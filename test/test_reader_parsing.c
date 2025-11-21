@@ -71,7 +71,7 @@ TEST(parse_with_reader) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#double 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#double 42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -93,7 +93,7 @@ TEST(parse_without_reader_passthrough) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#unknown 42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -121,7 +121,7 @@ TEST(parse_without_reader_unwrap) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_UNWRAP};
 
-    edn_result_t result = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#unknown 42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -143,7 +143,7 @@ TEST(parse_without_reader_error) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_ERROR};
 
-    edn_result_t result = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#unknown 42", 0, &opts);
 
     assert(result.error == EDN_ERROR_UNKNOWN_TAG);
     assert(result.value == NULL);
@@ -162,7 +162,7 @@ TEST(parse_with_failing_reader) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#fail 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#fail 42", 0, &opts);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -183,7 +183,7 @@ TEST(parse_reader_wrong_type) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Reader expects int, but we give it a string */
-    edn_result_t result = edn_parse_with_options("#double \"not an int\"", 0, &opts);
+    edn_result_t result = edn_read_with_options("#double \"not an int\"", 0, &opts);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -203,7 +203,7 @@ TEST(parse_multiple_readers) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("[#double 10 #double 20]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[#double 10 #double 20]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -231,7 +231,7 @@ TEST(parse_reader_with_collection) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#first [1 2 3]", 0, &opts);
+    edn_result_t result = edn_read_with_options("#first [1 2 3]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -256,7 +256,7 @@ TEST(parse_nested_tagged_with_readers) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Outer tag has no reader, inner tag has reader */
-    edn_result_t result = edn_parse_with_options("#outer #double 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#outer #double 42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -277,7 +277,7 @@ TEST(parse_nested_tagged_with_readers) {
 
 /* Test parsing with NULL options (default behavior) */
 TEST(parse_with_null_options) {
-    edn_result_t result = edn_parse_with_options("#inst \"2024-01-01\"", 0, NULL);
+    edn_result_t result = edn_read_with_options("#inst \"2024-01-01\"", 0, NULL);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -288,7 +288,7 @@ TEST(parse_with_null_options) {
 
 /* Test that edn_parse still works (backward compatibility) */
 TEST(parse_backward_compatible) {
-    edn_result_t result = edn_parse("#inst \"2024-01-01\"", 0);
+    edn_result_t result = edn_read("#inst \"2024-01-01\"", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -307,7 +307,7 @@ TEST(parse_namespaced_tag_reader) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#myapp/double 42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#myapp/double 42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -327,7 +327,7 @@ TEST(parse_reader_in_map) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("{:value #double 42}", 0, &opts);
+    edn_result_t result = edn_read_with_options("{:value #double 42}", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -350,7 +350,7 @@ TEST(parse_reader_with_whitespace) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result = edn_parse_with_options("#double   42", 0, &opts);
+    edn_result_t result = edn_read_with_options("#double   42", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

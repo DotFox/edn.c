@@ -9,7 +9,7 @@
 
 /* Basic tagged literal with string value */
 TEST(parse_tagged_inst) {
-    edn_result_t result = edn_parse("#inst \"2024-01-01T00:00:00Z\"", 0);
+    edn_result_t result = edn_read("#inst \"2024-01-01T00:00:00Z\"", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -32,7 +32,7 @@ TEST(parse_tagged_inst) {
 
 /* Tagged literal with UUID string */
 TEST(parse_tagged_uuid) {
-    edn_result_t result = edn_parse("#uuid \"550e8400-e29b-41d4-a716-446655440000\"", 0);
+    edn_result_t result = edn_read("#uuid \"550e8400-e29b-41d4-a716-446655440000\"", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -54,7 +54,7 @@ TEST(parse_tagged_uuid) {
 
 /* Tagged literal with namespaced tag */
 TEST(parse_tagged_namespaced) {
-    edn_result_t result = edn_parse("#myapp/custom 42", 0);
+    edn_result_t result = edn_read("#myapp/custom 42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -80,7 +80,7 @@ TEST(parse_tagged_namespaced) {
 
 /* Tagged literal with integer value */
 TEST(parse_tagged_int_value) {
-    edn_result_t result = edn_parse("#timestamp 1234567890", 0);
+    edn_result_t result = edn_read("#timestamp 1234567890", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -100,7 +100,7 @@ TEST(parse_tagged_int_value) {
 
 /* Tagged literal with map value */
 TEST(parse_tagged_map_value) {
-    edn_result_t result = edn_parse("#myapp/data {:foo 1 :bar 2}", 0);
+    edn_result_t result = edn_read("#myapp/data {:foo 1 :bar 2}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -119,7 +119,7 @@ TEST(parse_tagged_map_value) {
 
 /* Tagged literal with vector value */
 TEST(parse_tagged_vector_value) {
-    edn_result_t result = edn_parse("#coords [1.0 2.0 3.0]", 0);
+    edn_result_t result = edn_read("#coords [1.0 2.0 3.0]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -138,7 +138,7 @@ TEST(parse_tagged_vector_value) {
 
 /* Tagged literal with list value */
 TEST(parse_tagged_list_value) {
-    edn_result_t result = edn_parse("#point (1 2)", 0);
+    edn_result_t result = edn_read("#point (1 2)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -157,7 +157,7 @@ TEST(parse_tagged_list_value) {
 
 /* Tagged literal with set value */
 TEST(parse_tagged_set_value) {
-    edn_result_t result = edn_parse("#flags #{:read :write}", 0);
+    edn_result_t result = edn_read("#flags #{:read :write}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -176,7 +176,7 @@ TEST(parse_tagged_set_value) {
 
 /* Nested tagged literals */
 TEST(parse_nested_tagged) {
-    edn_result_t result = edn_parse("#outer #inner 42", 0);
+    edn_result_t result = edn_read("#outer #inner 42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -207,7 +207,7 @@ TEST(parse_nested_tagged) {
 
 /* Tagged literal in collection */
 TEST(parse_tagged_in_vector) {
-    edn_result_t result = edn_parse("[1 #tag 2 3]", 0);
+    edn_result_t result = edn_read("[1 #tag 2 3]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -224,7 +224,7 @@ TEST(parse_tagged_in_vector) {
 
 /* Tagged literal with whitespace */
 TEST(parse_tagged_with_whitespace) {
-    edn_result_t result = edn_parse("#tag   42", 0);
+    edn_result_t result = edn_read("#tag   42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -235,7 +235,7 @@ TEST(parse_tagged_with_whitespace) {
 
 /* Tagged literal with newlines */
 TEST(parse_tagged_with_newlines) {
-    edn_result_t result = edn_parse("#tag\n\n42", 0);
+    edn_result_t result = edn_read("#tag\n\n42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -246,7 +246,7 @@ TEST(parse_tagged_with_newlines) {
 
 /* Tagged literal with comment */
 TEST(parse_tagged_with_comment) {
-    edn_result_t result = edn_parse("#tag ; comment\n 42", 0);
+    edn_result_t result = edn_read("#tag ; comment\n 42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -257,7 +257,7 @@ TEST(parse_tagged_with_comment) {
 
 /* Error: keyword as tag */
 TEST(error_keyword_tag) {
-    edn_result_t result = edn_parse("#:keyword 42", 0);
+    edn_result_t result = edn_read("#:keyword 42", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -266,7 +266,7 @@ TEST(error_keyword_tag) {
 
 /* Error: nil as tag */
 TEST(error_nil_tag) {
-    edn_result_t result = edn_parse("#nil 42", 0);
+    edn_result_t result = edn_read("#nil 42", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -275,7 +275,7 @@ TEST(error_nil_tag) {
 
 /* Error: true as tag */
 TEST(error_true_tag) {
-    edn_result_t result = edn_parse("#true 42", 0);
+    edn_result_t result = edn_read("#true 42", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -284,7 +284,7 @@ TEST(error_true_tag) {
 
 /* Error: false as tag */
 TEST(error_false_tag) {
-    edn_result_t result = edn_parse("#false 42", 0);
+    edn_result_t result = edn_read("#false 42", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -293,7 +293,7 @@ TEST(error_false_tag) {
 
 /* Error: missing tag */
 TEST(error_missing_tag) {
-    edn_result_t result = edn_parse("#", 0);
+    edn_result_t result = edn_read("#", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -301,7 +301,7 @@ TEST(error_missing_tag) {
 
 /* Error: missing value */
 TEST(error_missing_value) {
-    edn_result_t result = edn_parse("#tag", 0);
+    edn_result_t result = edn_read("#tag", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -309,7 +309,7 @@ TEST(error_missing_value) {
 
 /* Error: whitespace after hash */
 TEST(error_hash_with_whitespace) {
-    edn_result_t result = edn_parse("# tag 42", 0);
+    edn_result_t result = edn_read("# tag 42", 0);
 
     /* Whitespace after # is not allowed */
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
@@ -319,7 +319,7 @@ TEST(error_hash_with_whitespace) {
 
 /* API with wrong type */
 TEST(tagged_api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

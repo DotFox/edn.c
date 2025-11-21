@@ -55,8 +55,7 @@ static edn_value_t* timestamp_reader(edn_value_t* value, edn_arena_t* arena,
 
     result->type = EDN_TYPE_STRING;
     result->as.string.data = str_data;
-    result->as.string.length = len;
-    result->as.string.has_escapes = false;
+    result->as.string.length_and_flags = len;
     result->as.string.decoded = NULL;
     result->arena = arena;
 
@@ -164,8 +163,7 @@ static edn_value_t* exclaim_reader(edn_value_t* value, edn_arena_t* arena,
 
     result->type = EDN_TYPE_STRING;
     result->as.string.data = new_str;
-    result->as.string.length = new_len;
-    result->as.string.has_escapes = false;
+    result->as.string.length_and_flags = new_len; /* length with no flags set */
     result->as.string.decoded = NULL;
     result->arena = arena;
 
@@ -196,7 +194,7 @@ int main(void) {
     edn_parse_options_t opts = {.reader_registry = registry,
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
-    edn_result_t result1 = edn_parse_with_options("#timestamp 1704067200", 0, &opts);
+    edn_result_t result1 = edn_read_with_options("#timestamp 1704067200", 0, &opts);
     if (result1.error == EDN_OK) {
         size_t len;
         const char* str = edn_string_get(result1.value, &len);
@@ -209,7 +207,7 @@ int main(void) {
     printf("Example 2: #first reader\n");
     printf("Input:  #first [1 2 3 4 5]\n");
 
-    edn_result_t result2 = edn_parse_with_options("#first [1 2 3 4 5]", 0, &opts);
+    edn_result_t result2 = edn_read_with_options("#first [1 2 3 4 5]", 0, &opts);
     if (result2.error == EDN_OK) {
         int64_t val;
         edn_int64_get(result2.value, &val);
@@ -222,7 +220,7 @@ int main(void) {
     printf("Example 3: #upper reader\n");
     printf("Input:  #upper :hello\n");
 
-    edn_result_t result3 = edn_parse_with_options("#upper :hello", 0, &opts);
+    edn_result_t result3 = edn_read_with_options("#upper :hello", 0, &opts);
     if (result3.error == EDN_OK) {
         const char* name;
         size_t name_len;
@@ -236,7 +234,7 @@ int main(void) {
     printf("Example 4: #foo/bar reader (adds \"!\" to strings)\n");
     printf("Input:  #foo/bar \"Hello World\"\n");
 
-    edn_result_t result4 = edn_parse_with_options("#foo/bar \"Hello World\"", 0, &opts);
+    edn_result_t result4 = edn_read_with_options("#foo/bar \"Hello World\"", 0, &opts);
     if (result4.error == EDN_OK) {
         size_t len;
         const char* str = edn_string_get(result4.value, &len);
@@ -249,7 +247,7 @@ int main(void) {
     printf("Example 5: Multiple readers\n");
     printf("Input:  [#timestamp 1704067200 #first [10 20 30] #upper :world #foo/bar \"test\"]\n");
 
-    edn_result_t result5 = edn_parse_with_options(
+    edn_result_t result5 = edn_read_with_options(
         "[#timestamp 1704067200 #first [10 20 30] #upper :world #foo/bar \"test\"]", 0, &opts);
     if (result5.error == EDN_OK) {
         printf("Output: [\n");
@@ -289,7 +287,7 @@ int main(void) {
     printf("Input:  #unknown 42\n");
 
     opts.default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH;
-    edn_result_t result6 = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result6 = edn_read_with_options("#unknown 42", 0, &opts);
     if (result6.error == EDN_OK) {
         printf("Output: Tagged literal (EDN_TYPE_TAGGED)\n");
         const char* tag;
@@ -308,7 +306,7 @@ int main(void) {
     printf("Input:  #unknown 42\n");
 
     opts.default_reader_mode = EDN_DEFAULT_READER_UNWRAP;
-    edn_result_t result7 = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result7 = edn_read_with_options("#unknown 42", 0, &opts);
     if (result7.error == EDN_OK) {
         int64_t val;
         edn_int64_get(result7.value, &val);
@@ -321,7 +319,7 @@ int main(void) {
     printf("Input:  #unknown 42\n");
 
     opts.default_reader_mode = EDN_DEFAULT_READER_ERROR;
-    edn_result_t result8 = edn_parse_with_options("#unknown 42", 0, &opts);
+    edn_result_t result8 = edn_read_with_options("#unknown 42", 0, &opts);
     if (result8.error != EDN_OK) {
         printf("Output: Error - %s\n", result8.error_message);
     }

@@ -618,7 +618,7 @@ int main(int argc, char** argv) {
     }
 
     /* Parse EDN */
-    edn_result_t result = edn_parse(input_data, input_size);
+    edn_result_t result = edn_read(input_data, input_size);
 
     if (result.error != EDN_OK) {
         fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_line,

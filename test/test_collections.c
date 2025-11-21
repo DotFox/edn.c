@@ -20,7 +20,7 @@ TEST(parse_complex_nested) {
                         ":metadata {:created 2024 :updated 2024}"
                         "}";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -34,7 +34,7 @@ TEST(parse_complex_nested) {
 TEST(parse_list_various_types) {
     const char* input = "(1 \"two\" :three [4 5] {:key 6} #{7 8})";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -56,7 +56,7 @@ TEST(parse_list_various_types) {
 TEST(parse_matrix) {
     const char* input = "[[1 2 3] [4 5 6] [7 8 9]]";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -81,7 +81,7 @@ TEST(parse_map_with_nested_collections) {
                         ":map {:a 10 :b 20}"
                         "}";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -95,7 +95,7 @@ TEST(parse_map_with_nested_collections) {
 TEST(parse_set_of_keywords) {
     const char* input = "#{:read :write :execute}";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -116,7 +116,7 @@ TEST(parse_set_of_keywords) {
 TEST(parse_empty_collections) {
     const char* input = "(() [] {} #{})";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -141,14 +141,14 @@ TEST(parse_config_example) {
                         ":allowed-origins [\"https://example.com\" \"https://app.example.com\"]"
                         "}";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
     /* Look up :features */
-    edn_result_t key_result = edn_parse(":features", 0);
+    edn_result_t key_result = edn_read(":features", 0);
     assert(key_result.error == EDN_OK);
 
     edn_value_t* features = edn_map_lookup(result.value, key_result.value);
@@ -164,7 +164,7 @@ TEST(parse_config_example) {
 TEST(parse_deep_nesting) {
     const char* input = "[[[[[[[[[[42]]]]]]]]]]";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -191,7 +191,7 @@ TEST(parse_deep_nesting) {
 TEST(parse_mixed_nesting) {
     const char* input = "[{:list (1 2 #{3})}]";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

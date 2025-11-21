@@ -27,7 +27,7 @@ typedef struct {
 /* Parse identifier using public API */
 static void bench_parse(void* arg) {
     bench_data_t* data = (bench_data_t*) arg;
-    edn_result_t result = edn_parse(data->input, 0);
+    edn_result_t result = edn_read(data->input, 0);
     if (result.value) {
         edn_free(result.value);
     }

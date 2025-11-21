@@ -1484,7 +1484,7 @@ static void handle_key(app_state_t* state, int key) {
                     /* If no metadata, create a nil value to display */
                     if (meta == NULL) {
                         /* Parse "nil" to create a nil value for display */
-                        edn_result_t nil_result = edn_parse("nil", 3);
+                        edn_result_t nil_result = edn_read("nil", 3);
                         if (nil_result.error == EDN_OK) {
                             state->root = nil_result.value;
                         }
@@ -1654,7 +1654,7 @@ int main(int argc, char** argv) {
     }
 
     /* Parse EDN */
-    edn_result_t result = edn_parse(input_data, input_size);
+    edn_result_t result = edn_read(input_data, input_size);
 
     if (result.error != EDN_OK) {
         fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_line,

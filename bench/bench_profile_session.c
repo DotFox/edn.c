@@ -73,7 +73,7 @@ static void profile_file(const char* filename, const char* description, double t
 
     /* Run until target duration reached */
     while (elapsed < target_ns) {
-        edn_result_t result = edn_parse(data, size);
+        edn_result_t result = edn_read(data, size);
         if (result.error != EDN_OK) {
             printf("Parse error: %s\n", result.error_message);
             free(data);

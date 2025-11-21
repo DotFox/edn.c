@@ -28,7 +28,7 @@ TEST(test_platform_detection) {
 TEST(test_sse_intrinsics) {
 #if (defined(__x86_64__) || defined(_M_X64))
     const char* input = "   \t  hello";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
     edn_free(result.value);
@@ -42,7 +42,7 @@ TEST(test_sse_intrinsics) {
 TEST(test_neon_intrinsics) {
 #if (defined(__aarch64__) || defined(_M_ARM64))
     const char* input = "   \t  hello";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
     edn_free(result.value);
@@ -58,7 +58,7 @@ TEST(test_simd_whitespace) {
     const char* input = "                                "
                         "                                "
                         "42";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_INT);
     int64_t val;
@@ -73,7 +73,7 @@ TEST(test_simd_string_parsing) {
     const char* input = "\"This is a very long string that should trigger SIMD processing "
                         "because it contains more than 16 characters and will benefit from "
                         "vectorized quote detection.\"";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
     edn_free(result.value);
@@ -83,7 +83,7 @@ TEST(test_simd_string_parsing) {
 TEST(test_simd_digit_scanning) {
     /* Long number to trigger SIMD digit scanner */
     const char* input = "12345678901234567890";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     /* Number will overflow to BigInt, which is expected */
     assert(edn_type(result.value) == EDN_TYPE_BIGINT);
@@ -94,7 +94,7 @@ TEST(test_simd_digit_scanning) {
 TEST(test_simd_identifier_scanning) {
     /* Long identifier to trigger SIMD path */
     const char* input = ":this-is-a-very-long-keyword-name";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
     edn_free(result.value);
@@ -106,7 +106,7 @@ TEST(test_simd_comment_skipping) {
     const char* input =
         "; This is a very long comment that contains many characters and should trigger SIMD\n"
         "42";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_INT);
     int64_t val;
@@ -121,7 +121,7 @@ TEST(test_simd_complex_parsing) {
                         " :age 30  "
                         " :email \"alice.johnson@example.com\"  "
                         " :tags [:developer :engineer :architect]}";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
     assert(edn_map_count(result.value) == 4);

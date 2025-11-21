@@ -9,7 +9,7 @@
 
 /* Helper function to parse and check for error */
 static edn_result_t parse_helper(const char* input) {
-    return edn_parse(input, strlen(input));
+    return edn_read(input, strlen(input));
 }
 
 /* Test: unmatched closing parenthesis at top level */

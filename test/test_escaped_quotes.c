@@ -13,12 +13,12 @@
 #include "test_framework.h"
 
 TEST(simple_escaped_quote) {
-    edn_result_t result = edn_parse("{:key \"\\\"value\\\"\"}", 0);
+    edn_result_t result = edn_read("{:key \"\\\"value\\\"\"}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
-    edn_result_t key = edn_parse(":key", 0);
+    edn_result_t key = edn_read(":key", 0);
     edn_value_t* val = edn_map_lookup(result.value, key.value);
     assert(val != NULL);
 
@@ -33,7 +33,7 @@ TEST(simple_escaped_quote) {
 }
 
 TEST(multiple_escaped_quotes) {
-    edn_result_t result = edn_parse("\"\\\"a\\\" \\\"b\\\" \\\"c\\\"\"", 0);
+    edn_result_t result = edn_read("\"\\\"a\\\" \\\"b\\\" \\\"c\\\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -47,7 +47,7 @@ TEST(multiple_escaped_quotes) {
 }
 
 TEST(escaped_quote_at_beginning) {
-    edn_result_t result = edn_parse("\"\\\"hello\"", 0);
+    edn_result_t result = edn_read("\"\\\"hello\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -60,7 +60,7 @@ TEST(escaped_quote_at_beginning) {
 }
 
 TEST(escaped_quote_at_end) {
-    edn_result_t result = edn_parse("\"hello\\\"\"", 0);
+    edn_result_t result = edn_read("\"hello\\\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -74,12 +74,12 @@ TEST(escaped_quote_at_end) {
 
 TEST(complex_escaped_string) {
     /* This is the actual problematic string from nested_100000.edn */
-    edn_result_t result = edn_parse("{:dmV \"\\\"IP$+.o`'82$_1\\\"?\"}", 0);
+    edn_result_t result = edn_read("{:dmV \"\\\"IP$+.o`'82$_1\\\"?\"}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
-    edn_result_t key = edn_parse(":dmV", 0);
+    edn_result_t key = edn_read(":dmV", 0);
     edn_value_t* val = edn_map_lookup(result.value, key.value);
     assert(val != NULL);
 
@@ -94,7 +94,7 @@ TEST(complex_escaped_string) {
 }
 
 TEST(escaped_backslash_then_quote) {
-    edn_result_t result = edn_parse("\"\\\\\\\"\"", 0);
+    edn_result_t result = edn_read("\"\\\\\\\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -108,7 +108,7 @@ TEST(escaped_backslash_then_quote) {
 }
 
 TEST(mixed_escapes_with_quotes) {
-    edn_result_t result = edn_parse("\"line1\\n\\\"quoted\\\"\\tline2\"", 0);
+    edn_result_t result = edn_read("\"line1\\n\\\"quoted\\\"\\tline2\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -122,7 +122,7 @@ TEST(mixed_escapes_with_quotes) {
 }
 
 TEST(only_escaped_quotes) {
-    edn_result_t result = edn_parse("\"\\\"\\\"\\\"\"", 0);
+    edn_result_t result = edn_read("\"\\\"\\\"\\\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -137,7 +137,7 @@ TEST(only_escaped_quotes) {
 
 TEST(long_string_with_escaped_quotes) {
     /* Test with a string longer than SIMD chunk size (16 bytes) */
-    edn_result_t result = edn_parse(
+    edn_result_t result = edn_read(
         "\"This is a long string with \\\"escaped quotes\\\" in the middle and at the end\\\"\"",
         0);
     assert(result.error == EDN_OK);

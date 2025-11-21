@@ -12,7 +12,7 @@ TEST(basic_text_block_single_line) {
        hello
        """
        -> "hello\n" */
-    edn_result_t result = edn_parse("\"\"\"\nhello\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nhello\n\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -33,7 +33,7 @@ TEST(text_block_multiple_lines) {
        line3
        """
        -> "line1\nline2\nline3\n" */
-    edn_result_t result = edn_parse("\"\"\"\nline1\nline2\nline3\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nline1\nline2\nline3\n\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -53,7 +53,7 @@ TEST(text_block_multiple_lines_no_trailing) {
        line2
        line3"""
        -> "line1\nline2\nline3" */
-    edn_result_t result = edn_parse("\"\"\"\nline1\nline2\nline3\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nline1\nline2\nline3\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -71,7 +71,7 @@ TEST(text_block_no_trailing_newline) {
     /* """
        content"""
        -> "content" */
-    edn_result_t result = edn_parse("\"\"\"\ncontent\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\ncontent\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -90,7 +90,7 @@ TEST(text_block_closing_on_own_line) {
        content
        """
        -> "content\n" */
-    edn_result_t result = edn_parse("\"\"\"\ncontent\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\ncontent\n\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -108,7 +108,7 @@ TEST(text_block_empty) {
     /* """
        """
        -> "" */
-    edn_result_t result = edn_parse("\"\"\"\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\n\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -129,7 +129,7 @@ TEST(text_block_indentation_stripping) {
              """
        -> "  line1\n line2\nline3\n" (min indent 6 from closing """) */
     edn_result_t result =
-        edn_parse("\"\"\"\n        line1\n       line2\n      line3\n      \"\"\"", 0);
+        edn_read("\"\"\"\n        line1\n       line2\n      line3\n      \"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -150,7 +150,7 @@ TEST(text_block_indentation_closing_delimiter) {
            line2
           """
        -> "  line1\n line2\n" (min indent 3 from closing """) */
-    edn_result_t result = edn_parse("\"\"\"\n     line1\n    line2\n   \"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\n     line1\n    line2\n   \"\"\"", 0);
     assert(result.error == EDN_OK);
 
     size_t len;
@@ -168,7 +168,7 @@ TEST(text_block_indentation_closing_delimiter_at_line_start) {
            line2
        """
        -> "     line1\n    line2\n" (min indent 0 from closing """) */
-    edn_result_t result = edn_parse("\"\"\"\n     line1\n    line2\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\n     line1\n    line2\n\"\"\"", 0);
     assert(result.error == EDN_OK);
 
     size_t len;
@@ -186,7 +186,7 @@ TEST(text_block_trailing_whitespace_removed) {
        world  
        """
        -> "hello\nworld\n" (trailing spaces removed) */
-    edn_result_t result = edn_parse("\"\"\"\nhello   \nworld  \n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nhello   \nworld  \n\"\"\"", 0);
     assert(result.error == EDN_OK);
 
     size_t len;
@@ -204,7 +204,7 @@ TEST(text_block_blank_lines_preserved) {
        line3
        """
        -> "line1\n\nline3\n" (blank line preserved, not used for min indent) */
-    edn_result_t result = edn_parse("\"\"\"\nline1\n\nline3\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nline1\n\nline3\n\"\"\"", 0);
     assert(result.error == EDN_OK);
 
     size_t len;
@@ -220,7 +220,7 @@ TEST(text_block_with_escaped_triple_quotes) {
        She said \"""Hello\"""
        """
        -> "She said \"\"\"Hello\"\"\"\n" (escape \""" becomes """) */
-    edn_result_t result = edn_parse("\"\"\"\nShe said \\\"\"\"Hello\\\"\"\"\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nShe said \\\"\"\"Hello\\\"\"\"\n\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -236,14 +236,14 @@ TEST(text_block_with_escaped_triple_quotes) {
 TEST(text_block_unterminated) {
     /* """
        hello (no closing """) -> ERROR */
-    edn_result_t result = edn_parse("\"\"\"\nhello", 0);
+    edn_result_t result = edn_read("\"\"\"\nhello", 0);
     assert(result.error == EDN_ERROR_INVALID_STRING);
     assert(result.error_message != NULL);
 }
 
 TEST(text_block_missing_newline_after_opening) {
     /* """hello""" (no newline after opening, parses as regular string) -> "" */
-    edn_result_t result = edn_parse("\"\"\"hello\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"hello\"\"\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_STRING);
@@ -261,7 +261,7 @@ TEST(text_block_in_vector) {
         hello
         """ 123]
        -> ["hello\n" 123] */
-    edn_result_t result = edn_parse("[\"\"\"\nhello\n\"\"\" 123]", 0);
+    edn_result_t result = edn_read("[\"\"\"\nhello\n\"\"\" 123]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -290,11 +290,11 @@ TEST(text_block_in_map) {
              line2
              """}
        -> {:foo " line1\nline2\n"} (min indent 6) */
-    edn_result_t result = edn_parse("{:foo \"\"\"\n       line1\n      line2\n      \"\"\"}", 0);
+    edn_result_t result = edn_read("{:foo \"\"\"\n       line1\n      line2\n      \"\"\"}", 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
-    edn_result_t key = edn_parse(":foo", 0);
+    edn_result_t key = edn_read(":foo", 0);
     edn_value_t* val = edn_map_lookup(result.value, key.value);
     assert(val != NULL);
     assert(edn_type(val) == EDN_TYPE_STRING);
@@ -310,8 +310,8 @@ TEST(text_block_in_map) {
 }
 
 TEST(text_block_equality) {
-    edn_result_t r1 = edn_parse("\"\"\"\nline1\nline2\n\"\"\"", 0);
-    edn_result_t r2 = edn_parse("\"\"\"\nline1\nline2\n\"\"\"", 0);
+    edn_result_t r1 = edn_read("\"\"\"\nline1\nline2\n\"\"\"", 0);
+    edn_result_t r2 = edn_read("\"\"\"\nline1\nline2\n\"\"\"", 0);
 
     assert(r1.error == EDN_OK);
     assert(r2.error == EDN_OK);
@@ -334,7 +334,7 @@ TEST(text_block_sql_example) {
                         "ORDER BY name\n"
                         "\"\"\"";
 
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
 
     size_t len;
@@ -353,11 +353,11 @@ TEST(text_block_example_closing_same_line) {
             line3"""}
        -> {:foo "  line1\n line2\nline3"} (min indent 6 from line3) */
     const char* input = "{:foo \"\"\"\n        line1\n       line2\n      line3\"\"\"}";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
-    edn_result_t key = edn_parse(":foo", 0);
+    edn_result_t key = edn_read(":foo", 0);
     edn_value_t* val = edn_map_lookup(result.value, key.value);
     assert(val != NULL);
     assert(edn_type(val) == EDN_TYPE_STRING);
@@ -380,11 +380,11 @@ TEST(text_block_example_closing_own_line) {
             """}
        -> {:foo "  line1\n line2\nline3\n"} (min indent 6 from closing """) */
     const char* input = "{:foo \"\"\"\n        line1\n       line2\n      line3\n      \"\"\"}";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
-    edn_result_t key = edn_parse(":foo", 0);
+    edn_result_t key = edn_read(":foo", 0);
     edn_value_t* val = edn_map_lookup(result.value, key.value);
     assert(val != NULL);
     assert(edn_type(val) == EDN_TYPE_STRING);
@@ -403,7 +403,7 @@ TEST(text_block_example_closing_own_line) {
 
 TEST(text_block_disabled) {
     /* When TEXT_BLOCKS disabled, """<newline> parses as regular string -> ERROR or "" */
-    edn_result_t result = edn_parse("\"\"\"\nhello\n\"\"\"", 0);
+    edn_result_t result = edn_read("\"\"\"\nhello\n\"\"\"", 0);
     assert(result.error != EDN_OK || edn_type(result.value) == EDN_TYPE_STRING);
     if (result.value != NULL) {
         edn_free(result.value);

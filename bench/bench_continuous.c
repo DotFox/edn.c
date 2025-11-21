@@ -59,15 +59,15 @@ int main(void) {
     unsigned long iterations = 0;
     while (time(NULL) < end) {
         /* Parse each file type */
-        edn_result_t kw_result = edn_parse(keywords_data, keywords_size);
+        edn_result_t kw_result = edn_read(keywords_data, keywords_size);
         if (kw_result.value)
             edn_free(kw_result.value);
 
-        edn_result_t map_result = edn_parse(maps_data, maps_size);
+        edn_result_t map_result = edn_read(maps_data, maps_size);
         if (map_result.value)
             edn_free(map_result.value);
 
-        edn_result_t ints_result = edn_parse(ints_data, ints_size);
+        edn_result_t ints_result = edn_read(ints_data, ints_size);
         if (ints_result.value)
             edn_free(ints_result.value);
 
