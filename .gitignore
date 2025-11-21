@@ -4,6 +4,8 @@
 *.so
 *.dylib
 build/
+*.wasm
+*.js
 
 # Test binaries
 test/test_*
@@ -15,11 +17,13 @@ bench/bench_*
 !bench/bench_*.c
 !bench/bench_*.h
 !bench/*.clj
+!bench/*.js
 
 # Examples binaries
 examples/*
 !examples/*.c
 !examples/*.h
+!examples/*.js
 
 # Debug files
 *.dSYM/

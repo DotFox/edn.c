@@ -1,8 +1,15 @@
 # EDN.C Makefile
 # Supports x86_64 (SSE4.2, AVX2) and ARM64 (NEON) SIMD
+# WebAssembly support via Emscripten
 
+# Native build tools
 CC ?= gcc
 AR ?= ar
+
+# WebAssembly build tools (Emscripten)
+EMCC ?= emcc
+EMAR ?= emar
+
 CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2
 INCLUDES = -Iinclude -Isrc
 LDFLAGS =
@@ -95,10 +102,27 @@ endif
 # Source files
 SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c src/text_block.c
 
+# Native build objects and library
 OBJS = $(SRCS:.c=.o)
-
-# Library output
 LIB = libedn.a
+
+# WebAssembly build objects and outputs
+WASM_SRCS = $(SRCS) bindings/wasm/wasm_edn.c
+WASM_OBJS = $(WASM_SRCS:.c=.wasm.o)
+WASM_LIB = libedn.wasm.a
+WASM_MODULE = edn.wasm
+WASM_JS = edn.js
+
+# WebAssembly SIMD128 flags
+WASM_COMPILE_FLAGS = -msimd128 -mbulk-memory
+WASM_LINK_FLAGS = -msimd128 -mbulk-memory
+WASM_LINK_FLAGS += -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,Emval
+WASM_LINK_FLAGS += -s ALLOW_MEMORY_GROWTH=1
+WASM_LINK_FLAGS += -s INITIAL_MEMORY=33554432
+WASM_LINK_FLAGS += -s MAXIMUM_MEMORY=4294967296
+WASM_LINK_FLAGS += -s EXPORT_ALL=0
+WASM_LINK_FLAGS += -lembind
+WASM_LINK_FLAGS += -s STACK_SIZE=5242880
 
 # Test files
 TEST_SRCS = $(wildcard test/*.c)
@@ -157,9 +181,15 @@ bench-clj:
 .PHONY: bench-compare
 bench-compare: bench bench-clj
 
-# Build and run all benchmarks
+# Build and run WebAssembly benchmarks
+.PHONY: bench-wasm
+bench-wasm: wasm
+	@echo "Running WebAssembly benchmarks..."
+	@node --expose-gc bench/bench_wasm.js
+
+# Build and run all benchmarks (C + WASM)
 .PHONY: bench-all
-bench-all: $(BENCH_BINS)
+bench-all: $(BENCH_BINS) bench-wasm
 	@echo "Running all benchmarks..."
 	$(Q)for benchmark in $(BENCH_BINS); do \
 		echo ""; \
@@ -195,11 +225,43 @@ tui: examples/edn_tui
 debug:
 	$(MAKE) DEBUG=1
 
+# WebAssembly targets
+.PHONY: wasm
+wasm: $(WASM_MODULE)
+	@echo "✓ WebAssembly build complete: $(WASM_MODULE), $(WASM_JS)"
+	@echo "  SIMD128 support enabled"
+	@echo ""
+	@echo "Files created in project root:"
+	@echo "  - edn.wasm (WebAssembly module)"
+	@echo "  - edn.js (JavaScript loader)"
+	@echo ""
+	@echo "To test in Node.js, run:"
+	@echo "  node examples/wasm_example.js"
+
+# Build WebAssembly module with JavaScript glue code
+$(WASM_MODULE): $(WASM_OBJS)
+	@echo "  EMCC    $@"
+	$(Q)$(EMCC) -std=gnu11 -O2 $(WASM_LINK_FLAGS) $(INCLUDES) $(WASM_OBJS) -o $(WASM_JS)
+
+# Build WebAssembly static library
+$(WASM_LIB): $(WASM_OBJS)
+	@echo "  EMAR    $@"
+	$(Q)$(EMAR) rcs $@ $^
+
+# Compile WebAssembly object files
+%.wasm.o: %.c
+	@echo "  EMCC    $@"
+	$(Q)$(EMCC) -std=gnu11 -Wall -Wextra -Wpedantic -O2 \
+		-Wno-dollar-in-identifier-extension \
+		-Wno-gnu-zero-variadic-macro-arguments \
+		$(WASM_COMPILE_FLAGS) $(INCLUDES) -c $< -o $@
+
 # Clean build artifacts
 .PHONY: clean
 clean:
 	@echo "  CLEAN"
 	$(Q)rm -f $(OBJS) $(LIB)
+	$(Q)rm -f $(WASM_OBJS) $(WASM_LIB) $(WASM_MODULE) $(WASM_JS) edn.wasm.map
 	$(Q)rm -f $(TEST_BINS)
 	$(Q)rm -f $(BENCH_BINS)
 	$(Q)rm -f $(EXAMPLES_BINS)
@@ -218,19 +280,42 @@ info:
 	@echo "Sources:      $(SRCS)"
 	@echo "Tests:        $(TEST_SRCS)"
 	@echo "Benchmarks:   $(BENCH_SRCS)"
+	@echo ""
+	@echo "WebAssembly Configuration"
+	@echo "========================="
+	@echo "Compiler:     $(EMCC)"
+	@echo "CFLAGS:       $(CFLAGS) $(WASM_FLAGS)"
+	@echo "WASM Sources: $(WASM_SRCS)"
+
+.PHONY: info-wasm
+info-wasm:
+	@echo "EDN.C WebAssembly Build Configuration"
+	@echo "======================================"
+	@echo "Compiler:     $(EMCC)"
+	@echo "CFLAGS:       $(CFLAGS) $(WASM_FLAGS)"
+	@echo "SIMD:         SIMD128 enabled"
+	@echo "Sources:      $(WASM_SRCS)"
+	@echo ""
+	@echo "Optional features:"
+	@echo "  MAP_NAMESPACE_SYNTAX:  $(MAP_NAMESPACE_SYNTAX)"
+	@echo "  EXTENDED_CHARACTERS:   $(EXTENDED_CHARACTERS)"
+	@echo "  METADATA:              $(METADATA)"
+	@echo "  TEXT_BLOCKS:           $(TEXT_BLOCKS)"
+	@echo "  RATIO:                 $(RATIO)"
+	@echo "  EXTENDED_INTEGERS:     $(EXTENDED_INTEGERS)"
 
 # Help
 # Format all source files with clang-format
 .PHONY: format
 format:
 	@echo "  FORMAT  all C files"
-	$(Q)find src include test bench examples -name '*.[ch]' -exec clang-format -i {} +
+	$(Q)find src include test bench examples bindings -name '*.[ch]' -exec clang-format -i {} +
 
 # Check formatting without modifying files
 .PHONY: format-check
 format-check:
 	@echo "  FORMAT-CHECK"
-	$(Q)find src include test bench examples -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
+	$(Q)find src include test bench examples bindings -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
 
 # Generate compile_commands.json and .clangd for LSP
 .PHONY: compile-commands
@@ -256,6 +341,8 @@ clangd:
 .PHONY: help
 help:
 	@echo "EDN.C Makefile targets:"
+	@echo ""
+	@echo "Native builds:"
 	@echo "  make                  - Build library ($(LIB))"
 	@echo "  make test             - Build and run all tests"
 	@echo "  make cli              - Build CLI tool (examples/edn_cli)"
@@ -264,17 +351,25 @@ help:
 	@echo "  make bench            - Build and run quick benchmark (C integration)"
 	@echo "  make bench-clj        - Run Clojure benchmarks (clojure.edn and fast-edn)"
 	@echo "  make bench-compare    - Run C and Clojure benchmarks for comparison"
-	@echo "  make bench-all        - Build and run all C benchmarks"
+	@echo "  make bench-all        - Build and run all benchmarks (C + WASM)"
 	@echo "  make bench-build      - Build benchmarks only (don't run)"
 	@echo "  make debug            - Build with debug symbols and sanitizers"
+	@echo ""
+	@echo "WebAssembly builds:"
+	@echo "  make wasm             - Build WebAssembly module ($(WASM_MODULE))"
+	@echo "  make bench-wasm       - Build and run WebAssembly benchmarks"
+	@echo "  make info-wasm        - Print WebAssembly build configuration"
+	@echo ""
+	@echo "Development tools:"
 	@echo "  make format           - Format all C files with clang-format"
 	@echo "  make format-check     - Check formatting without modifying files"
-	@echo "  make compile-commands - Generate compile_commands.json for LSP"
-	@echo "  make clean            - Remove build artifacts"
-	@echo "  make info             - Print build configuration"
+	@echo "  make compile-commands - Generate compile_commands.json + .clangd for LSP"
+	@echo "  make clangd           - Regenerate .clangd configuration only"
+	@echo "  make clean            - Remove all build artifacts"
+	@echo "  make info             - Print build configuration (native + WASM)"
 	@echo "  make help             - Show this help message"
 	@echo ""
-	@echo "Options:"
+	@echo "Options (apply to both native and WASM builds):"
 	@echo "  EXTENDED_INTEGERS=1         - Enable hex (0xFF), octal (0777), binary (2r1010), and radix (36rZZ) integers"
 	@echo "  RATIO=1                     - Enable ratio numbers (22/7)"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
@@ -282,6 +377,10 @@ help:
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
 	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"\\\n...\"\"\" blocks)"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
-	@echo "  DEBUG=1                     - Enable debug build"
+	@echo "  DEBUG=1                     - Enable debug build (native only)"
+	@echo ""
+	@echo "WebAssembly requirements:"
+	@echo "  - Emscripten SDK (https://emscripten.org/)"
+	@echo "  - Node.js with WASM SIMD support (v16.4+ or use --experimental-wasm-simd)"
 
 .DEFAULT_GOAL := all
