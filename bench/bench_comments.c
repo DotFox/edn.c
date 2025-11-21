@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../include/edn.h"
 #include "../src/edn_internal.h"
 #include "bench_time.h"
 

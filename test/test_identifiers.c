@@ -9,7 +9,7 @@
 
 /* Test reserved keywords */
 TEST(reserved_nil) {
-    edn_result_t result = edn_parse("nil", 0);
+    edn_result_t result = edn_read("nil", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_NIL);
@@ -17,7 +17,7 @@ TEST(reserved_nil) {
 }
 
 TEST(reserved_true) {
-    edn_result_t result = edn_parse("true", 0);
+    edn_result_t result = edn_read("true", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_BOOL);
@@ -25,7 +25,7 @@ TEST(reserved_true) {
 }
 
 TEST(reserved_false) {
-    edn_result_t result = edn_parse("false", 0);
+    edn_result_t result = edn_read("false", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_BOOL);
@@ -33,7 +33,7 @@ TEST(reserved_false) {
 }
 
 TEST(symbol_simple) {
-    edn_result_t result = edn_parse("foo", 0);
+    edn_result_t result = edn_read("foo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -47,7 +47,7 @@ TEST(symbol_simple) {
 }
 
 TEST(symbol_simple_with_unicode) {
-    edn_result_t result = edn_parse("föö", 0);
+    edn_result_t result = edn_read("föö", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -55,7 +55,7 @@ TEST(symbol_simple_with_unicode) {
 }
 
 TEST(symbol_with_dash) {
-    edn_result_t result = edn_parse("foo-bar", 0);
+    edn_result_t result = edn_read("foo-bar", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -69,7 +69,7 @@ TEST(symbol_with_dash) {
 }
 
 TEST(symbol_nil_prefix) {
-    edn_result_t result = edn_parse("nilo", 0);
+    edn_result_t result = edn_read("nilo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -77,7 +77,7 @@ TEST(symbol_nil_prefix) {
 }
 
 TEST(symbol_true_prefix) {
-    edn_result_t result = edn_parse("truee", 0);
+    edn_result_t result = edn_read("truee", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -85,7 +85,7 @@ TEST(symbol_true_prefix) {
 }
 
 TEST(symbol_false_suffix) {
-    edn_result_t result = edn_parse("falsee", 0);
+    edn_result_t result = edn_read("falsee", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -93,7 +93,7 @@ TEST(symbol_false_suffix) {
 }
 
 TEST(symbol_plus) {
-    edn_result_t result = edn_parse("+", 0);
+    edn_result_t result = edn_read("+", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -101,7 +101,7 @@ TEST(symbol_plus) {
 }
 
 TEST(symbol_slash_alone) {
-    edn_result_t result = edn_parse("/", 0);
+    edn_result_t result = edn_read("/", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -111,7 +111,7 @@ TEST(symbol_slash_alone) {
 TEST(symbol_with_backspace) {
     /* Backspace character (0x08) is valid in identifiers */
     const char* input = "\bfoo"; /* backspace followed by "foo" */
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -130,7 +130,7 @@ TEST(symbol_with_backspace) {
 TEST(symbol_with_backspace_middle) {
     /* Backspace character in middle of identifier */
     const char* input = "foo\bbar";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -148,7 +148,7 @@ TEST(symbol_with_backspace_middle) {
 TEST(keyword_with_backspace) {
     /* Backspace character valid in keywords too */
     const char* input = ":\bkey";
-    edn_result_t result = edn_parse(input, 0);
+    edn_result_t result = edn_read(input, 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -164,7 +164,7 @@ TEST(keyword_with_backspace) {
 }
 
 TEST(symbol_namespaced_simple) {
-    edn_result_t result = edn_parse("foo/bar", 0);
+    edn_result_t result = edn_read("foo/bar", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -182,7 +182,7 @@ TEST(symbol_namespaced_simple) {
 }
 
 TEST(symbol_namespaced_multiple_slashes) {
-    edn_result_t result = edn_parse("foo/bar/baz", 0);
+    edn_result_t result = edn_read("foo/bar/baz", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -199,7 +199,7 @@ TEST(symbol_namespaced_multiple_slashes) {
 }
 
 TEST(symbol_namespaced_reserved_in_namespace) {
-    edn_result_t result = edn_parse("nil/foo", 0);
+    edn_result_t result = edn_read("nil/foo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -207,7 +207,7 @@ TEST(symbol_namespaced_reserved_in_namespace) {
 }
 
 TEST(symbol_namespaced_reserved_in_name) {
-    edn_result_t result = edn_parse("foo/nil", 0);
+    edn_result_t result = edn_read("foo/nil", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_SYMBOL);
@@ -215,7 +215,7 @@ TEST(symbol_namespaced_reserved_in_name) {
 }
 
 TEST(keyword_simple) {
-    edn_result_t result = edn_parse(":foo", 0);
+    edn_result_t result = edn_read(":foo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -229,7 +229,7 @@ TEST(keyword_simple) {
 }
 
 TEST(keyword_with_dash) {
-    edn_result_t result = edn_parse(":foo-bar", 0);
+    edn_result_t result = edn_read(":foo-bar", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -237,25 +237,25 @@ TEST(keyword_with_dash) {
 }
 
 TEST(keyword_double_colon_name) {
-    edn_result_t result = edn_parse("::name", 0);
+    edn_result_t result = edn_read("::name", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(keyword_double_colon_namespace) {
-    edn_result_t result = edn_parse("::ns/name", 0);
+    edn_result_t result = edn_read("::ns/name", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(keyword_double_colon_namespaced_name) {
-    edn_result_t result = edn_parse("::a/b/c", 0);
+    edn_result_t result = edn_read("::a/b/c", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(keyword_plus) {
-    edn_result_t result = edn_parse(":+", 0);
+    edn_result_t result = edn_read(":+", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -263,7 +263,7 @@ TEST(keyword_plus) {
 }
 
 TEST(keyword_namespaced_simple) {
-    edn_result_t result = edn_parse(":foo/bar", 0);
+    edn_result_t result = edn_read(":foo/bar", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -280,7 +280,7 @@ TEST(keyword_namespaced_simple) {
 }
 
 TEST(keyword_namespaced_short) {
-    edn_result_t result = edn_parse(":a/b", 0);
+    edn_result_t result = edn_read(":a/b", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -288,7 +288,7 @@ TEST(keyword_namespaced_short) {
 }
 
 TEST(keyword_namespaced_long) {
-    edn_result_t result = edn_parse(":foo.bar.baz/qux", 0);
+    edn_result_t result = edn_read(":foo.bar.baz/qux", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_KEYWORD);
@@ -296,43 +296,43 @@ TEST(keyword_namespaced_long) {
 }
 
 TEST(invalid_empty) {
-    edn_result_t result = edn_parse("", 0);
+    edn_result_t result = edn_read("", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_colon_alone) {
-    edn_result_t result = edn_parse(":", 0);
+    edn_result_t result = edn_read(":", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_slash_at_start) {
-    edn_result_t result = edn_parse("/foo", 0);
+    edn_result_t result = edn_read("/foo", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_slash_at_end) {
-    edn_result_t result = edn_parse("foo/", 0);
+    edn_result_t result = edn_read("foo/", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_colon_slash) {
-    edn_result_t result = edn_parse(":/", 0);
+    edn_result_t result = edn_read(":/", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_colon_slash_name) {
-    edn_result_t result = edn_parse(":/foo", 0);
+    edn_result_t result = edn_read(":/foo", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(invalid_keyword_slash_at_end) {
-    edn_result_t result = edn_parse(":foo/", 0);
+    edn_result_t result = edn_read(":foo/", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }

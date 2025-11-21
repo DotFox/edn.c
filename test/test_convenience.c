@@ -10,14 +10,14 @@
 /* ========== Type Predicates Tests ========== */
 
 TEST(is_string_true) {
-    edn_result_t r = edn_parse("\"hello\"", 0);
+    edn_result_t r = edn_read("\"hello\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_string(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_string_false) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_string(r.value) == false);
     edn_free(r.value);
@@ -28,28 +28,28 @@ TEST(is_string_null) {
 }
 
 TEST(is_number_int) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_number_bigint) {
-    edn_result_t r = edn_parse("999999999999999999999999999", 0);
+    edn_result_t r = edn_read("999999999999999999999999999", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_number_float) {
-    edn_result_t r = edn_parse("3.14", 0);
+    edn_result_t r = edn_read("3.14", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_number_bigdec) {
-    edn_result_t r = edn_parse("3.14M", 0);
+    edn_result_t r = edn_read("3.14M", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == true);
     edn_free(r.value);
@@ -57,7 +57,7 @@ TEST(is_number_bigdec) {
 
 #ifdef EDN_ENABLE_RATIO
 TEST(is_number_ratio) {
-    edn_result_t r = edn_parse("22/7", 0);
+    edn_result_t r = edn_read("22/7", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == true);
     edn_free(r.value);
@@ -65,7 +65,7 @@ TEST(is_number_ratio) {
 #endif
 
 TEST(is_number_false) {
-    edn_result_t r = edn_parse("\"not a number\"", 0);
+    edn_result_t r = edn_read("\"not a number\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_number(r.value) == false);
     edn_free(r.value);
@@ -76,21 +76,21 @@ TEST(is_number_null) {
 }
 
 TEST(is_integer_int) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_integer(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_integer_bigint) {
-    edn_result_t r = edn_parse("42N", 0);
+    edn_result_t r = edn_read("42N", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_integer(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_integer_false_float) {
-    edn_result_t r = edn_parse("3.14", 0);
+    edn_result_t r = edn_read("3.14", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_integer(r.value) == false);
     edn_free(r.value);
@@ -101,35 +101,35 @@ TEST(is_integer_null) {
 }
 
 TEST(is_collection_list) {
-    edn_result_t r = edn_parse("(1 2 3)", 0);
+    edn_result_t r = edn_read("(1 2 3)", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_collection_vector) {
-    edn_result_t r = edn_parse("[1 2 3]", 0);
+    edn_result_t r = edn_read("[1 2 3]", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_collection_map) {
-    edn_result_t r = edn_parse("{:a 1}", 0);
+    edn_result_t r = edn_read("{:a 1}", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_collection_set) {
-    edn_result_t r = edn_parse("#{1 2 3}", 0);
+    edn_result_t r = edn_read("#{1 2 3}", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == true);
     edn_free(r.value);
 }
 
 TEST(is_collection_false) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == false);
     edn_free(r.value);
@@ -142,21 +142,21 @@ TEST(is_collection_null) {
 /* ========== String Utilities Tests ========== */
 
 TEST(string_equals_true) {
-    edn_result_t r = edn_parse("\"hello\"", 0);
+    edn_result_t r = edn_read("\"hello\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "hello") == true);
     edn_free(r.value);
 }
 
 TEST(string_equals_false) {
-    edn_result_t r = edn_parse("\"hello\"", 0);
+    edn_result_t r = edn_read("\"hello\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "world") == false);
     edn_free(r.value);
 }
 
 TEST(string_equals_empty) {
-    edn_result_t r = edn_parse("\"\"", 0);
+    edn_result_t r = edn_read("\"\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "") == true);
     assert(edn_string_equals(r.value, "x") == false);
@@ -164,21 +164,21 @@ TEST(string_equals_empty) {
 }
 
 TEST(string_equals_different_length) {
-    edn_result_t r = edn_parse("\"hi\"", 0);
+    edn_result_t r = edn_read("\"hi\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "hello") == false);
     edn_free(r.value);
 }
 
 TEST(string_equals_with_escapes) {
-    edn_result_t r = edn_parse("\"hello\\nworld\"", 0);
+    edn_result_t r = edn_read("\"hello\\nworld\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "hello\nworld") == true);
     edn_free(r.value);
 }
 
 TEST(string_equals_wrong_type) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, "42") == false);
     edn_free(r.value);
@@ -189,7 +189,7 @@ TEST(string_equals_null_value) {
 }
 
 TEST(string_equals_null_str) {
-    edn_result_t r = edn_parse("\"hello\"", 0);
+    edn_result_t r = edn_read("\"hello\"", 0);
     assert(r.error == EDN_OK);
     assert(edn_string_equals(r.value, NULL) == false);
     edn_free(r.value);
@@ -198,7 +198,7 @@ TEST(string_equals_null_str) {
 /* ========== Map Convenience Functions Tests ========== */
 
 TEST(map_get_keyword_found) {
-    edn_result_t r = edn_parse("{:name \"Alice\" :age 30}", 0);
+    edn_result_t r = edn_read("{:name \"Alice\" :age 30}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* name = edn_map_get_keyword(r.value, "name");
@@ -210,7 +210,7 @@ TEST(map_get_keyword_found) {
 }
 
 TEST(map_get_keyword_not_found) {
-    edn_result_t r = edn_parse("{:name \"Alice\"}", 0);
+    edn_result_t r = edn_read("{:name \"Alice\"}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* missing = edn_map_get_keyword(r.value, "age");
@@ -220,7 +220,7 @@ TEST(map_get_keyword_not_found) {
 }
 
 TEST(map_get_keyword_empty_map) {
-    edn_result_t r = edn_parse("{}", 0);
+    edn_result_t r = edn_read("{}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val = edn_map_get_keyword(r.value, "any");
@@ -230,7 +230,7 @@ TEST(map_get_keyword_empty_map) {
 }
 
 TEST(map_get_keyword_multiple_values) {
-    edn_result_t r = edn_parse("{:a 1 :b 2 :c 3}", 0);
+    edn_result_t r = edn_read("{:a 1 :b 2 :c 3}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val_a = edn_map_get_keyword(r.value, "a");
@@ -255,7 +255,7 @@ TEST(map_get_keyword_null_map) {
 }
 
 TEST(map_get_keyword_null_keyword) {
-    edn_result_t r = edn_parse("{:a 1}", 0);
+    edn_result_t r = edn_read("{:a 1}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val = edn_map_get_keyword(r.value, NULL);
@@ -265,7 +265,7 @@ TEST(map_get_keyword_null_keyword) {
 }
 
 TEST(map_get_keyword_wrong_type) {
-    edn_result_t r = edn_parse("[1 2 3]", 0);
+    edn_result_t r = edn_read("[1 2 3]", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val = edn_map_get_keyword(r.value, "key");
@@ -275,7 +275,7 @@ TEST(map_get_keyword_wrong_type) {
 }
 
 TEST(map_get_string_key_found) {
-    edn_result_t r = edn_parse("{\"name\" \"Alice\" \"age\" 30}", 0);
+    edn_result_t r = edn_read("{\"name\" \"Alice\" \"age\" 30}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* name = edn_map_get_string_key(r.value, "name");
@@ -286,7 +286,7 @@ TEST(map_get_string_key_found) {
 }
 
 TEST(map_get_string_key_not_found) {
-    edn_result_t r = edn_parse("{\"name\" \"Alice\"}", 0);
+    edn_result_t r = edn_read("{\"name\" \"Alice\"}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* missing = edn_map_get_string_key(r.value, "age");
@@ -296,7 +296,7 @@ TEST(map_get_string_key_not_found) {
 }
 
 TEST(map_get_string_key_empty_string) {
-    edn_result_t r = edn_parse("{\"\" 42}", 0);
+    edn_result_t r = edn_read("{\"\" 42}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val = edn_map_get_string_key(r.value, "");
@@ -314,7 +314,7 @@ TEST(map_get_string_key_null_map) {
 }
 
 TEST(map_get_string_key_null_key) {
-    edn_result_t r = edn_parse("{\"a\" 1}", 0);
+    edn_result_t r = edn_read("{\"a\" 1}", 0);
     assert(r.error == EDN_OK);
 
     edn_value_t* val = edn_map_get_string_key(r.value, NULL);
@@ -326,7 +326,7 @@ TEST(map_get_string_key_null_key) {
 /* ========== Combined/Integration Tests ========== */
 
 TEST(combined_type_checks) {
-    edn_result_t r = edn_parse("[42 \"hello\" [1 2] {:a 1}]", 0);
+    edn_result_t r = edn_read("[42 \"hello\" [1 2] {:a 1}]", 0);
     assert(r.error == EDN_OK);
     assert(edn_is_collection(r.value) == true);
 
@@ -349,7 +349,7 @@ TEST(combined_type_checks) {
 }
 
 TEST(combined_map_lookup_workflow) {
-    edn_result_t r = edn_parse("{:name \"Alice\" :age 30 :active true}", 0);
+    edn_result_t r = edn_read("{:name \"Alice\" :age 30 :active true}", 0);
     assert(r.error == EDN_OK);
 
     // Get name

@@ -10,7 +10,7 @@
 
 /* Test simple discard of atomic values */
 TEST(discard_integer) {
-    edn_result_t result = edn_parse("[1 #_2 3]", 0);
+    edn_result_t result = edn_read("[1 #_2 3]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -33,7 +33,7 @@ TEST(discard_integer) {
 }
 
 TEST(discard_string) {
-    edn_result_t result = edn_parse("[\"foo\" #_\"bar\" \"baz\"]", 0);
+    edn_result_t result = edn_read("[\"foo\" #_\"bar\" \"baz\"]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -55,7 +55,7 @@ TEST(discard_string) {
 }
 
 TEST(discard_keyword) {
-    edn_result_t result = edn_parse("[#_:discarded :kept]", 0);
+    edn_result_t result = edn_read("[#_:discarded :kept]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -71,7 +71,7 @@ TEST(discard_keyword) {
 
 /* Test discard of nested structures */
 TEST(discard_vector) {
-    edn_result_t result = edn_parse("[1 #_[2 3 4] 5]", 0);
+    edn_result_t result = edn_read("[1 #_[2 3 4] 5]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -91,7 +91,7 @@ TEST(discard_vector) {
 }
 
 TEST(discard_list) {
-    edn_result_t result = edn_parse("(foo #_(bar baz) qux)", 0);
+    edn_result_t result = edn_read("(foo #_(bar baz) qux)", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_LIST);
@@ -103,7 +103,7 @@ TEST(discard_list) {
 }
 
 TEST(discard_map) {
-    edn_result_t result = edn_parse("[:a #_{:b 2 :c 3} :d]", 0);
+    edn_result_t result = edn_read("[:a #_{:b 2 :c 3} :d]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -115,7 +115,7 @@ TEST(discard_map) {
 
 /* Test multiple consecutive discards */
 TEST(discard_multiple) {
-    edn_result_t result = edn_parse("[1 #_2 #_3 #_4 5]", 0);
+    edn_result_t result = edn_read("[1 #_2 #_3 #_4 5]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -136,7 +136,7 @@ TEST(discard_multiple) {
 
 /* Test discard in maps */
 TEST(discard_map_key) {
-    edn_result_t result = edn_parse("{:a 1 #_:b #_2 :c 3}", 0);
+    edn_result_t result = edn_read("{:a 1 #_:b #_2 :c 3}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
@@ -150,7 +150,7 @@ TEST(discard_map_key) {
 TEST(discard_map_value) {
     /* Discarding a value in a map leaves a key without a value */
     /* This should result in an error (odd number of elements) */
-    edn_result_t result = edn_parse("{:a 1 :b #_discarded :c 3}", 0);
+    edn_result_t result = edn_read("{:a 1 :b #_discarded :c 3}", 0);
     /* After parsing: :a, 1, :b, :c, 3 = 5 elements (odd) */
     /* This should be an error */
     assert(result.error != EDN_OK);
@@ -159,7 +159,7 @@ TEST(discard_map_value) {
 
 /* Test discard with whitespace */
 TEST(discard_with_whitespace) {
-    edn_result_t result = edn_parse("[1 #_  2  3]", 0);
+    edn_result_t result = edn_read("[1 #_  2  3]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -170,7 +170,7 @@ TEST(discard_with_whitespace) {
 }
 
 TEST(discard_with_newlines) {
-    edn_result_t result = edn_parse("[1 #_\n2\n3]", 0);
+    edn_result_t result = edn_read("[1 #_\n2\n3]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -182,7 +182,7 @@ TEST(discard_with_newlines) {
 
 /* Test nested discard */
 TEST(discard_nested) {
-    edn_result_t result = edn_parse("[1 #_#_2 3 4]", 0);
+    edn_result_t result = edn_read("[1 #_#_2 3 4]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
@@ -205,19 +205,19 @@ TEST(discard_nested) {
 
 /* Test error cases */
 TEST(discard_missing_value) {
-    edn_result_t result = edn_parse("[1 #_]", 0);
+    edn_result_t result = edn_read("[1 #_]", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(discard_eof) {
-    edn_result_t result = edn_parse("#_", 0);
+    edn_result_t result = edn_read("#_", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
 
 TEST(discard_at_end_of_collection) {
-    edn_result_t result = edn_parse("[1 2 #_]", 0);
+    edn_result_t result = edn_read("[1 2 #_]", 0);
     assert(result.error != EDN_OK);
     assert(result.value == NULL);
 }
@@ -225,7 +225,7 @@ TEST(discard_at_end_of_collection) {
 /* Test top-level discard */
 TEST(discard_top_level) {
     /* Discarding at top level should result in no value parsed */
-    edn_result_t result = edn_parse("#_42", 0);
+    edn_result_t result = edn_read("#_42", 0);
     /* This might return NULL with no error, or return an error */
     /* The behavior depends on implementation - should clarify spec */
     /* For now, we'll just check it doesn't crash */

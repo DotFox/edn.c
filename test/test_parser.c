@@ -8,7 +8,7 @@
 
 /* Test parsing nil */
 TEST(parse_nil) {
-    edn_result_t result = edn_parse("nil", 0);
+    edn_result_t result = edn_read("nil", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_NIL);
@@ -17,7 +17,7 @@ TEST(parse_nil) {
 
 /* Test parsing booleans */
 TEST(parse_true) {
-    edn_result_t result = edn_parse("true", 0);
+    edn_result_t result = edn_read("true", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_BOOL);
@@ -26,7 +26,7 @@ TEST(parse_true) {
 }
 
 TEST(parse_false) {
-    edn_result_t result = edn_parse("false", 0);
+    edn_result_t result = edn_read("false", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_BOOL);
@@ -36,7 +36,7 @@ TEST(parse_false) {
 
 /* Test parsing numbers */
 TEST(parse_positive_int) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);
@@ -45,7 +45,7 @@ TEST(parse_positive_int) {
 }
 
 TEST(parse_negative_int) {
-    edn_result_t result = edn_parse("-123", 0);
+    edn_result_t result = edn_read("-123", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);
@@ -54,7 +54,7 @@ TEST(parse_negative_int) {
 }
 
 TEST(parse_float) {
-    edn_result_t result = edn_parse("3.14", 0);
+    edn_result_t result = edn_read("3.14", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -63,7 +63,7 @@ TEST(parse_float) {
 
 /* Test parsing characters */
 TEST(parse_character_single) {
-    edn_result_t result = edn_parse("\\a", 0);
+    edn_result_t result = edn_read("\\a", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_CHARACTER);
@@ -76,7 +76,7 @@ TEST(parse_character_single) {
 }
 
 TEST(parse_character_named) {
-    edn_result_t result = edn_parse("\\newline", 0);
+    edn_result_t result = edn_read("\\newline", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_CHARACTER);
@@ -90,7 +90,7 @@ TEST(parse_character_named) {
 
 /* Test parsing strings */
 TEST(parse_string_simple) {
-    edn_result_t result = edn_parse("\"hello\"", 0);
+    edn_result_t result = edn_read("\"hello\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_STRING);
@@ -105,7 +105,7 @@ TEST(parse_string_simple) {
 }
 
 TEST(parse_string_with_escapes) {
-    edn_result_t result = edn_parse("\"hello\\nworld\"", 0);
+    edn_result_t result = edn_read("\"hello\\nworld\"", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_STRING);
@@ -119,7 +119,7 @@ TEST(parse_string_with_escapes) {
 
 /* Test parsing symbols */
 TEST(parse_symbol_simple) {
-    edn_result_t result = edn_parse("foo", 0);
+    edn_result_t result = edn_read("foo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_SYMBOL);
@@ -134,7 +134,7 @@ TEST(parse_symbol_simple) {
 }
 
 TEST(parse_symbol_plus) {
-    edn_result_t result = edn_parse("+", 0);
+    edn_result_t result = edn_read("+", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_SYMBOL);
@@ -142,7 +142,7 @@ TEST(parse_symbol_plus) {
 }
 
 TEST(parse_symbol_minus) {
-    edn_result_t result = edn_parse("-", 0);
+    edn_result_t result = edn_read("-", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_SYMBOL);
@@ -151,7 +151,7 @@ TEST(parse_symbol_minus) {
 
 /* Test parsing keywords */
 TEST(parse_keyword_simple) {
-    edn_result_t result = edn_parse(":foo", 0);
+    edn_result_t result = edn_read(":foo", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_KEYWORD);
@@ -166,7 +166,7 @@ TEST(parse_keyword_simple) {
 }
 
 TEST(parse_keyword_namespaced) {
-    edn_result_t result = edn_parse(":foo/bar", 0);
+    edn_result_t result = edn_read(":foo/bar", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_KEYWORD);
@@ -184,7 +184,7 @@ TEST(parse_keyword_namespaced) {
 
 /* Test whitespace handling */
 TEST(parse_with_leading_whitespace) {
-    edn_result_t result = edn_parse("   42", 0);
+    edn_result_t result = edn_read("   42", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);
@@ -193,7 +193,7 @@ TEST(parse_with_leading_whitespace) {
 }
 
 TEST(parse_with_comment) {
-    edn_result_t result = edn_parse("; comment\n42", 0);
+    edn_result_t result = edn_read("; comment\n42", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);
@@ -203,7 +203,7 @@ TEST(parse_with_comment) {
 
 /* Test symbolic values */
 TEST(parse_symbolic_inf) {
-    edn_result_t result = edn_parse("##Inf", 0);
+    edn_result_t result = edn_read("##Inf", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -211,7 +211,7 @@ TEST(parse_symbolic_inf) {
 }
 
 TEST(parse_symbolic_nan) {
-    edn_result_t result = edn_parse("##NaN", 0);
+    edn_result_t result = edn_read("##NaN", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_FLOAT);
@@ -220,7 +220,7 @@ TEST(parse_symbolic_nan) {
 
 /* Test collection parsing */
 TEST(parse_list_implemented) {
-    edn_result_t result = edn_parse("(1 2 3)", 0);
+    edn_result_t result = edn_read("(1 2 3)", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_LIST);
@@ -228,7 +228,7 @@ TEST(parse_list_implemented) {
 }
 
 TEST(parse_vector_implemented) {
-    edn_result_t result = edn_parse("[1 2 3]", 0);
+    edn_result_t result = edn_read("[1 2 3]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_VECTOR);
@@ -236,7 +236,7 @@ TEST(parse_vector_implemented) {
 }
 
 TEST(parse_map_implemented) {
-    edn_result_t result = edn_parse("{:a 1}", 0);
+    edn_result_t result = edn_read("{:a 1}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_MAP);
@@ -244,7 +244,7 @@ TEST(parse_map_implemented) {
 }
 
 TEST(parse_set_implemented) {
-    edn_result_t result = edn_parse("#{1 2 3}", 0);
+    edn_result_t result = edn_read("#{1 2 3}", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_SET);
@@ -253,13 +253,13 @@ TEST(parse_set_implemented) {
 
 /* Test empty input */
 TEST(parse_empty_input) {
-    edn_result_t result = edn_parse("", 0);
+    edn_result_t result = edn_read("", 0);
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
 }
 
 TEST(parse_whitespace_only) {
-    edn_result_t result = edn_parse("   \n\t  ", 0);
+    edn_result_t result = edn_read("   \n\t  ", 0);
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
 }

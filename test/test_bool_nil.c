@@ -9,7 +9,7 @@
 
 /* Test edn_is_nil() */
 TEST(is_nil_true) {
-    edn_result_t result = edn_parse("nil", 0);
+    edn_result_t result = edn_read("nil", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -20,7 +20,7 @@ TEST(is_nil_true) {
 }
 
 TEST(is_nil_false_with_bool) {
-    edn_result_t result = edn_parse("true", 0);
+    edn_result_t result = edn_read("true", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -30,7 +30,7 @@ TEST(is_nil_false_with_bool) {
 }
 
 TEST(is_nil_false_with_number) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -40,7 +40,7 @@ TEST(is_nil_false_with_number) {
 }
 
 TEST(is_nil_false_with_string) {
-    edn_result_t result = edn_parse("\"hello\"", 0);
+    edn_result_t result = edn_read("\"hello\"", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -55,7 +55,7 @@ TEST(is_nil_null_input) {
 
 /* Test edn_bool_get() with true */
 TEST(bool_get_true) {
-    edn_result_t result = edn_parse("true", 0);
+    edn_result_t result = edn_read("true", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -70,7 +70,7 @@ TEST(bool_get_true) {
 
 /* Test edn_bool_get() with false */
 TEST(bool_get_false) {
-    edn_result_t result = edn_parse("false", 0);
+    edn_result_t result = edn_read("false", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -85,7 +85,7 @@ TEST(bool_get_false) {
 
 /* Test edn_bool_get() with wrong type */
 TEST(bool_get_wrong_type_nil) {
-    edn_result_t result = edn_parse("nil", 0);
+    edn_result_t result = edn_read("nil", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -99,7 +99,7 @@ TEST(bool_get_wrong_type_nil) {
 }
 
 TEST(bool_get_wrong_type_number) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -111,7 +111,7 @@ TEST(bool_get_wrong_type_number) {
 }
 
 TEST(bool_get_wrong_type_string) {
-    edn_result_t result = edn_parse("\"true\"", 0);
+    edn_result_t result = edn_read("\"true\"", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -129,7 +129,7 @@ TEST(bool_get_null_value) {
 }
 
 TEST(bool_get_null_output) {
-    edn_result_t result = edn_parse("true", 0);
+    edn_result_t result = edn_read("true", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -141,7 +141,7 @@ TEST(bool_get_null_output) {
 
 /* Test boolean in collections */
 TEST(bool_in_vector) {
-    edn_result_t result = edn_parse("[true false nil]", 0);
+    edn_result_t result = edn_read("[true false nil]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -174,14 +174,14 @@ TEST(bool_in_vector) {
 
 /* Test boolean in map */
 TEST(bool_in_map) {
-    edn_result_t result = edn_parse("{:active true :deleted false}", 0);
+    edn_result_t result = edn_read("{:active true :deleted false}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_MAP);
 
     // Look up :active
-    edn_result_t key_result = edn_parse(":active", 0);
+    edn_result_t key_result = edn_read(":active", 0);
     edn_value_t* active_val = edn_map_lookup(result.value, key_result.value);
     assert(active_val != NULL);
     bool active;
@@ -190,7 +190,7 @@ TEST(bool_in_map) {
     edn_free(key_result.value);
 
     // Look up :deleted
-    key_result = edn_parse(":deleted", 0);
+    key_result = edn_read(":deleted", 0);
     edn_value_t* deleted_val = edn_map_lookup(result.value, key_result.value);
     assert(deleted_val != NULL);
     bool deleted;
@@ -203,7 +203,7 @@ TEST(bool_in_map) {
 
 /* Test nil in collections */
 TEST(nil_in_vector) {
-    edn_result_t result = edn_parse("[1 nil \"foo\"]", 0);
+    edn_result_t result = edn_read("[1 nil \"foo\"]", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -217,12 +217,12 @@ TEST(nil_in_vector) {
 }
 
 TEST(nil_in_map_value) {
-    edn_result_t result = edn_parse("{:key nil}", 0);
+    edn_result_t result = edn_read("{:key nil}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
-    edn_result_t key_result = edn_parse(":key", 0);
+    edn_result_t key_result = edn_read(":key", 0);
     edn_value_t* val = edn_map_lookup(result.value, key_result.value);
     assert(val != NULL);
     assert(edn_is_nil(val) == true);

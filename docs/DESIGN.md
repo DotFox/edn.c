@@ -27,7 +27,7 @@ EDN.C is a high-performance, zero-copy EDN (Extensible Data Notation) parser wri
 **Goal**: Easy to use, hard to misuse, memory-safe by default.
 
 **Strategies**:
-- **Minimal API surface**: Two main functions (`edn_parse()`, `edn_free()`)
+- **Minimal API surface**: Two main functions (`edn_read()`, `edn_free()`)
 - **Opaque types**: Hide implementation details, prevent misuse
 - **Single cleanup**: One `edn_free()` call frees entire value tree
 - **Clear error messages**: Line/column numbers, descriptive messages
@@ -365,7 +365,7 @@ edn_reader_registry_t* registry = edn_reader_registry_create();
 edn_reader_register(registry, "inst", inst_reader);
 
 edn_parse_options_t opts = {.reader_registry = registry};
-edn_result_t r = edn_parse_with_options("#inst \"2024-01-01T00:00:00Z\"", 0, &opts);
+edn_result_t r = edn_read_with_options("#inst \"2024-01-01T00:00:00Z\"", 0, &opts);
 // r.value is now EDN_TYPE_INT, not EDN_TYPE_TAGGED
 ```
 
@@ -378,10 +378,10 @@ edn_result_t r = edn_parse_with_options("#inst \"2024-01-01T00:00:00Z\"", 0, &op
 ### Public API
 - **`include/edn.h`**: Complete public API
   - Types: `edn_value_t`, `edn_type_t`, `edn_error_t`, `edn_result_t`
-  - Core: `edn_parse()`, `edn_free()`, `edn_type()`
+  - Core: `edn_read()`, `edn_free()`, `edn_type()`
   - Accessors: `edn_string_get()`, `edn_int64_get()`, etc.
   - Collections: `edn_list_count()`, `edn_vector_get()`, `edn_map_lookup()`, etc.
-  - Readers: `edn_reader_registry_create()`, `edn_parse_with_options()`, etc.
+  - Readers: `edn_reader_registry_create()`, `edn_read_with_options()`, etc.
 
 ### Implementation
 - **`src/edn_internal.h`**: Internal types and APIs

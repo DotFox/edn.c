@@ -14,7 +14,7 @@ int main(void) {
 
     printf("Warming up...\n");
     for (int i = 0; i < 1000; i++) {
-        edn_result_t result = edn_parse(sample, 0);
+        edn_result_t result = edn_read(sample, 0);
         edn_free(result.value);
     }
 
@@ -22,7 +22,7 @@ int main(void) {
     double start = get_time();
 
     for (int i = 0; i < iterations; i++) {
-        edn_result_t result = edn_parse(sample, 0);
+        edn_result_t result = edn_read(sample, 0);
         edn_free(result.value);
     }
 

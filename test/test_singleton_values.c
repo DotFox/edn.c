@@ -11,12 +11,12 @@
 
 /* Test that multiple nil values are the same instance */
 TEST(nil_singleton) {
-    edn_result_t result1 = edn_parse("nil", 0);
+    edn_result_t result1 = edn_read("nil", 0);
     assert(result1.error == EDN_OK);
     assert(result1.value != NULL);
     assert(edn_type(result1.value) == EDN_TYPE_NIL);
 
-    edn_result_t result2 = edn_parse("nil", 0);
+    edn_result_t result2 = edn_read("nil", 0);
     assert(result2.error == EDN_OK);
     assert(result2.value != NULL);
     assert(edn_type(result2.value) == EDN_TYPE_NIL);
@@ -30,12 +30,12 @@ TEST(nil_singleton) {
 
 /* Test that multiple true values are the same instance */
 TEST(true_singleton) {
-    edn_result_t result1 = edn_parse("true", 0);
+    edn_result_t result1 = edn_read("true", 0);
     assert(result1.error == EDN_OK);
     assert(result1.value != NULL);
     assert(edn_type(result1.value) == EDN_TYPE_BOOL);
 
-    edn_result_t result2 = edn_parse("true", 0);
+    edn_result_t result2 = edn_read("true", 0);
     assert(result2.error == EDN_OK);
     assert(result2.value != NULL);
     assert(edn_type(result2.value) == EDN_TYPE_BOOL);
@@ -49,12 +49,12 @@ TEST(true_singleton) {
 
 /* Test that multiple false values are the same instance */
 TEST(false_singleton) {
-    edn_result_t result1 = edn_parse("false", 0);
+    edn_result_t result1 = edn_read("false", 0);
     assert(result1.error == EDN_OK);
     assert(result1.value != NULL);
     assert(edn_type(result1.value) == EDN_TYPE_BOOL);
 
-    edn_result_t result2 = edn_parse("false", 0);
+    edn_result_t result2 = edn_read("false", 0);
     assert(result2.error == EDN_OK);
     assert(result2.value != NULL);
     assert(edn_type(result2.value) == EDN_TYPE_BOOL);
@@ -68,11 +68,11 @@ TEST(false_singleton) {
 
 /* Test that true and false are different instances */
 TEST(true_false_different) {
-    edn_result_t result_true = edn_parse("true", 0);
+    edn_result_t result_true = edn_read("true", 0);
     assert(result_true.error == EDN_OK);
     assert(result_true.value != NULL);
 
-    edn_result_t result_false = edn_parse("false", 0);
+    edn_result_t result_false = edn_read("false", 0);
     assert(result_false.error == EDN_OK);
     assert(result_false.value != NULL);
 
@@ -85,7 +85,7 @@ TEST(true_false_different) {
 
 /* Test singletons in a vector */
 TEST(singletons_in_vector) {
-    edn_result_t result = edn_parse("[nil true false nil true false]", 0);
+    edn_result_t result = edn_read("[nil true false nil true false]", 0);
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
@@ -117,14 +117,14 @@ TEST(singletons_in_vector) {
 
 /* Test that freeing singletons is safe (no-op) */
 TEST(free_singleton_safe) {
-    edn_result_t result = edn_parse("nil", 0);
+    edn_result_t result = edn_read("nil", 0);
     assert(result.error == EDN_OK);
 
     /* Freeing singleton should be safe (no-op) */
     edn_free(result.value);
 
     /* Parse again to verify singleton still works */
-    edn_result_t result2 = edn_parse("nil", 0);
+    edn_result_t result2 = edn_read("nil", 0);
     assert(result2.error == EDN_OK);
     assert(result2.value == result.value); /* Should be the same instance */
 
@@ -133,13 +133,13 @@ TEST(free_singleton_safe) {
 
 /* Test singletons in map keys */
 TEST(singletons_in_map) {
-    edn_result_t result = edn_parse("{nil 1 true 2 false 3 nil 4}", 0);
+    edn_result_t result = edn_read("{nil 1 true 2 false 3 nil 4}", 0);
     /* Map with duplicate key should fail */
     assert(result.error != EDN_OK);
     edn_free(result.value);
 
     /* Valid map with singletons as keys */
-    edn_result_t result2 = edn_parse("{nil 1 true 2 false 3}", 0);
+    edn_result_t result2 = edn_read("{nil 1 true 2 false 3}", 0);
     assert(result2.error == EDN_OK);
     assert(result2.value != NULL);
     assert(edn_type(result2.value) == EDN_TYPE_MAP);

@@ -33,7 +33,7 @@ TEST(reader_not_called_in_discard) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Parse with discard - reader should NOT be called */
-    edn_result_t result = edn_parse_with_options("[1 #_#test 42 3]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[1 #_#test 42 3]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -60,7 +60,7 @@ TEST(reader_called_normally) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Parse without discard - reader SHOULD be called */
-    edn_result_t result = edn_parse_with_options("[1 #test 42 3]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[1 #test 42 3]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -88,7 +88,7 @@ TEST(nested_discard_with_tagged) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Parse with nested discard */
-    edn_result_t result = edn_parse_with_options("[#_[#tag1 1 #tag2 2] 3]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[#_[#tag1 1 #tag2 2] 3]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -114,7 +114,7 @@ TEST(multiple_discards_with_tagged) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Multiple discarded tagged literals */
-    edn_result_t result = edn_parse_with_options("[1 #_#test 2 #_#test 3 4]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[1 #_#test 2 #_#test 3 4]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -141,7 +141,7 @@ TEST(discard_nested_tagged) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* #_#outer #inner 42 */
-    edn_result_t result = edn_parse_with_options("[#_#outer #inner 42]", 0, &opts);
+    edn_result_t result = edn_read_with_options("[#_#outer #inner 42]", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -167,7 +167,7 @@ TEST(discard_tagged_in_map) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Discard tagged literal in map - #test takes a value, so #_#test 42 discards "#test 42" */
-    edn_result_t result = edn_parse_with_options("{:a 1 #_#test 42 :b 2}", 0, &opts);
+    edn_result_t result = edn_read_with_options("{:a 1 #_#test 42 :b 2}", 0, &opts);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -196,7 +196,7 @@ TEST(discard_complex_nested_map_with_tagged) {
                                 .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
 
     /* Discard entire map with multiple tagged literals: #_ {:foo #tag1 0 :bar #_ {:baz #tag2 0} #tag3 0} */
-    edn_result_t result = edn_parse_with_options(
+    edn_result_t result = edn_read_with_options(
         "[#_ {:foo #tag1 0 :bar #_ {:baz #tag2 0} #tag3 0} :result]", 0, &opts);
 
     assert(result.error == EDN_OK);

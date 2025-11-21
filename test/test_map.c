@@ -9,7 +9,7 @@
 
 /* Empty map */
 TEST(parse_empty_map) {
-    edn_result_t result = edn_parse("{}", 0);
+    edn_result_t result = edn_read("{}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -21,7 +21,7 @@ TEST(parse_empty_map) {
 
 /* Single pair */
 TEST(parse_single_pair_map) {
-    edn_result_t result = edn_parse("{:a 1}", 0);
+    edn_result_t result = edn_read("{:a 1}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -42,7 +42,7 @@ TEST(parse_single_pair_map) {
 
 /* Multiple pairs */
 TEST(parse_multiple_pairs_map) {
-    edn_result_t result = edn_parse("{:a 1 :b 2 :c 3}", 0);
+    edn_result_t result = edn_read("{:a 1 :b 2 :c 3}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -54,13 +54,13 @@ TEST(parse_multiple_pairs_map) {
 
 /* Lookup by key */
 TEST(map_lookup) {
-    edn_result_t result = edn_parse("{:foo 10 :bar 20 :baz 30}", 0);
+    edn_result_t result = edn_read("{:foo 10 :bar 20 :baz 30}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
     /* Create lookup key */
-    edn_result_t key_result = edn_parse(":bar", 0);
+    edn_result_t key_result = edn_read(":bar", 0);
     assert(key_result.error == EDN_OK);
 
     /* Lookup value */
@@ -78,13 +78,13 @@ TEST(map_lookup) {
 
 /* Lookup non-existent key */
 TEST(map_lookup_not_found) {
-    edn_result_t result = edn_parse("{:foo 10 :bar 20}", 0);
+    edn_result_t result = edn_read("{:foo 10 :bar 20}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
     /* Create lookup key not in map */
-    edn_result_t key_result = edn_parse(":baz", 0);
+    edn_result_t key_result = edn_read(":baz", 0);
     assert(key_result.error == EDN_OK);
 
     /* Lookup should return NULL */
@@ -97,19 +97,19 @@ TEST(map_lookup_not_found) {
 
 /* Contains key */
 TEST(map_contains_key) {
-    edn_result_t result = edn_parse("{:foo 10 :bar 20}", 0);
+    edn_result_t result = edn_read("{:foo 10 :bar 20}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
 
     /* Key exists */
-    edn_result_t key1_result = edn_parse(":foo", 0);
+    edn_result_t key1_result = edn_read(":foo", 0);
     assert(key1_result.error == EDN_OK);
     assert(edn_map_contains_key(result.value, key1_result.value));
     edn_free(key1_result.value);
 
     /* Key doesn't exist */
-    edn_result_t key2_result = edn_parse(":baz", 0);
+    edn_result_t key2_result = edn_read(":baz", 0);
     assert(key2_result.error == EDN_OK);
     assert(!edn_map_contains_key(result.value, key2_result.value));
     edn_free(key2_result.value);
@@ -119,7 +119,7 @@ TEST(map_contains_key) {
 
 /* Mixed types for keys and values */
 TEST(parse_mixed_types_map) {
-    edn_result_t result = edn_parse("{1 :one \"two\" 2 :three [3]}", 0);
+    edn_result_t result = edn_read("{1 :one \"two\" 2 :three [3]}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -130,7 +130,7 @@ TEST(parse_mixed_types_map) {
 
 /* Nested maps */
 TEST(parse_nested_maps) {
-    edn_result_t result = edn_parse("{:a {:b 1} :c {:d 2}}", 0);
+    edn_result_t result = edn_read("{:a {:b 1} :c {:d 2}}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -146,7 +146,7 @@ TEST(parse_nested_maps) {
 
 /* Map with vector values */
 TEST(parse_map_with_vectors) {
-    edn_result_t result = edn_parse("{:a [1 2] :b [3 4]}", 0);
+    edn_result_t result = edn_read("{:a [1 2] :b [3 4]}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -157,7 +157,7 @@ TEST(parse_map_with_vectors) {
 
 /* Map rejects duplicate keys (EDN spec requirement) */
 TEST(reject_duplicate_keys) {
-    edn_result_t result = edn_parse("{:a 1 :a 2}", 0);
+    edn_result_t result = edn_read("{:a 1 :a 2}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_KEY);
     assert(result.value == NULL);
@@ -165,7 +165,7 @@ TEST(reject_duplicate_keys) {
 
 /* Map rejects duplicate keys (different values) */
 TEST(reject_duplicate_integer_keys) {
-    edn_result_t result = edn_parse("{1 \"one\" 1 \"ONE\"}", 0);
+    edn_result_t result = edn_read("{1 \"one\" 1 \"ONE\"}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_KEY);
     assert(result.value == NULL);
@@ -173,7 +173,7 @@ TEST(reject_duplicate_integer_keys) {
 
 /* Error: odd number of elements */
 TEST(error_odd_elements) {
-    edn_result_t result = edn_parse("{:a 1 :b}", 0);
+    edn_result_t result = edn_read("{:a 1 :b}", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -182,7 +182,7 @@ TEST(error_odd_elements) {
 
 /* Error: single key without value */
 TEST(error_single_key_no_value) {
-    edn_result_t result = edn_parse("{:a}", 0);
+    edn_result_t result = edn_read("{:a}", 0);
 
     assert(result.error == EDN_ERROR_INVALID_SYNTAX);
     assert(result.value == NULL);
@@ -190,7 +190,7 @@ TEST(error_single_key_no_value) {
 
 /* Error: unterminated map */
 TEST(error_unterminated_map) {
-    edn_result_t result = edn_parse("{:a 1", 0);
+    edn_result_t result = edn_read("{:a 1", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -198,7 +198,7 @@ TEST(error_unterminated_map) {
 
 /* Error: key without value at EOF */
 TEST(error_key_without_value_eof) {
-    edn_result_t result = edn_parse("{:a 1 :b", 0);
+    edn_result_t result = edn_read("{:a 1 :b", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -206,7 +206,7 @@ TEST(error_key_without_value_eof) {
 
 /* With whitespace */
 TEST(parse_map_with_whitespace) {
-    edn_result_t result = edn_parse("{  :a   1  :b  2  }", 0);
+    edn_result_t result = edn_read("{  :a   1  :b  2  }", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -217,7 +217,7 @@ TEST(parse_map_with_whitespace) {
 
 /* With newlines */
 TEST(parse_map_with_newlines) {
-    edn_result_t result = edn_parse("{\n:a 1\n:b 2\n}", 0);
+    edn_result_t result = edn_read("{\n:a 1\n:b 2\n}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -228,7 +228,7 @@ TEST(parse_map_with_newlines) {
 
 /* With comments */
 TEST(parse_map_with_comments) {
-    edn_result_t result = edn_parse("{:a 1 ; comment\n :b 2}", 0);
+    edn_result_t result = edn_read("{:a 1 ; comment\n :b 2}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -240,7 +240,7 @@ TEST(parse_map_with_comments) {
 /* Large map - no duplicates */
 TEST(parse_large_map_unique) {
     edn_result_t result =
-        edn_parse("{:k1 1 :k2 2 :k3 3 :k4 4 :k5 5 :k6 6 :k7 7 :k8 8 :k9 9 :k10 10}", 0);
+        edn_read("{:k1 1 :k2 2 :k3 3 :k4 4 :k5 5 :k6 6 :k7 7 :k8 8 :k9 9 :k10 10}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -252,7 +252,7 @@ TEST(parse_large_map_unique) {
 /* Large map - rejects duplicates (EDN spec requirement) */
 TEST(parse_large_map_with_duplicate) {
     edn_result_t result =
-        edn_parse("{:k1 1 :k2 2 :k3 3 :k4 4 :k5 5 :k6 6 :k7 7 :k8 8 :k9 9 :k1 10}", 0);
+        edn_read("{:k1 1 :k2 2 :k3 3 :k4 4 :k5 5 :k6 6 :k7 7 :k8 8 :k9 9 :k1 10}", 0);
 
     assert(result.error == EDN_ERROR_DUPLICATE_KEY);
     assert(result.value == NULL);
@@ -260,7 +260,7 @@ TEST(parse_large_map_with_duplicate) {
 
 /* Out of bounds access */
 TEST(map_get_out_of_bounds) {
-    edn_result_t result = edn_parse("{:a 1 :b 2}", 0);
+    edn_result_t result = edn_read("{:a 1 :b 2}", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -283,7 +283,7 @@ TEST(map_get_out_of_bounds) {
 
 /* API with wrong type */
 TEST(map_api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

@@ -2,7 +2,6 @@
 #include <string.h>
 
 #include "../include/edn.h"
-#include "../src/edn_internal.h"
 #include "test_framework.h"
 
 /* Test fast double parsing with Clinger's algorithm */
@@ -10,7 +9,7 @@
 TEST(test_fast_double_simple) {
     /* Simple decimal: 3.14 */
     const char* input = "3.14";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -24,7 +23,7 @@ TEST(test_fast_double_simple) {
 TEST(test_fast_double_negative) {
     /* Negative: -2.5 */
     const char* input = "-2.5";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -38,7 +37,7 @@ TEST(test_fast_double_negative) {
 TEST(test_fast_double_integer_part_only) {
     /* Integer as double: 42.0 */
     const char* input = "42.0";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -52,7 +51,7 @@ TEST(test_fast_double_integer_part_only) {
 TEST(test_fast_double_small_exponent) {
     /* Scientific with small exponent: 1.5e2 = 150 */
     const char* input = "1.5e2";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -66,7 +65,7 @@ TEST(test_fast_double_small_exponent) {
 TEST(test_fast_double_negative_exponent) {
     /* Scientific with negative exponent: 1.5e-2 = 0.015 */
     const char* input = "1.5e-2";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -80,7 +79,7 @@ TEST(test_fast_double_negative_exponent) {
 TEST(test_fast_double_boundary_exponent) {
     /* Exponent at boundary: 1.0e22 (still in fast path) */
     const char* input = "1.0e22";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -94,7 +93,7 @@ TEST(test_fast_double_boundary_exponent) {
 TEST(test_slow_double_large_exponent) {
     /* Large exponent (fallback to strtod): 1.5e100 */
     const char* input = "1.5e100";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -108,7 +107,7 @@ TEST(test_slow_double_large_exponent) {
 TEST(test_fast_double_many_decimals) {
     /* Many decimal places: 0.123456789 */
     const char* input = "0.123456789";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -122,7 +121,7 @@ TEST(test_fast_double_many_decimals) {
 TEST(test_fast_double_zero) {
     /* Zero: 0.0 */
     const char* input = "0.0";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -136,7 +135,7 @@ TEST(test_fast_double_zero) {
 TEST(test_fast_double_very_small) {
     /* Very small: 1.0e-20 */
     const char* input = "1.0e-20";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 
@@ -150,7 +149,7 @@ TEST(test_fast_double_very_small) {
 TEST(test_double_in_vector) {
     /* Test fast doubles in a vector */
     const char* input = "[3.14 -2.5 1.5e2 0.123]";
-    edn_result_t result = edn_parse(input, strlen(input));
+    edn_result_t result = edn_read(input, strlen(input));
     assert(result.value != NULL);
     assert(edn_type(result.value) == EDN_TYPE_VECTOR);
 
@@ -186,7 +185,7 @@ TEST(test_double_common_values) {
     double expected[] = {0.5, 1.0, 2.0, 10.0, 100.0, 0.1, 0.01, 0.001};
 
     for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
-        edn_result_t result = edn_parse(inputs[i], strlen(inputs[i]));
+        edn_result_t result = edn_read(inputs[i], strlen(inputs[i]));
         assert(result.value != NULL);
         assert(edn_type(result.value) == EDN_TYPE_FLOAT);
 

@@ -13,7 +13,7 @@
 
 /* Benchmark function that parses EDN and returns the value as closure */
 static void* bench_parse_only(const char* data, size_t size) {
-    edn_result_t result = edn_parse(data, size);
+    edn_result_t result = edn_read(data, size);
     if (result.error != EDN_OK) {
         return NULL;
     }

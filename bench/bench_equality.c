@@ -16,8 +16,8 @@ static void* bench_string_equality_simple(const char* input, size_t size) {
     (void) size;
 
     /* Parse two identical strings */
-    edn_result_t res_a = edn_parse(input, strlen(input));
-    edn_result_t res_b = edn_parse(input, strlen(input));
+    edn_result_t res_a = edn_read(input, strlen(input));
+    edn_result_t res_b = edn_read(input, strlen(input));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
@@ -39,8 +39,8 @@ static void* bench_string_equality_escaped(const char* input, size_t size) {
     (void) size;
 
     /* Parse two identical strings with escapes */
-    edn_result_t res_a = edn_parse(input, strlen(input));
-    edn_result_t res_b = edn_parse(input, strlen(input));
+    edn_result_t res_a = edn_read(input, strlen(input));
+    edn_result_t res_b = edn_read(input, strlen(input));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
@@ -66,8 +66,8 @@ static void* bench_string_inequality_length(const char* input, size_t size) {
     const char* str_a = "\"hello\"";
     const char* str_b = "\"hello world\"";
 
-    edn_result_t res_a = edn_parse(str_a, strlen(str_a));
-    edn_result_t res_b = edn_parse(str_b, strlen(str_b));
+    edn_result_t res_a = edn_read(str_a, strlen(str_a));
+    edn_result_t res_b = edn_read(str_b, strlen(str_b));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
@@ -93,8 +93,8 @@ static void* bench_string_inequality_content(const char* input, size_t size) {
     const char* str_a = "\"hello\"";
     const char* str_b = "\"world\"";
 
-    edn_result_t res_a = edn_parse(str_a, strlen(str_a));
-    edn_result_t res_b = edn_parse(str_b, strlen(str_b));
+    edn_result_t res_a = edn_read(str_a, strlen(str_a));
+    edn_result_t res_b = edn_read(str_b, strlen(str_b));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
@@ -118,8 +118,8 @@ static void* bench_int_equality(const char* input, size_t size) {
 
     const char* str = "42";
 
-    edn_result_t res_a = edn_parse(str, strlen(str));
-    edn_result_t res_b = edn_parse(str, strlen(str));
+    edn_result_t res_a = edn_read(str, strlen(str));
+    edn_result_t res_b = edn_read(str, strlen(str));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);
@@ -139,8 +139,8 @@ static void* bench_int_equality(const char* input, size_t size) {
 static void* bench_map_equality_small(const char* input, size_t size) {
     (void) size;
 
-    edn_result_t res_a = edn_parse(input, strlen(input));
-    edn_result_t res_b = edn_parse(input, strlen(input));
+    edn_result_t res_a = edn_read(input, strlen(input));
+    edn_result_t res_b = edn_read(input, strlen(input));
 
     if (res_a.value == NULL || res_b.value == NULL) {
         edn_free(res_a.value);

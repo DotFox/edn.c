@@ -5,12 +5,12 @@
 
 #include "edn_internal.h"
 
-edn_result_t edn_parse(const char* input, size_t length) {
-    return edn_parse_with_options(input, length, NULL);
+edn_result_t edn_read(const char* input, size_t length) {
+    return edn_read_with_options(input, length, NULL);
 }
 
-edn_result_t edn_parse_with_options(const char* input, size_t length,
-                                    const edn_parse_options_t* options) {
+edn_result_t edn_read_with_options(const char* input, size_t length,
+                                   const edn_parse_options_t* options) {
     edn_result_t result = {0};
 
     if (!input) {

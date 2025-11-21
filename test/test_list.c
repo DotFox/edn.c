@@ -9,7 +9,7 @@
 
 /* Empty list */
 TEST(parse_empty_list) {
-    edn_result_t result = edn_parse("()", 0);
+    edn_result_t result = edn_read("()", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -21,7 +21,7 @@ TEST(parse_empty_list) {
 
 /* Single element */
 TEST(parse_single_element_list) {
-    edn_result_t result = edn_parse("(42)", 0);
+    edn_result_t result = edn_read("(42)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -41,7 +41,7 @@ TEST(parse_single_element_list) {
 
 /* Multiple elements */
 TEST(parse_multiple_elements_list) {
-    edn_result_t result = edn_parse("(1 2 3)", 0);
+    edn_result_t result = edn_read("(1 2 3)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -63,7 +63,7 @@ TEST(parse_multiple_elements_list) {
 
 /* Mixed types */
 TEST(parse_mixed_types_list) {
-    edn_result_t result = edn_parse("(1 \"two\" :three)", 0);
+    edn_result_t result = edn_read("(1 \"two\" :three)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -90,7 +90,7 @@ TEST(parse_mixed_types_list) {
 
 /* Nested lists */
 TEST(parse_nested_lists) {
-    edn_result_t result = edn_parse("((1 2) (3 4))", 0);
+    edn_result_t result = edn_read("((1 2) (3 4))", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -114,7 +114,7 @@ TEST(parse_nested_lists) {
 
 /* Deeply nested */
 TEST(parse_deeply_nested_lists) {
-    edn_result_t result = edn_parse("((((42))))", 0);
+    edn_result_t result = edn_read("((((42))))", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -139,7 +139,7 @@ TEST(parse_deeply_nested_lists) {
 
 /* With whitespace */
 TEST(parse_list_with_whitespace) {
-    edn_result_t result = edn_parse("(  1   2   3  )", 0);
+    edn_result_t result = edn_read("(  1   2   3  )", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -151,7 +151,7 @@ TEST(parse_list_with_whitespace) {
 
 /* With newlines */
 TEST(parse_list_with_newlines) {
-    edn_result_t result = edn_parse("(1\n2\n3)", 0);
+    edn_result_t result = edn_read("(1\n2\n3)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -163,7 +163,7 @@ TEST(parse_list_with_newlines) {
 
 /* With comments */
 TEST(parse_list_with_comments) {
-    edn_result_t result = edn_parse("(1 ; comment\n 2)", 0);
+    edn_result_t result = edn_read("(1 ; comment\n 2)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -175,7 +175,7 @@ TEST(parse_list_with_comments) {
 
 /* Error: unterminated list */
 TEST(error_unterminated_list) {
-    edn_result_t result = edn_parse("(1 2 3", 0);
+    edn_result_t result = edn_read("(1 2 3", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -184,7 +184,7 @@ TEST(error_unterminated_list) {
 
 /* Error: unterminated nested list */
 TEST(error_unterminated_nested_list) {
-    edn_result_t result = edn_parse("(1 (2 3)", 0);
+    edn_result_t result = edn_read("(1 (2 3)", 0);
 
     assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(result.value == NULL);
@@ -192,7 +192,7 @@ TEST(error_unterminated_nested_list) {
 
 /* Out of bounds access */
 TEST(list_get_out_of_bounds) {
-    edn_result_t result = edn_parse("(1 2 3)", 0);
+    edn_result_t result = edn_read("(1 2 3)", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
@@ -211,7 +211,7 @@ TEST(list_get_out_of_bounds) {
 
 /* API with wrong type */
 TEST(list_api_wrong_type) {
-    edn_result_t result = edn_parse("42", 0);
+    edn_result_t result = edn_read("42", 0);
 
     assert(result.error == EDN_OK);
     assert(result.value != NULL);

@@ -166,7 +166,7 @@ typedef struct {
  * @param options Parse options (or NULL for defaults)
  * @return Parse result containing value or error information
  */
-edn_result_t edn_parse_with_options(
+edn_result_t edn_read_with_options(
     const char* input,
     size_t length,
     const edn_parse_options_t* options
@@ -310,7 +310,7 @@ edn_parse_options_t opts = {
     .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH
 };
 
-edn_result_t result = edn_parse_with_options("#inst \"2024-01-01T00:00:00Z\"", 0, &opts);
+edn_result_t result = edn_read_with_options("#inst \"2024-01-01T00:00:00Z\"", 0, &opts);
 /* result.value is now the transformed instant value, not EDN_TYPE_TAGGED */
 
 /* Cleanup */
@@ -374,10 +374,10 @@ edn_parse_options_t opts = {
 };
 
 /* This will succeed */
-edn_result_t r1 = edn_parse_with_options("#inst \"...\"", 0, &opts);
+edn_result_t r1 = edn_read_with_options("#inst \"...\"", 0, &opts);
 
 /* This will fail with EDN_ERROR_UNKNOWN_TAG */
-edn_result_t r2 = edn_parse_with_options("#unknown 42", 0, &opts);
+edn_result_t r2 = edn_read_with_options("#unknown 42", 0, &opts);
 assert(r2.error == EDN_ERROR_UNKNOWN_TAG);
 ```
 
@@ -390,7 +390,7 @@ edn_parse_options_t opts = {
 };
 
 /* #unknown tag is ignored, returns integer 42 directly */
-edn_result_t result = edn_parse_with_options("#unknown 42", 0, &opts);
+edn_result_t result = edn_read_with_options("#unknown 42", 0, &opts);
 assert(edn_type(result.value) == EDN_TYPE_INT);
 ```
 
@@ -436,12 +436,12 @@ void edn_reader_register_defaults(edn_reader_registry_t* registry) {
 ## Backward Compatibility
 
 **Existing API is unchanged:**
-- `edn_parse()` continues to work exactly as before
+- `edn_read()` continues to work exactly as before
 - All existing code compiles without modification
 - `EDN_TYPE_TAGGED` values are still accessible via `edn_tagged_get()`
 
 **New API is opt-in:**
-- `edn_parse_with_options()` is only for applications that need readers
+- `edn_read_with_options()` is only for applications that need readers
 - Registry creation and management is explicit
 - No performance impact when readers are not used
 
@@ -490,12 +490,12 @@ Add to `bench/bench_reader.c`:
 - [ ] Define `edn_default_reader_mode_t` enum in `include/edn.h`
 - [ ] Define `edn_parse_options_t` struct in `include/edn.h`
 - [ ] Add registry API declarations to `include/edn.h`
-- [ ] Add `edn_parse_with_options()` declaration to `include/edn.h`
+- [ ] Add `edn_read_with_options()` declaration to `include/edn.h`
 - [ ] Create `src/reader.c` with registry implementation
 - [ ] Add reader fields to `edn_parser_t` in `src/edn_internal.h`
 - [ ] Modify `edn_parse_tagged()` in `src/tagged.c` to use readers
 - [ ] Update `edn_parser_init()` in `src/edn.c` to accept options
-- [ ] Implement `edn_parse_with_options()` in `src/edn.c`
+- [ ] Implement `edn_read_with_options()` in `src/edn.c`
 - [ ] Update `Makefile` to include `src/reader.c`
 - [ ] Write `test/test_reader_registry.c`
 - [ ] Write `test/test_reader_parsing.c`
@@ -555,7 +555,7 @@ Allow readers to delegate to other readers:
 /* Reader can invoke parser recursively */
 edn_value_t* composite_reader(...) {
     /* Parse string as nested EDN */
-    edn_result_t nested = edn_parse_with_options(str, len, options);
+    edn_result_t nested = edn_read_with_options(str, len, options);
     /* ... */
 }
 ```

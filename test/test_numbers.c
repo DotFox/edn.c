@@ -389,7 +389,7 @@ TEST(scan_number_bigint_suffix_on_exponent_invalid) {
 
 TEST(api_parse_bigint_suffix) {
     /* Test full parsing integration */
-    edn_result_t r = edn_parse("42N", 0);
+    edn_result_t r = edn_read("42N", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -410,7 +410,7 @@ TEST(api_parse_bigint_suffix) {
 
 TEST(api_parse_bigint_suffix_in_collection) {
     /* Test N suffix in vector */
-    edn_result_t r = edn_parse("[1 2N 3]", 0);
+    edn_result_t r = edn_read("[1 2N 3]", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_VECTOR);
@@ -470,7 +470,7 @@ TEST(scan_number_bigdec_suffix_on_integer) {
 
 TEST(api_parse_bigdec_suffix) {
     /* Test full parsing integration */
-    edn_result_t r = edn_parse("3.14159M", 0);
+    edn_result_t r = edn_read("3.14159M", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -490,7 +490,7 @@ TEST(api_parse_bigdec_suffix) {
 
 TEST(api_parse_bigdec_suffix_on_integer) {
     /* Integer with M suffix becomes BigDecimal */
-    edn_result_t r = edn_parse("42M", 0);
+    edn_result_t r = edn_read("42M", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -527,7 +527,7 @@ TEST(api_bigdec_get) {
 
 TEST(api_parse_bigdec_suffix_in_collection) {
     /* Test M suffix in vector */
-    edn_result_t r = edn_parse("[1.1 2.2M 3.3]", 0);
+    edn_result_t r = edn_read("[1.1 2.2M 3.3]", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_VECTOR);
@@ -552,7 +552,7 @@ TEST(api_parse_bigdec_suffix_in_collection) {
 
 /* Test decimal integer parsing */
 TEST(edn_parse_decimal_int_simple) {
-    edn_result_t r = edn_parse("42", 0);
+    edn_result_t r = edn_read("42", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -565,7 +565,7 @@ TEST(edn_parse_decimal_int_simple) {
 }
 
 TEST(edn_parse_decimal_int_negative) {
-    edn_result_t r = edn_parse("-123", 0);
+    edn_result_t r = edn_read("-123", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -578,7 +578,7 @@ TEST(edn_parse_decimal_int_negative) {
 }
 
 TEST(edn_parse_decimal_int_zero) {
-    edn_result_t r = edn_parse("0", 0);
+    edn_result_t r = edn_read("0", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -591,7 +591,7 @@ TEST(edn_parse_decimal_int_zero) {
 }
 
 TEST(edn_parse_decimal_int_large) {
-    edn_result_t r = edn_parse("9876543210", 0);
+    edn_result_t r = edn_read("9876543210", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -607,7 +607,7 @@ TEST(edn_parse_decimal_int_large) {
 
 /* Test hexadecimal parsing */
 TEST(edn_parse_hex_lowercase_x) {
-    edn_result_t r = edn_parse("0x2A", 0);
+    edn_result_t r = edn_read("0x2A", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -620,7 +620,7 @@ TEST(edn_parse_hex_lowercase_x) {
 }
 
 TEST(edn_parse_hex_uppercase_X) {
-    edn_result_t r = edn_parse("0XFF", 0);
+    edn_result_t r = edn_read("0XFF", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -633,7 +633,7 @@ TEST(edn_parse_hex_uppercase_X) {
 }
 
 TEST(edn_parse_hex_mixed_case) {
-    edn_result_t r = edn_parse("0xDeAdBeEf", 0);
+    edn_result_t r = edn_read("0xDeAdBeEf", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -646,7 +646,7 @@ TEST(edn_parse_hex_mixed_case) {
 }
 
 TEST(edn_parse_hex_negative) {
-    edn_result_t r = edn_parse("-0x10", 0);
+    edn_result_t r = edn_read("-0x10", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -660,7 +660,7 @@ TEST(edn_parse_hex_negative) {
 
 /* Test octal parsing */
 TEST(edn_parse_octal_simple) {
-    edn_result_t r = edn_parse("0777", 0);
+    edn_result_t r = edn_read("0777", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -673,7 +673,7 @@ TEST(edn_parse_octal_simple) {
 }
 
 TEST(edn_parse_octal_small) {
-    edn_result_t r = edn_parse("052", 0);
+    edn_result_t r = edn_read("052", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -686,7 +686,7 @@ TEST(edn_parse_octal_small) {
 }
 
 TEST(edn_parse_octal_negative) {
-    edn_result_t r = edn_parse("-0123", 0);
+    edn_result_t r = edn_read("-0123", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -700,7 +700,7 @@ TEST(edn_parse_octal_negative) {
 
 /* Test binary (radix notation) */
 TEST(edn_parse_binary_simple) {
-    edn_result_t r = edn_parse("2r1010", 0);
+    edn_result_t r = edn_read("2r1010", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -713,7 +713,7 @@ TEST(edn_parse_binary_simple) {
 }
 
 TEST(edn_parse_binary_negative) {
-    edn_result_t r = edn_parse("-2r1111", 0);
+    edn_result_t r = edn_read("-2r1111", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -727,7 +727,7 @@ TEST(edn_parse_binary_negative) {
 
 /* Test arbitrary radix notation */
 TEST(edn_parse_radix_base8) {
-    edn_result_t r = edn_parse("8r77", 0);
+    edn_result_t r = edn_read("8r77", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -740,7 +740,7 @@ TEST(edn_parse_radix_base8) {
 }
 
 TEST(edn_parse_radix_base16) {
-    edn_result_t r = edn_parse("16rFF", 0);
+    edn_result_t r = edn_read("16rFF", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -753,7 +753,7 @@ TEST(edn_parse_radix_base16) {
 }
 
 TEST(edn_parse_radix_base36) {
-    edn_result_t r = edn_parse("36rZZ", 0);
+    edn_result_t r = edn_read("36rZZ", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -766,7 +766,7 @@ TEST(edn_parse_radix_base36) {
 }
 
 TEST(edn_parse_radix_negative) {
-    edn_result_t r = edn_parse("-36rABC", 0);
+    edn_result_t r = edn_read("-36rABC", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_INT);
@@ -783,29 +783,29 @@ TEST(edn_parse_radix_negative) {
 #ifndef EDN_ENABLE_EXTENDED_INTEGERS
 /* Test that special integer formats fail when disabled */
 TEST(edn_parse_special_integers_disabled_hex) {
-    edn_result_t r = edn_parse("0x2A", 0);
+    edn_result_t r = edn_read("0x2A", 0);
     assert(r.error != EDN_OK);
 }
 
 TEST(edn_parse_special_integers_disabled_octal) {
-    edn_result_t r = edn_parse("0777", 0);
+    edn_result_t r = edn_read("0777", 0);
     assert(r.error != EDN_OK);
 }
 
 TEST(edn_parse_special_integers_disabled_binary) {
-    edn_result_t r = edn_parse("2r1010", 0);
+    edn_result_t r = edn_read("2r1010", 0);
     assert(r.error != EDN_OK);
 }
 
 TEST(edn_parse_special_integers_disabled_radix) {
-    edn_result_t r = edn_parse("36rZZ", 0);
+    edn_result_t r = edn_read("36rZZ", 0);
     assert(r.error != EDN_OK);
 }
 #endif
 
 /* Test floating point parsing */
 TEST(edn_parse_float_simple) {
-    edn_result_t r = edn_parse("3.14", 0);
+    edn_result_t r = edn_read("3.14", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -818,7 +818,7 @@ TEST(edn_parse_float_simple) {
 }
 
 TEST(edn_parse_float_negative) {
-    edn_result_t r = edn_parse("-2.5", 0);
+    edn_result_t r = edn_read("-2.5", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -831,7 +831,7 @@ TEST(edn_parse_float_negative) {
 }
 
 TEST(edn_parse_float_leading_zero) {
-    edn_result_t r = edn_parse("0.5", 0);
+    edn_result_t r = edn_read("0.5", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -845,7 +845,7 @@ TEST(edn_parse_float_leading_zero) {
 
 TEST(edn_parse_float_no_leading_zero) {
     /* EDN does not support numbers starting with '.' - this should parse as symbol */
-    edn_result_t r = edn_parse(".5", 0);
+    edn_result_t r = edn_read(".5", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_SYMBOL);
@@ -855,7 +855,7 @@ TEST(edn_parse_float_no_leading_zero) {
 
 /* Test scientific notation parsing */
 TEST(edn_parse_scientific_positive_exp) {
-    edn_result_t r = edn_parse("1.5e10", 0);
+    edn_result_t r = edn_read("1.5e10", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -868,7 +868,7 @@ TEST(edn_parse_scientific_positive_exp) {
 }
 
 TEST(edn_parse_scientific_negative_exp) {
-    edn_result_t r = edn_parse("3e-5", 0);
+    edn_result_t r = edn_read("3e-5", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -881,7 +881,7 @@ TEST(edn_parse_scientific_negative_exp) {
 }
 
 TEST(edn_parse_scientific_uppercase_E) {
-    edn_result_t r = edn_parse("2.5E3", 0);
+    edn_result_t r = edn_read("2.5E3", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -894,7 +894,7 @@ TEST(edn_parse_scientific_uppercase_E) {
 }
 
 TEST(edn_parse_scientific_explicit_plus) {
-    edn_result_t r = edn_parse("1E+10", 0);
+    edn_result_t r = edn_read("1E+10", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -907,7 +907,7 @@ TEST(edn_parse_scientific_explicit_plus) {
 }
 
 TEST(edn_parse_scientific_no_decimal) {
-    edn_result_t r = edn_parse("5e2", 0);
+    edn_result_t r = edn_read("5e2", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_FLOAT);
@@ -921,7 +921,7 @@ TEST(edn_parse_scientific_no_decimal) {
 
 /* Test BigInt with N suffix */
 TEST(edn_parse_bigint_simple) {
-    edn_result_t r = edn_parse("42N", 0);
+    edn_result_t r = edn_read("42N", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGINT);
@@ -939,7 +939,7 @@ TEST(edn_parse_bigint_simple) {
 }
 
 TEST(edn_parse_bigint_negative) {
-    edn_result_t r = edn_parse("-999N", 0);
+    edn_result_t r = edn_read("-999N", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGINT);
@@ -957,7 +957,7 @@ TEST(edn_parse_bigint_negative) {
 }
 
 TEST(edn_parse_bigint_very_large) {
-    edn_result_t r = edn_parse("12345678901234567890N", 0);
+    edn_result_t r = edn_read("12345678901234567890N", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGINT);
@@ -976,7 +976,7 @@ TEST(edn_parse_bigint_very_large) {
 
 /* Test BigDecimal with M suffix */
 TEST(edn_parse_bigdec_simple) {
-    edn_result_t r = edn_parse("3.14M", 0);
+    edn_result_t r = edn_read("3.14M", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
@@ -992,7 +992,7 @@ TEST(edn_parse_bigdec_simple) {
 }
 
 TEST(edn_parse_bigdec_negative) {
-    edn_result_t r = edn_parse("-123.456M", 0);
+    edn_result_t r = edn_read("-123.456M", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
@@ -1008,7 +1008,7 @@ TEST(edn_parse_bigdec_negative) {
 }
 
 TEST(edn_parse_bigdec_with_exponent) {
-    edn_result_t r = edn_parse("1.5e10M", 0);
+    edn_result_t r = edn_read("1.5e10M", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
@@ -1017,7 +1017,7 @@ TEST(edn_parse_bigdec_with_exponent) {
 }
 
 TEST(edn_parse_bigdec_integer_with_M) {
-    edn_result_t r = edn_parse("42M", 0);
+    edn_result_t r = edn_read("42M", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_BIGDEC);
@@ -1074,7 +1074,7 @@ TEST(api_ratio_get_wrong_type) {
 }
 
 TEST(api_parse_ratio_simple) {
-    edn_result_t r = edn_parse("22/7", 0);
+    edn_result_t r = edn_read("22/7", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1091,7 +1091,7 @@ TEST(api_parse_ratio_simple) {
 }
 
 TEST(api_parse_ratio_negative_numerator) {
-    edn_result_t r = edn_parse("-3/4", 0);
+    edn_result_t r = edn_read("-3/4", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1109,7 +1109,7 @@ TEST(api_parse_ratio_negative_numerator) {
 
 TEST(api_parse_ratio_negative_denominator) {
     /* Negative denominator should be rejected - denominator must be positive */
-    edn_result_t r = edn_parse("3/-4", 0);
+    edn_result_t r = edn_read("3/-4", 0);
 
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
@@ -1117,7 +1117,7 @@ TEST(api_parse_ratio_negative_denominator) {
 
 TEST(api_parse_ratio_both_negative) {
     /* Both negative should be rejected - denominator must be positive */
-    edn_result_t r = edn_parse("-5/-6", 0);
+    edn_result_t r = edn_read("-5/-6", 0);
 
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
@@ -1125,7 +1125,7 @@ TEST(api_parse_ratio_both_negative) {
 
 TEST(api_parse_ratio_zero_numerator) {
     /* 0/5 should parse as integer 0, not a ratio (Clojure behavior) */
-    edn_result_t r = edn_parse("0/5", 0);
+    edn_result_t r = edn_read("0/5", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1139,14 +1139,14 @@ TEST(api_parse_ratio_zero_numerator) {
 }
 
 TEST(api_parse_ratio_zero_denominator_error) {
-    edn_result_t r = edn_parse("5/0", 0);
+    edn_result_t r = edn_read("5/0", 0);
 
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
 }
 
 TEST(api_parse_ratio_large_values) {
-    edn_result_t r = edn_parse("1000000000/3", 0);
+    edn_result_t r = edn_read("1000000000/3", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1163,7 +1163,7 @@ TEST(api_parse_ratio_large_values) {
 }
 
 TEST(api_parse_ratio_in_vector) {
-    edn_result_t r = edn_parse("[1/2 3/4 5/6]", 0);
+    edn_result_t r = edn_read("[1/2 3/4 5/6]", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_VECTOR);
@@ -1194,7 +1194,7 @@ TEST(api_parse_ratio_in_vector) {
 }
 
 TEST(api_parse_ratio_in_map) {
-    edn_result_t r = edn_parse("{:pi 22/7 :half 1/2}", 0);
+    edn_result_t r = edn_read("{:pi 22/7 :half 1/2}", 0);
 
     assert(r.error == EDN_OK);
     assert(edn_type(r.value) == EDN_TYPE_MAP);
@@ -1219,7 +1219,7 @@ TEST(api_parse_ratio_in_map) {
 
 TEST(api_parse_ratio_with_whitespace) {
     /* Ratio should NOT allow whitespace around / */
-    edn_result_t r = edn_parse("1 / 2", 0);
+    edn_result_t r = edn_read("1 / 2", 0);
 
     /* This should parse as three separate values, not a ratio */
     /* In a vector context, it would be [1 / 2] */
@@ -1232,7 +1232,7 @@ TEST(api_parse_ratio_with_whitespace) {
 
 TEST(api_parse_ratio_not_symbol) {
     /* "/" alone should be a symbol, not a ratio */
-    edn_result_t r = edn_parse("/", 0);
+    edn_result_t r = edn_read("/", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1243,7 +1243,7 @@ TEST(api_parse_ratio_not_symbol) {
 
 TEST(api_parse_ratio_numerator_overflow) {
     /* Numerator too large for int64_t */
-    edn_result_t r = edn_parse("99999999999999999999/3", 0);
+    edn_result_t r = edn_read("99999999999999999999/3", 0);
 
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
@@ -1251,7 +1251,7 @@ TEST(api_parse_ratio_numerator_overflow) {
 
 TEST(api_parse_ratio_denominator_overflow) {
     /* Denominator too large for int64_t */
-    edn_result_t r = edn_parse("3/99999999999999999999", 0);
+    edn_result_t r = edn_read("3/99999999999999999999", 0);
 
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
@@ -1259,7 +1259,7 @@ TEST(api_parse_ratio_denominator_overflow) {
 
 TEST(api_parse_ratio_invalid_float_numerator) {
     /* Float as numerator - should fail */
-    edn_result_t r = edn_parse("3.14/2", 0);
+    edn_result_t r = edn_read("3.14/2", 0);
 
     /* This should parse as float 3.14, then fail on /2 or stop at / */
     assert(r.error == EDN_OK);
@@ -1270,7 +1270,7 @@ TEST(api_parse_ratio_invalid_float_numerator) {
 
 TEST(api_parse_ratio_invalid_float_denominator) {
     /* Float as denominator - should fail */
-    edn_result_t r = edn_parse("3/2.5", 0);
+    edn_result_t r = edn_read("3/2.5", 0);
 
     /* Denominator is float (2.5), which is invalid for ratio */
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
@@ -1317,7 +1317,7 @@ TEST(api_ratio_as_double_zero_denominator) {
 
 TEST(api_parse_ratio_hex_not_supported) {
     /* Hex notation should not work with ratios */
-    edn_result_t r = edn_parse("0x10/2", 0);
+    edn_result_t r = edn_read("0x10/2", 0);
 
     /* Should not parse as a ratio (hex numbers don't support ratio syntax) */
     assert(r.error == EDN_OK);
@@ -1329,7 +1329,7 @@ TEST(api_parse_ratio_hex_not_supported) {
 
 TEST(api_parse_ratio_one) {
     /* 5/5 reduces to 1/1 which becomes integer 1 */
-    edn_result_t r = edn_parse("5/5", 0);
+    edn_result_t r = edn_read("5/5", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1344,7 +1344,7 @@ TEST(api_parse_ratio_one) {
 
 TEST(api_parse_ratio_reduction) {
     /* Test that ratios are automatically reduced to lowest terms */
-    edn_result_t r = edn_parse("3/6", 0);
+    edn_result_t r = edn_read("3/6", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1361,7 +1361,7 @@ TEST(api_parse_ratio_reduction) {
 
 TEST(api_parse_ratio_reduction_negative) {
     /* Test reduction with negative numerator */
-    edn_result_t r = edn_parse("-6/9", 0);
+    edn_result_t r = edn_read("-6/9", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1378,7 +1378,7 @@ TEST(api_parse_ratio_reduction_negative) {
 
 TEST(api_parse_ratio_already_reduced) {
     /* Test that already reduced ratios remain unchanged */
-    edn_result_t r = edn_parse("22/7", 0);
+    edn_result_t r = edn_read("22/7", 0);
 
     assert(r.error == EDN_OK);
     assert(r.value != NULL);
@@ -1400,7 +1400,7 @@ TEST(api_parse_ratio_already_reduced) {
 TEST(api_parse_ratio_disabled) {
     /* When ratio support is disabled, "22/7" should fail */
     /* because '/' is not a valid delimiter after a number */
-    edn_result_t r = edn_parse("22/7", 0);
+    edn_result_t r = edn_read("22/7", 0);
 
     /* Should fail with clear error message */
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
@@ -1409,7 +1409,7 @@ TEST(api_parse_ratio_disabled) {
     assert(r.error_message != NULL);
 
     /* In a collection context, same error */
-    edn_result_t r2 = edn_parse("[22/7]", 0);
+    edn_result_t r2 = edn_read("[22/7]", 0);
     assert(r2.error == EDN_ERROR_INVALID_NUMBER);
 }
 #endif
