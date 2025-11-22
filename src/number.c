@@ -740,7 +740,7 @@ double edn_parse_double(const char* start, const char* end) {
             frac_digits++;
             ptr++;
         }
-        exponent = -frac_digits;
+        exponent = -(int64_t) frac_digits;
         digit_count += frac_digits;
     }
 

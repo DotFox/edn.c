@@ -125,14 +125,14 @@ jobs:
     - name: Run tests
       run: ctest --test-dir build -C Release --output-on-failure
 
-    - name: Configure CMake with AddressSanitizer
-      run: cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DEDN_ENABLE_ASAN=ON
+    - name: Configure CMake with Debug mode and sanitizers
+      run: cmake -B build-debug -DEDN_ENABLE_DEBUG=ON
 
-    - name: Build with AddressSanitizer
-      run: cmake --build build-asan --config Debug
+    - name: Build with Debug mode and sanitizers
+      run: cmake --build build-debug --config Debug
 
-    - name: Run tests with AddressSanitizer
-      run: ctest --test-dir build-asan -C Debug --output-on-failure
+    - name: Run tests with sanitizers
+      run: ctest --test-dir build-debug -C Debug --output-on-failure
 
   benchmark-linux:
     name: Benchmark on Linux
