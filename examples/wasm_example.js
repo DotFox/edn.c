@@ -18,6 +18,10 @@ Module.onRuntimeInitialized = () => {
         { edn: '\\a', desc: 'Character' },
         { edn: '"hello world"', desc: 'String' },
         
+        { edn: "1234_5678_9012_3456", desc: "Long credit card number" },
+        { edn: "3.14_15", desc: "Pi" },
+        { edn: "0xFF_EC_DE_5E", desc: "HEX bytes" },
+
         // Symbols and keywords
         { edn: 'my-symbol', desc: 'Symbol' },
         { edn: 'ns/qualified-symbol', desc: 'Namespaced symbol' },

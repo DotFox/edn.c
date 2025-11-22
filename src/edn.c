@@ -644,8 +644,8 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
             valid_delimiter = true;
         }
 #ifdef EDN_ENABLE_RATIO
-        /* When ratio support is enabled, '/' is also valid (for ratios) */
-        else if (next == '/') {
+        /* When ratio support is enabled, '/' is also valid (for ratios), but only for int64 */
+        else if (next == '/' && scan.type == EDN_NUMBER_INT64 && scan.radix == 10) {
             valid_delimiter = true;
         }
 #endif

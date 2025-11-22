@@ -36,6 +36,7 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
 - **📄 Text Blocks**: Java-style multi-line text blocks `"""\n...\n"""` (experimental, disabled by default)
 - **🔢 Ratio Numbers**: Clojure-compatible ratio literals `22/7` (optional, disabled by default)
 - **🔣 Extended Integers**: Hex (`0xFF`), octal (`0777`), binary (`2r1010`), and arbitrary radix (`36rZZ`) formats (optional, disabled by default)
+- **🔢 Underscore in Numeric Literals**: Visual grouping with underscores `1_000_000`, `3.14_15_92`, `0xDE_AD_BE_EF` (optional, disabled by default)
 
 ## Table of Contents
 
@@ -55,6 +56,7 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
   - [Text Blocks](#text-blocks)
   - [Ratio Numbers](#ratio-numbers)
   - [Extended Integer Formats](#extended-integer-formats)
+  - [Underscore in Numeric Literals](#underscore-in-numeric-literals)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -685,6 +687,115 @@ When disabled (default):
 **Note:** Extended integer formats are a Clojure language feature, not part of the official EDN specification. They're provided here for compatibility with Clojure's reader.
 
 See `test/test_numbers.c` for comprehensive extended integer format test examples.
+
+### Underscore in Numeric Literals
+
+EDN.C supports underscores as visual separators in numeric literals for improved readability. This feature is **disabled by default** as it's not part of the base EDN specification.
+
+**Supported number types:**
+- **Integers**: `1_000`, `1_000_000`, `4____2` → `1000`, `1000000`, `42`
+- **Floats**: `3.14_15_92`, `1_234.56_78` → `3.141592`, `1234.5678`
+- **Scientific notation**: `1_500e10`, `1.5e1_0`, `1_5.2_5e1_0` → `1500e10`, `1.5e10`, `15.25e10`
+- **BigInt**: `1_234_567_890_123_456_789N`
+- **BigDecimal**: `1_234.56_78M`, `1_5.2_5e1_0M`
+- **Hexadecimal** (with `EXTENDED_INTEGERS=1`): `0xDE_AD_BE_EF` → `0xDEADBEEF`
+- **Octal** (with `EXTENDED_INTEGERS=1`): `07_77` → `0777`
+- **Binary** (with `EXTENDED_INTEGERS=1`): `2r1010_1010` → `170`
+- **Radix notation** (with `EXTENDED_INTEGERS=1`): `36rZ_Z` → `1295`
+
+**Rules:**
+- Underscores are only allowed **between digits** (not at start, end, or adjacent to special characters)
+- Multiple consecutive underscores are allowed: `4____2` is valid
+- Not allowed adjacent to decimal point: `123_.5` or `123._5` are invalid
+- Not allowed before/after exponent marker: `123_e10` or `123e_10` are invalid
+- Not allowed before suffix: `123_N` or `123.45_M` are invalid
+- Works with negative numbers: `-1_234` → `-1234`
+
+**Examples:**
+```c
+// Credit card number formatting
+edn_result_t r1 = edn_read("1234_5678_9012_3456", 0);
+int64_t val1;
+edn_int64_get(r1.value, &val1);
+// val1 = 1234567890123456
+edn_free(r1.value);
+
+// Pi with digit grouping
+edn_result_t r2 = edn_read("3.14_15_92_65_35_89_79", 0);
+double val2;
+edn_double_get(r2.value, &val2);
+// val2 = 3.141592653589793
+edn_free(r2.value);
+
+// Hex bytes (requires EXTENDED_INTEGERS=1)
+edn_result_t r3 = edn_read("0xFF_EC_DE_5E", 0);
+int64_t val3;
+edn_int64_get(r3.value, &val3);
+// val3 = 0xFFECDE5E
+edn_free(r3.value);
+
+// Large numbers with thousands separators
+edn_result_t r4 = edn_read("1_000_000", 0);
+int64_t val4;
+edn_int64_get(r4.value, &val4);
+// val4 = 1000000
+edn_free(r4.value);
+
+// In collections
+edn_result_t r5 = edn_read("[1_000 2_000 3_000]", 0);
+// Three integers: 1000, 2000, 3000
+edn_free(r5.value);
+```
+
+**Invalid examples:**
+```c
+// Underscore at start - parses as symbol
+edn_read("_123", 0);  // Symbol, not number
+
+// Underscore at end
+edn_read("123_", 0);  // Error: EDN_ERROR_INVALID_NUMBER
+
+// Adjacent to decimal point
+edn_read("123_.5", 0);   // Error: EDN_ERROR_INVALID_NUMBER
+edn_read("123._5", 0);   // Error: EDN_ERROR_INVALID_NUMBER
+
+// Before/after exponent marker
+edn_read("123_e10", 0);  // Error: EDN_ERROR_INVALID_NUMBER
+edn_read("123e_10", 0);  // Error: EDN_ERROR_INVALID_NUMBER
+
+// Before suffix
+edn_read("123_N", 0);    // Error: EDN_ERROR_INVALID_NUMBER
+edn_read("123.45_M", 0); // Error: EDN_ERROR_INVALID_NUMBER
+```
+
+**Build Configuration:**
+
+This feature is disabled by default. To enable it:
+
+**Make:**
+```bash
+make UNDERSCORE_IN_NUMERIC=1
+```
+
+**CMake:**
+```bash
+cmake -DEDN_ENABLE_UNDERSCORE_IN_NUMERIC=ON ..
+make
+```
+
+**Combined with other features:**
+```bash
+# Enable underscores with extended integers and ratios
+make UNDERSCORE_IN_NUMERIC=1 EXTENDED_INTEGERS=1 RATIO=1
+```
+
+When disabled (default):
+- Numbers with underscores will fail to parse
+- The scanner will stop at the first underscore, treating it as an invalid number
+
+**Note:** Underscores in numeric literals are a common feature in modern programming languages (Java, Rust, Python 3.6+, etc.) but are not part of the official EDN specification. This feature is provided for convenience and readability.
+
+See `test/test_underscore_numeric.c` for comprehensive test examples.
 
 #### Characters
 
@@ -1684,6 +1795,8 @@ For detailed Windows build instructions, see **[docs/WINDOWS.md](docs/WINDOWS.md
 - `METADATA=1` - Enable Clojure-style metadata `^{...}` syntax
 - `TEXT_BLOCKS=1` - Enable Java-style text blocks `"""\n...\n"""`
 - `RATIO=1` - Enable ratio numbers `22/7`
+- `EXTENDED_INTEGERS=1` - Enable hex (`0xFF`), octal (`0777`), binary (`2r1010`), and radix (`36rZZ`) formats
+- `UNDERSCORE_IN_NUMERIC=1` - Enable underscores in numeric literals `1_000_000`
 
 **Example:**
 ```bash

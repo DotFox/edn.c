@@ -91,6 +91,13 @@ ifeq ($(EXTENDED_INTEGERS),1)
     CFLAGS += -DEDN_ENABLE_EXTENDED_INTEGERS
 endif
 
+# Underscore in numeric literals (disabled by default)
+# Allows underscores between digits: 1_000 -> 1000, 4____2 -> 42
+UNDERSCORE_IN_NUMERIC ?= 0
+ifeq ($(UNDERSCORE_IN_NUMERIC),1)
+    CFLAGS += -DEDN_ENABLE_UNDERSCORE_IN_NUMERIC
+endif
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -254,7 +261,7 @@ $(WASM_LIB): $(WASM_OBJS)
 	$(Q)$(EMCC) -std=gnu11 -Wall -Wextra -Wpedantic -O2 \
 		-Wno-dollar-in-identifier-extension \
 		-Wno-gnu-zero-variadic-macro-arguments \
-		$(WASM_COMPILE_FLAGS) $(INCLUDES) -c $< -o $@
+		$(filter -D%, $(CFLAGS)) $(WASM_COMPILE_FLAGS) $(INCLUDES) -c $< -o $@
 
 # Clean build artifacts
 .PHONY: clean
@@ -297,12 +304,13 @@ info-wasm:
 	@echo "Sources:      $(WASM_SRCS)"
 	@echo ""
 	@echo "Optional features:"
-	@echo "  MAP_NAMESPACE_SYNTAX:  $(MAP_NAMESPACE_SYNTAX)"
-	@echo "  EXTENDED_CHARACTERS:   $(EXTENDED_CHARACTERS)"
-	@echo "  METADATA:              $(METADATA)"
-	@echo "  TEXT_BLOCKS:           $(TEXT_BLOCKS)"
-	@echo "  RATIO:                 $(RATIO)"
-	@echo "  EXTENDED_INTEGERS:     $(EXTENDED_INTEGERS)"
+	@echo "  MAP_NAMESPACE_SYNTAX:     $(MAP_NAMESPACE_SYNTAX)"
+	@echo "  EXTENDED_CHARACTERS:      $(EXTENDED_CHARACTERS)"
+	@echo "  METADATA:                 $(METADATA)"
+	@echo "  TEXT_BLOCKS:              $(TEXT_BLOCKS)"
+	@echo "  RATIO:                    $(RATIO)"
+	@echo "  EXTENDED_INTEGERS:        $(EXTENDED_INTEGERS)"
+	@echo "  UNDERSCORE_IN_NUMERIC:    $(UNDERSCORE_IN_NUMERIC)"
 
 # Help
 # Format all source files with clang-format
@@ -372,6 +380,7 @@ help:
 	@echo "Options (apply to both native and WASM builds):"
 	@echo "  EXTENDED_INTEGERS=1         - Enable hex (0xFF), octal (0777), binary (2r1010), and radix (36rZZ) integers"
 	@echo "  RATIO=1                     - Enable ratio numbers (22/7)"
+	@echo "  UNDERSCORE_IN_NUMERIC=1     - Enable underscores in numeric literals (1_000 -> 1000)"
 	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\\formfeed, \\\backspace, \oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"

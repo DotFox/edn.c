@@ -53,6 +53,49 @@ static inline int digit_value(char c, uint8_t radix) {
     return (val >= 0 && val < radix) ? val : -1;
 }
 
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+/**
+ * Check if underscore is valid at the current position in a number.
+ *
+ * Underscores are only allowed between digits (or other underscores):
+ * - NOT at the beginning or end of a number
+ * - NOT adjacent to a decimal point
+ * - NOT before N or M suffix
+ * - Must have a digit or underscore before, and a digit or underscore after
+ *
+ * Since we validate every underscore as we scan, we only need to check
+ * immediately adjacent characters - no need to scan past consecutive underscores.
+ *
+ * Returns true if underscore is valid at this position.
+ */
+static inline bool is_valid_underscore_position(const char* ptr, const char* start, const char* end,
+                                                uint8_t radix) {
+    /* Must not be at start */
+    if (ptr <= start) {
+        return false;
+    }
+
+    /* Must not be at end */
+    if (ptr >= end - 1) {
+        return false;
+    }
+
+    /* Check immediately previous character is a digit or underscore */
+    const char prev = *(ptr - 1);
+    if (prev != '_' && digit_value(prev, radix) < 0) {
+        return false;
+    }
+
+    /* Check immediately next character is a digit or underscore */
+    const char next = *(ptr + 1);
+    if (next != '_' && digit_value(next, radix) < 0) {
+        return false;
+    }
+
+    return true;
+}
+#endif /* EDN_ENABLE_UNDERSCORE_IN_NUMERIC */
+
 /**
  * SWAR (SIMD Within A Register) - 8-digit parallel parsing.
  * 
@@ -137,12 +180,46 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
         bool might_be_special = (*digit_ptr == '0' && digit_ptr + 1 < end);
 
         if (!might_be_special) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+            bool has_underscore = false;
+            while (digit_ptr < end) {
+                if (*digit_ptr >= '0' && *digit_ptr <= '9') {
+                    digit_ptr++;
+                } else if (*digit_ptr == '_') {
+                    /* Check if underscore is valid (between digits) */
+                    if (digit_ptr == scan_ptr) {
+                        /* Underscore at start - invalid */
+                        break;
+                    }
+                    /* Look ahead past consecutive underscores to find next digit */
+                    const char* look_ahead = digit_ptr + 1;
+                    while (look_ahead < end && *look_ahead == '_') {
+                        look_ahead++;
+                    }
+                    if (look_ahead >= end || (*look_ahead < '0' || *look_ahead > '9')) {
+                        /* No digit after underscore(s) - fall through to slow path */
+                        break;
+                    }
+                    has_underscore = true;
+                    digit_ptr++;
+                } else {
+                    break;
+                }
+            }
+
+            /* If we have underscores, we can't use the simple fast path */
+            /* But if no underscores and it's a simple integer, use fast path */
+            if (!has_underscore && (digit_ptr >= end || (*digit_ptr != '.' && *digit_ptr != 'e' &&
+                                                         *digit_ptr != 'E' && *digit_ptr != 'r' &&
+                                                         *digit_ptr != 'N' && *digit_ptr != 'M'))) {
+#else
             while (digit_ptr < end && *digit_ptr >= '0' && *digit_ptr <= '9') {
                 digit_ptr++;
             }
 
             if (digit_ptr >= end || (*digit_ptr != '.' && *digit_ptr != 'e' && *digit_ptr != 'E' &&
                                      *digit_ptr != 'r' && *digit_ptr != 'N' && *digit_ptr != 'M')) {
+#endif
                 result.negative = is_negative;
                 result.digits_start = scan_ptr;
                 result.digits_end = digit_ptr;
@@ -244,13 +321,49 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
     result.digits_start = ptr; /* Track where actual digits begin */
 
     if (result.radix == 10) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        /* Scan decimal digits with optional underscores */
+        while (ptr < end) {
+            if (*ptr >= '0' && *ptr <= '9') {
+                ptr++;
+            } else if (*ptr == '_') {
+                /* Validate underscore position */
+                if (!is_valid_underscore_position(ptr, digit_start, end, 10)) {
+                    result.valid = false;
+                    return result;
+                }
+                ptr++;
+            } else {
+                break;
+            }
+        }
+#else
         while (ptr < end && *ptr >= '0' && *ptr <= '9') {
             ptr++;
         }
+#endif
     } else {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        /* Scan digits for non-decimal radix with optional underscores */
+        while (ptr < end) {
+            if (digit_value(*ptr, result.radix) >= 0) {
+                ptr++;
+            } else if (*ptr == '_') {
+                /* Validate underscore position */
+                if (!is_valid_underscore_position(ptr, digit_start, end, result.radix)) {
+                    result.valid = false;
+                    return result;
+                }
+                ptr++;
+            } else {
+                break;
+            }
+        }
+#else
         while (ptr < end && digit_value(*ptr, result.radix) >= 0) {
             ptr++;
         }
+#endif
     }
 
     if (ptr == digit_start) {
@@ -261,9 +374,28 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
     if (ptr < end && *ptr == '.') {
         result.type = EDN_NUMBER_DOUBLE;
         ptr++;
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        const char* frac_start = ptr;
+        /* Scan fractional part with optional underscores */
+        while (ptr < end) {
+            if (*ptr >= '0' && *ptr <= '9') {
+                ptr++;
+            } else if (*ptr == '_') {
+                /* Validate underscore position in fractional part */
+                if (!is_valid_underscore_position(ptr, frac_start - 1, end, 10)) {
+                    result.valid = false;
+                    return result;
+                }
+                ptr++;
+            } else {
+                break;
+            }
+        }
+#else
         while (ptr < end && *ptr >= '0' && *ptr <= '9') {
             ptr++;
         }
+#endif
     }
 
     if (ptr < end && (*ptr == 'e' || *ptr == 'E')) {
@@ -272,9 +404,28 @@ edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
         if (ptr < end && (*ptr == '+' || *ptr == '-')) {
             ptr++;
         }
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        const char* exp_start = ptr;
+        /* Scan exponent with optional underscores */
+        while (ptr < end) {
+            if (*ptr >= '0' && *ptr <= '9') {
+                ptr++;
+            } else if (*ptr == '_') {
+                /* Validate underscore position in exponent */
+                if (!is_valid_underscore_position(ptr, exp_start - 1, end, 10)) {
+                    result.valid = false;
+                    return result;
+                }
+                ptr++;
+            } else {
+                break;
+            }
+        }
+#else
         while (ptr < end && *ptr >= '0' && *ptr <= '9') {
             ptr++;
         }
+#endif
     }
 
     /* Save digits_end before checking for N/M suffix */
@@ -334,6 +485,12 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
 
         while (digit_ptr < end) {
             char c = *digit_ptr;
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+            if (c == '_') {
+                digit_ptr++;
+                continue;
+            }
+#endif
             if (c < '0' || c > '9')
                 break;
             value = value * 10 + (c - '0');
@@ -352,6 +509,58 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
     const uint64_t cutlim = max_val % radix;
 
     if (radix == 10) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        /* With underscores enabled, try SWAR for 8-digit chunks without underscores first */
+        while ((end - ptr) >= 8) {
+            /* Check if next 8 bytes are all digits (no underscores) */
+            if (is_made_of_eight_digits_fast(ptr)) {
+                uint32_t eight_digits = parse_eight_digits_unrolled(ptr);
+
+                const uint64_t multiplier = 100000000;
+                if (value > max_val / multiplier) {
+                    return false;
+                }
+
+                uint64_t new_value = value * multiplier + eight_digits;
+
+                if (new_value < value) {
+                    return false;
+                }
+
+                if (new_value > max_val) {
+                    return false;
+                }
+
+                value = new_value;
+                ptr += 8;
+            } else {
+                /* Has underscore or non-digit, fall back to scalar */
+                break;
+            }
+        }
+
+        /* Process remaining digits (or all digits if SWAR wasn't used) */
+        while (ptr < end) {
+            char c = *ptr;
+            if (c == '_') {
+                ptr++;
+                continue;
+            }
+            if (c < '0' || c > '9') {
+                break;
+            }
+
+            int digit = c - '0';
+
+            if (value > cutoff || (value == cutoff && (uint64_t) digit > cutlim)) {
+                return false;
+            }
+
+            value = value * 10 + digit;
+            ptr++;
+        }
+#else
+        /* SWAR fast path for 8-digit chunks */
         while ((end - ptr) >= 8 && is_made_of_eight_digits_fast(ptr)) {
             uint32_t eight_digits = parse_eight_digits_unrolled(ptr);
 
@@ -374,6 +583,7 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
             ptr += 8;
         }
 
+        /* Process remaining digits */
         while (ptr < end) {
             char c = *ptr;
             if (c < '0' || c > '9') {
@@ -389,8 +599,15 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
             value = value * 10 + digit;
             ptr++;
         }
+#endif
     } else {
         while (ptr < end) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+            if (*ptr == '_') {
+                ptr++;
+                continue;
+            }
+#endif
             int digit = digit_value(*ptr, radix);
             if (digit < 0) {
                 break;
@@ -486,24 +703,45 @@ double edn_parse_double(const char* start, const char* end) {
     }
 
     int64_t mantissa = 0;
-    const char* mantissa_start = ptr;
-    while (ptr < end && *ptr >= '0' && *ptr <= '9') {
+    size_t digit_count = 0;
+
+    while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+                         || *ptr == '_'
+#endif
+                         )) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        if (*ptr == '_') {
+            ptr++;
+            continue;
+        }
+#endif
         mantissa = mantissa * 10 + (*ptr - '0');
+        digit_count++;
         ptr++;
     }
-
-    size_t digit_count = ptr - mantissa_start;
 
     int64_t exponent = 0;
     if (ptr < end && *ptr == '.') {
         ptr++;
-        const char* frac_start = ptr;
-        while (ptr < end && *ptr >= '0' && *ptr <= '9') {
+        size_t frac_digits = 0;
+        while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+                             || *ptr == '_'
+#endif
+                             )) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+            if (*ptr == '_') {
+                ptr++;
+                continue;
+            }
+#endif
             mantissa = mantissa * 10 + (*ptr - '0');
+            frac_digits++;
             ptr++;
         }
-        exponent = -(ptr - frac_start);
-        digit_count += (ptr - frac_start);
+        exponent = -frac_digits;
+        digit_count += frac_digits;
     }
 
     if (ptr < end && (*ptr == 'e' || *ptr == 'E')) {
@@ -515,7 +753,17 @@ double edn_parse_double(const char* start, const char* end) {
         }
 
         int64_t exp_value = 0;
-        while (ptr < end && *ptr >= '0' && *ptr <= '9') {
+        while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+                             || *ptr == '_'
+#endif
+                             )) {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+            if (*ptr == '_') {
+                ptr++;
+                continue;
+            }
+#endif
             exp_value = exp_value * 10 + (*ptr - '0');
             if (exp_value > 1000) {
                 exp_value = 1000;
@@ -531,6 +779,33 @@ double edn_parse_double(const char* start, const char* end) {
         return result;
     }
 
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    /* For strtod fallback with underscores, we need to create a cleaned buffer */
+    char buffer[256];
+    size_t buf_idx = 0;
+
+    for (const char* p = start; p < end && buf_idx < sizeof(buffer) - 1; p++) {
+        if (*p != '_') {
+            buffer[buf_idx++] = *p;
+        }
+    }
+
+    if (buf_idx >= sizeof(buffer)) {
+        return NAN;
+    }
+
+    buffer[buf_idx] = '\0';
+
+    errno = 0;
+    char* endptr;
+    result = strtod(buffer, &endptr);
+
+    if (errno == ERANGE) {
+        return result;
+    }
+
+    return result;
+#else
     size_t len = end - start;
     char buffer[256];
     if (len >= sizeof(buffer)) {
@@ -549,4 +824,5 @@ double edn_parse_double(const char* start, const char* end) {
     }
 
     return result;
+#endif
 }

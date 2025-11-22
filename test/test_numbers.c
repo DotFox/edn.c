@@ -1261,11 +1261,9 @@ TEST(api_parse_ratio_invalid_float_numerator) {
     /* Float as numerator - should fail */
     edn_result_t r = edn_read("3.14/2", 0);
 
-    /* This should parse as float 3.14, then fail on /2 or stop at / */
-    assert(r.error == EDN_OK);
-    assert(edn_type(r.value) == EDN_TYPE_FLOAT); /* Just parses the float */
-
-    edn_free(r.value);
+    /* Should fail because floats cannot be ratio numerators */
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
 }
 
 TEST(api_parse_ratio_invalid_float_denominator) {
