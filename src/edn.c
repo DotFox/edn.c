@@ -475,41 +475,34 @@ static int64_t edn_gcd(int64_t a, int64_t b) {
 #endif
 
 static edn_value_t* parse_number_value(edn_parser_t* parser) {
-    edn_number_scan_t scan = edn_scan_number(parser->current, parser->end);
+    edn_value_t* value = edn_read_number(parser);
 
-    if (!scan.valid) {
-        parser->error = EDN_ERROR_INVALID_NUMBER;
-        parser->error_message = "Invalid number format";
+    if (!value) {
+        /* Error already set by edn_read_number */
         return NULL;
     }
 
 #ifdef EDN_ENABLE_RATIO
-    if (scan.end < parser->end && *scan.end == '/' && scan.type == EDN_NUMBER_INT64 &&
-        scan.radix == 10) {
-        int64_t numerator;
-        if (!edn_parse_int64(scan.start, scan.digits_end, &numerator, scan.radix)) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Ratio numerator must fit in int64";
-            return NULL;
-        }
+    /* Check if this could be a ratio (numerator/denominator) */
+    if (value->type == EDN_TYPE_INT && parser->current < parser->end && *parser->current == '/') {
+        int64_t numerator = value->as.integer;
 
         /* Move past the / */
-        parser->current = scan.end + 1;
+        parser->current++;
 
-        edn_number_scan_t denom_scan = edn_scan_number(parser->current, parser->end);
-        if (!denom_scan.valid || denom_scan.type != EDN_NUMBER_INT64 || denom_scan.radix != 10) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Invalid ratio denominator";
+        /* Parse denominator */
+        edn_value_t* denom_value = edn_read_number(parser);
+        if (!denom_value) {
             return NULL;
         }
 
-        int64_t denominator;
-        if (!edn_parse_int64(denom_scan.start, denom_scan.digits_end, &denominator,
-                             denom_scan.radix)) {
+        if (denom_value->type != EDN_TYPE_INT) {
             parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Ratio denominator must fit in int64";
+            parser->error_message = "Ratio denominator must be an integer";
             return NULL;
         }
+
+        int64_t denominator = denom_value->as.integer;
 
         if (denominator == 0) {
             parser->error = EDN_ERROR_INVALID_NUMBER;
@@ -530,106 +523,31 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
             denominator /= g;
         }
 
+        /* If numerator is 0, return 0 */
         if (numerator == 0) {
-            edn_value_t* value = edn_arena_alloc_value(parser->arena);
-            if (!value) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory";
-                return NULL;
-            }
-            value->arena = parser->arena;
             value->type = EDN_TYPE_INT;
             value->as.integer = 0;
-            parser->current = denom_scan.end;
             return value;
         }
 
+        /* If denominator is 1, return the integer */
         if (denominator == 1) {
-            edn_value_t* value = edn_arena_alloc_value(parser->arena);
-            if (!value) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory";
-                return NULL;
-            }
-            value->arena = parser->arena;
             value->type = EDN_TYPE_INT;
             value->as.integer = numerator;
-            parser->current = denom_scan.end;
             return value;
         }
 
-        edn_value_t* value = edn_arena_alloc_value(parser->arena);
-        if (!value) {
-            parser->error = EDN_ERROR_OUT_OF_MEMORY;
-            parser->error_message = "Out of memory";
-            return NULL;
-        }
-
-        value->arena = parser->arena;
+        /* Return as ratio */
         value->type = EDN_TYPE_RATIO;
         value->as.ratio.numerator = numerator;
         value->as.ratio.denominator = denominator;
-
-        parser->current = denom_scan.end;
         return value;
     }
 #endif
 
-    edn_value_t* value = edn_arena_alloc_value(parser->arena);
-    if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
-        return NULL;
-    }
-
-    value->arena = parser->arena;
-
-    if (scan.type == EDN_NUMBER_INT64) {
-        int64_t num;
-        /* For radix != 10, digits_start skips prefix; for radix == 10, it's same as after sign */
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
-        const char* parse_start = (scan.radix == 10) ? scan.start : scan.digits_start;
-#else
-        const char* parse_start = scan.start;
-#endif
-        if (!edn_parse_int64(parse_start, scan.digits_end, &num, scan.radix)) {
-            value->type = EDN_TYPE_BIGINT;
-            value->as.bigint.digits = scan.digits_start;
-            value->as.bigint.length = scan.digits_end - scan.digits_start;
-            value->as.bigint.negative = scan.negative;
-            value->as.bigint.radix = scan.radix;
-        } else {
-            value->type = EDN_TYPE_INT;
-            /* For non-decimal radix, apply the sign from scan.negative */
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
-            value->as.integer = (scan.radix != 10 && scan.negative) ? -num : num;
-#else
-            value->as.integer = num;
-#endif
-        }
-    } else if (scan.type == EDN_NUMBER_BIGINT) {
-        value->type = EDN_TYPE_BIGINT;
-        value->as.bigint.digits = scan.digits_start;
-        value->as.bigint.length = scan.digits_end - scan.digits_start; /* Exclude N suffix */
-        value->as.bigint.negative = scan.negative;
-        value->as.bigint.radix = scan.radix;
-    } else if (scan.type == EDN_NUMBER_DOUBLE) {
-        value->type = EDN_TYPE_FLOAT;
-        value->as.floating = edn_parse_double(scan.start, scan.digits_end);
-    } else if (scan.type == EDN_NUMBER_BIGDEC) {
-        value->type = EDN_TYPE_BIGDEC;
-        value->as.bigdec.decimal = scan.digits_start;
-        value->as.bigdec.length = scan.digits_end - scan.digits_start; /* Exclude M suffix */
-        value->as.bigdec.negative = scan.negative;
-    } else {
-        parser->error = EDN_ERROR_INVALID_NUMBER;
-        parser->error_message = "Invalid number type";
-        return NULL;
-    }
-
     /* Validate that number is followed by valid delimiter or EOF */
-    if (scan.end < parser->end) {
-        unsigned char next = (unsigned char) *scan.end;
+    if (parser->current < parser->end) {
+        unsigned char next = (unsigned char) *parser->current;
 
         bool valid_delimiter = false;
 
@@ -644,8 +562,8 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
             valid_delimiter = true;
         }
 #ifdef EDN_ENABLE_RATIO
-        /* When ratio support is enabled, '/' is also valid (for ratios), but only for int64 */
-        else if (next == '/' && scan.type == EDN_NUMBER_INT64 && scan.radix == 10) {
+        /* When ratio support is enabled, '/' is also valid (for ratios) */
+        else if (next == '/' && value->type == EDN_TYPE_INT) {
             valid_delimiter = true;
         }
 #endif
@@ -657,7 +575,6 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         }
     }
 
-    parser->current = scan.end;
     return value;
 }
 
@@ -833,6 +750,58 @@ bool edn_bool_get(const edn_value_t* value, bool* out) {
     return true;
 }
 
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+/**
+ * Clean underscores from BigInt/BigDecimal digit string.
+ * Allocates and caches cleaned string in arena.
+ */
+static const char* clean_number_string(const char* digits, size_t length, edn_arena_t* arena,
+                                       char** cleaned_cache) {
+    /* Check if already cleaned */
+    if (*cleaned_cache) {
+        return *cleaned_cache;
+    }
+
+    /* Safety check */
+    if (!digits || !arena) {
+        return NULL;
+    }
+
+    /* Check if there are any underscores to clean */
+    bool has_underscore = false;
+    for (size_t i = 0; i < length; i++) {
+        if (digits[i] == '_') {
+            has_underscore = true;
+            break;
+        }
+    }
+
+    /* No underscores - can return original, but don't cache const pointer */
+    if (!has_underscore) {
+        return digits;
+    }
+
+    /* Allocate cleaned buffer */
+    char* cleaned = (char*) edn_arena_alloc(arena, length + 1);
+    if (!cleaned) {
+        return NULL;
+    }
+
+    /* Copy without underscores */
+    size_t j = 0;
+    for (size_t i = 0; i < length; i++) {
+        if (digits[i] != '_') {
+            cleaned[j++] = digits[i];
+        }
+    }
+    cleaned[j] = '\0';
+
+    /* Cache the result */
+    *cleaned_cache = cleaned;
+    return cleaned;
+}
+#endif
+
 const char* edn_bigint_get(const edn_value_t* value, size_t* length, bool* negative,
                            uint8_t* radix) {
     if (!value || value->type != EDN_TYPE_BIGINT) {
@@ -845,14 +814,46 @@ const char* edn_bigint_get(const edn_value_t* value, size_t* length, bool* negat
         return NULL;
     }
 
-    if (length)
-        *length = value->as.bigint.length;
     if (negative)
         *negative = value->as.bigint.negative;
     if (radix)
         *radix = value->as.bigint.radix;
 
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    /* Clean underscores lazily */
+    if (!value->arena) {
+        /* No arena - can't allocate cleaned string, return raw */
+        if (length)
+            *length = value->as.bigint.length;
+        return value->as.bigint.digits;
+    }
+
+    const char* digits =
+        clean_number_string(value->as.bigint.digits, value->as.bigint.length, value->arena,
+                            &((edn_value_t*) value)->as.bigint.cleaned);
+    if (!digits) {
+        if (length)
+            *length = 0;
+        return NULL;
+    }
+
+    if (length) {
+        /* If we returned a cleaned string (cached), it has null terminator */
+        /* If we returned the original, we must use the stored length */
+        if (((edn_value_t*) value)->as.bigint.cleaned != NULL) {
+            *length = strlen(digits); /* Cleaned string - use strlen */
+        } else {
+            *length = value->as.bigint.length; /* Original string - use stored length */
+        }
+    }
+
+    return digits;
+#else
+    if (length)
+        *length = value->as.bigint.length;
+
     return value->as.bigint.digits;
+#endif
 }
 
 bool edn_double_get(const edn_value_t* value, double* out) {
@@ -872,12 +873,44 @@ const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negat
         return NULL;
     }
 
-    if (length)
-        *length = value->as.bigdec.length;
     if (negative)
         *negative = value->as.bigdec.negative;
 
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    /* Clean underscores lazily */
+    if (!value->arena) {
+        /* No arena - can't allocate cleaned string, return raw */
+        if (length)
+            *length = value->as.bigdec.length;
+        return value->as.bigdec.decimal;
+    }
+
+    const char* decimal =
+        clean_number_string(value->as.bigdec.decimal, value->as.bigdec.length, value->arena,
+                            &((edn_value_t*) value)->as.bigdec.cleaned);
+    if (!decimal) {
+        if (length)
+            *length = 0;
+        return NULL;
+    }
+
+    if (length) {
+        /* If we returned a cleaned string (cached), it has null terminator */
+        /* If we returned the original, we must use the stored length */
+        if (((edn_value_t*) value)->as.bigdec.cleaned != NULL) {
+            *length = strlen(decimal); /* Cleaned string - use strlen */
+        } else {
+            *length = value->as.bigdec.length; /* Original string - use stored length */
+        }
+    }
+
+    return decimal;
+#else
+    if (length)
+        *length = value->as.bigdec.length;
+
     return value->as.bigdec.decimal;
+#endif
 }
 
 #ifdef EDN_ENABLE_RATIO

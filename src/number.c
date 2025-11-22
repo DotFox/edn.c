@@ -1,13 +1,15 @@
 /**
- * EDN.C - Number parsing (integers and floats)
- * 
- * Three-tier performance architecture:
- * 1. Fast path: Simple decimal integers (80%+ of numbers)
- * 2. SWAR path: 8-digit chunks for long integers (5x faster than scalar)
- * 3. Clinger fast path: Doubles with exponents in [-22, 22] (90% of floats)
- * 
- * Supports: int64, BigInt overflow, hex (0xAF), octal (0777), radix (36rZZ), floats.
- * SWAR technique from simdjson, Clinger algorithm for fast double parsing.
+ * EDN.C - Number parsing
+ *
+ * Single entry point: edn_read_number()
+ *
+ * Performance optimizations:
+ * - SWAR (SIMD Within A Register): 8-digit parallel parsing (5x faster for long integers)
+ * - Clinger's fast path: Fast double parsing for 90% of floats (5-10x faster)
+ * - Fast path for 1-3 digit integers (2-3x faster, no overflow checks)
+ *
+ * Zero-copy: stores pointers into input buffer (underscores preserved for BigInt/BigDecimal).
+ * Supports: int64, BigInt, doubles, BigDecimal, hex, octal, radix, ratios.
  */
 
 #include <errno.h>
@@ -15,7 +17,6 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "edn_internal.h"
@@ -53,48 +54,16 @@ static inline int digit_value(char c, uint8_t radix) {
     return (val >= 0 && val < radix) ? val : -1;
 }
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#if defined(EDN_ENABLE_EXTENDED_INTEGERS) || defined(EDN_ENABLE_UNDERSCORE_IN_NUMERIC)
+
 /**
- * Check if underscore is valid at the current position in a number.
- *
- * Underscores are only allowed between digits (or other underscores):
- * - NOT at the beginning or end of a number
- * - NOT adjacent to a decimal point
- * - NOT before N or M suffix
- * - Must have a digit or underscore before, and a digit or underscore after
- *
- * Since we validate every underscore as we scan, we only need to check
- * immediately adjacent characters - no need to scan past consecutive underscores.
- *
- * Returns true if underscore is valid at this position.
+ * Check if character is a valid digit in current radix.
  */
-static inline bool is_valid_underscore_position(const char* ptr, const char* start, const char* end,
-                                                uint8_t radix) {
-    /* Must not be at start */
-    if (ptr <= start) {
-        return false;
-    }
-
-    /* Must not be at end */
-    if (ptr >= end - 1) {
-        return false;
-    }
-
-    /* Check immediately previous character is a digit or underscore */
-    const char prev = *(ptr - 1);
-    if (prev != '_' && digit_value(prev, radix) < 0) {
-        return false;
-    }
-
-    /* Check immediately next character is a digit or underscore */
-    const char next = *(ptr + 1);
-    if (next != '_' && digit_value(next, radix) < 0) {
-        return false;
-    }
-
-    return true;
+static inline bool is_digit_in_radix(char c, uint8_t radix) {
+    return digit_value(c, radix) >= 0;
 }
-#endif /* EDN_ENABLE_UNDERSCORE_IN_NUMERIC */
+
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS || EDN_ENABLE_UNDERSCORE_IN_NUMERIC */
 
 /**
  * SWAR (SIMD Within A Register) - 8-digit parallel parsing.
@@ -144,341 +113,73 @@ static inline uint32_t parse_eight_digits_unrolled(const char* chars) {
 }
 
 /**
- * Scan and classify a number from input buffer.
- * 
- * Two-tier approach:
- * 1. Fast path (80%+): Simple decimal integers -?[0-9]+ with no prefix/suffix
- * 2. Slow path (20%): Hex (0xAF), octal (0777), radix (16rFF), floats
- * 
- * Returns edn_number_scan_t with radix, type (INT64/BIGINT/DOUBLE), and valid flag.
- * Validates EDN number syntax (e.g., rejects leading zeros before 8/9).
+ * Peek next character without advancing parser.
  */
-edn_number_scan_t edn_scan_number(const char* ptr, const char* end) {
-    edn_number_scan_t result = {0};
-    result.start = ptr;
-    result.radix = 10;
-    result.type = EDN_NUMBER_INT64;
-
-    if (ptr >= end) {
-        result.valid = false;
-        return result;
+static inline char peek_char(edn_parser_t* parser) {
+    if (parser->current >= parser->end) {
+        return '\0';
     }
-
-    const char* scan_ptr = ptr;
-    bool is_negative = false;
-
-    if (*scan_ptr == '-') {
-        is_negative = true;
-        scan_ptr++;
-    } else if (*scan_ptr == '+') {
-        scan_ptr++;
-    }
-
-    if (scan_ptr < end && *scan_ptr >= '0' && *scan_ptr <= '9') {
-        const char* digit_ptr = scan_ptr;
-
-        bool might_be_special = (*digit_ptr == '0' && digit_ptr + 1 < end);
-
-        if (!might_be_special) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-            bool has_underscore = false;
-            while (digit_ptr < end) {
-                if (*digit_ptr >= '0' && *digit_ptr <= '9') {
-                    digit_ptr++;
-                } else if (*digit_ptr == '_') {
-                    /* Check if underscore is valid (between digits) */
-                    if (digit_ptr == scan_ptr) {
-                        /* Underscore at start - invalid */
-                        break;
-                    }
-                    /* Look ahead past consecutive underscores to find next digit */
-                    const char* look_ahead = digit_ptr + 1;
-                    while (look_ahead < end && *look_ahead == '_') {
-                        look_ahead++;
-                    }
-                    if (look_ahead >= end || (*look_ahead < '0' || *look_ahead > '9')) {
-                        /* No digit after underscore(s) - fall through to slow path */
-                        break;
-                    }
-                    has_underscore = true;
-                    digit_ptr++;
-                } else {
-                    break;
-                }
-            }
-
-            /* If we have underscores, we can't use the simple fast path */
-            /* But if no underscores and it's a simple integer, use fast path */
-            if (!has_underscore && (digit_ptr >= end || (*digit_ptr != '.' && *digit_ptr != 'e' &&
-                                                         *digit_ptr != 'E' && *digit_ptr != 'r' &&
-                                                         *digit_ptr != 'N' && *digit_ptr != 'M'))) {
-#else
-            while (digit_ptr < end && *digit_ptr >= '0' && *digit_ptr <= '9') {
-                digit_ptr++;
-            }
-
-            if (digit_ptr >= end || (*digit_ptr != '.' && *digit_ptr != 'e' && *digit_ptr != 'E' &&
-                                     *digit_ptr != 'r' && *digit_ptr != 'N' && *digit_ptr != 'M')) {
-#endif
-                result.negative = is_negative;
-                result.digits_start = scan_ptr;
-                result.digits_end = digit_ptr;
-                result.end = digit_ptr;
-                result.valid = true;
-                return result;
-            }
-            /* Check for N suffix in fast path */
-            if (digit_ptr < end && *digit_ptr == 'N') {
-                result.negative = is_negative;
-                result.type = EDN_NUMBER_BIGINT;
-                result.digits_start = scan_ptr;
-                result.digits_end = digit_ptr;
-                result.end = digit_ptr + 1; /* Include N */
-                result.valid = true;
-                return result;
-            }
-            /* Check for M suffix in fast path - integers with M become BigDecimal */
-            if (digit_ptr < end && *digit_ptr == 'M') {
-                result.negative = is_negative;
-                result.type = EDN_NUMBER_BIGDEC;
-                result.digits_start = scan_ptr;
-                result.digits_end = digit_ptr;
-                result.end = digit_ptr + 1; /* Include M */
-                result.valid = true;
-                return result;
-            }
-        }
-    }
-
-    ptr = result.start;
-
-    if (*ptr == '-') {
-        result.negative = true;
-        ptr++;
-    } else if (*ptr == '+') {
-        ptr++;
-    }
-
-    if (ptr >= end) {
-        result.valid = false;
-        return result;
-    }
-
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
-    if (*ptr == '0' && ptr + 1 < end) {
-        if (ptr[1] == 'x' || ptr[1] == 'X') {
-            result.radix = 16;
-            ptr += 2;
-        } else if (ptr[1] >= '0' && ptr[1] <= '7') {
-            result.radix = 8;
-            ptr++;
-        } else if (ptr[1] >= '8' && ptr[1] <= '9') {
-            result.valid = false;
-            return result;
-        } else if (ptr[1] == '.' || ptr[1] == 'e' || ptr[1] == 'E') {
-            result.radix = 10;
-        }
-    } else if (*ptr >= '0' && *ptr <= '9') {
-        const char* r_pos = ptr;
-        while (r_pos < end && *r_pos >= '0' && *r_pos <= '9') {
-            r_pos++;
-        }
-        if (r_pos < end && *r_pos == 'r' && r_pos > ptr) {
-            int radix = 0;
-            for (const char* p = ptr; p < r_pos; p++) {
-                radix = radix * 10 + (*p - '0');
-            }
-            if (radix >= 2 && radix <= 36) {
-                result.radix = (uint8_t) radix;
-                ptr = r_pos + 1;
-            } else {
-                result.valid = false;
-                return result;
-            }
-        }
-    }
-#else
-    /* Standard EDN: reject leading zeros except for "0", "0.", "0eN" */
-    if (*ptr == '0' && ptr + 1 < end) {
-        if (ptr[1] == '.' || ptr[1] == 'e' || ptr[1] == 'E') {
-            /* 0.5 or 0e10 - valid float */
-            result.radix = 10;
-        } else if (ptr[1] >= '0' && ptr[1] <= '9') {
-            /* 01, 0123, etc. - invalid leading zero */
-            result.valid = false;
-            return result;
-        }
-        /* else: just "0" followed by delimiter - valid */
-    }
-#endif
-
-    if (ptr >= end) {
-        result.valid = false;
-        return result;
-    }
-
-    const char* digit_start = ptr;
-    result.digits_start = ptr; /* Track where actual digits begin */
-
-    if (result.radix == 10) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-        /* Scan decimal digits with optional underscores */
-        while (ptr < end) {
-            if (*ptr >= '0' && *ptr <= '9') {
-                ptr++;
-            } else if (*ptr == '_') {
-                /* Validate underscore position */
-                if (!is_valid_underscore_position(ptr, digit_start, end, 10)) {
-                    result.valid = false;
-                    return result;
-                }
-                ptr++;
-            } else {
-                break;
-            }
-        }
-#else
-        while (ptr < end && *ptr >= '0' && *ptr <= '9') {
-            ptr++;
-        }
-#endif
-    } else {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-        /* Scan digits for non-decimal radix with optional underscores */
-        while (ptr < end) {
-            if (digit_value(*ptr, result.radix) >= 0) {
-                ptr++;
-            } else if (*ptr == '_') {
-                /* Validate underscore position */
-                if (!is_valid_underscore_position(ptr, digit_start, end, result.radix)) {
-                    result.valid = false;
-                    return result;
-                }
-                ptr++;
-            } else {
-                break;
-            }
-        }
-#else
-        while (ptr < end && digit_value(*ptr, result.radix) >= 0) {
-            ptr++;
-        }
-#endif
-    }
-
-    if (ptr == digit_start) {
-        result.valid = false;
-        return result;
-    }
-
-    if (ptr < end && *ptr == '.') {
-        result.type = EDN_NUMBER_DOUBLE;
-        ptr++;
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-        const char* frac_start = ptr;
-        /* Scan fractional part with optional underscores */
-        while (ptr < end) {
-            if (*ptr >= '0' && *ptr <= '9') {
-                ptr++;
-            } else if (*ptr == '_') {
-                /* Validate underscore position in fractional part */
-                if (!is_valid_underscore_position(ptr, frac_start - 1, end, 10)) {
-                    result.valid = false;
-                    return result;
-                }
-                ptr++;
-            } else {
-                break;
-            }
-        }
-#else
-        while (ptr < end && *ptr >= '0' && *ptr <= '9') {
-            ptr++;
-        }
-#endif
-    }
-
-    if (ptr < end && (*ptr == 'e' || *ptr == 'E')) {
-        result.type = EDN_NUMBER_DOUBLE;
-        ptr++;
-        if (ptr < end && (*ptr == '+' || *ptr == '-')) {
-            ptr++;
-        }
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-        const char* exp_start = ptr;
-        /* Scan exponent with optional underscores */
-        while (ptr < end) {
-            if (*ptr >= '0' && *ptr <= '9') {
-                ptr++;
-            } else if (*ptr == '_') {
-                /* Validate underscore position in exponent */
-                if (!is_valid_underscore_position(ptr, exp_start - 1, end, 10)) {
-                    result.valid = false;
-                    return result;
-                }
-                ptr++;
-            } else {
-                break;
-            }
-        }
-#else
-        while (ptr < end && *ptr >= '0' && *ptr <= '9') {
-            ptr++;
-        }
-#endif
-    }
-
-    /* Save digits_end before checking for N/M suffix */
-    result.digits_end = ptr;
-
-    if (ptr < end && *ptr == 'N' && result.radix == 10) {
-        if (result.type == EDN_NUMBER_DOUBLE) {
-            /* Invalid: cannot have N suffix on float */
-            result.valid = false;
-            return result;
-        }
-        result.type = EDN_NUMBER_BIGINT;
-        ptr++;
-    } else if (ptr < end && *ptr == 'M') {
-        /* M suffix works on both integers and floats */
-        result.type = EDN_NUMBER_BIGDEC;
-        ptr++;
-    }
-
-    result.end = ptr;
-    result.valid = true;
-    return result;
+    return *parser->current;
 }
 
 /**
- * Parse int64_t with overflow detection.
+ * Advance parser by one character.
+ */
+static inline void advance_char(edn_parser_t* parser) {
+    if (parser->current < parser->end) {
+        parser->current++;
+    }
+}
+
+/**
+ * Set parser error.
+ */
+static inline void set_error(edn_parser_t* parser, const char* message) {
+    parser->error = EDN_ERROR_INVALID_NUMBER;
+    parser->error_message = message;
+}
+
+/**
+ * Helper to set BigInt fields.
+ */
+static inline void set_bigint(edn_value_t* value, const char* digits, size_t length, bool negative,
+                              uint8_t radix) {
+    value->type = EDN_TYPE_BIGINT;
+    value->as.bigint.digits = digits;
+    value->as.bigint.length = length;
+    value->as.bigint.negative = negative;
+    value->as.bigint.radix = radix;
+    value->as.bigint.cleaned = NULL; /* Lazy cleaning */
+}
+
+/**
+ * Helper to set BigDecimal fields.
+ */
+static inline void set_bigdec(edn_value_t* value, const char* decimal, size_t length,
+                              bool negative) {
+    value->type = EDN_TYPE_BIGDEC;
+    value->as.bigdec.decimal = decimal;
+    value->as.bigdec.length = length;
+    value->as.bigdec.negative = negative;
+    value->as.bigdec.cleaned = NULL; /* Lazy cleaning */
+}
+
+/**
+ * Parse integer with overflow detection for int64_t.
  * 
  * Three-tier strategy:
  * 1. Ultra-fast: 1-3 decimal digits (no overflow check needed)
  * 2. SWAR: 8-digit chunks for long decimals (5x scalar speed)
  * 3. General: Scalar with full overflow detection
  * 
- * Returns false on overflow (caller promotes to BigInt).
+ * Skips underscores if EDN_ENABLE_UNDERSCORE_IN_NUMERIC is enabled.
+ * Returns false on overflow.
  */
-bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t radix) {
-    if (!start || !end || !out || start >= end) {
-        return false;
-    }
-
-    bool negative = false;
+static bool parse_int64_from_buffer(const char* start, const char* end, int64_t* out, uint8_t radix,
+                                    bool negative) {
     const char* ptr = start;
 
-    if (*ptr == '-') {
-        negative = true;
-        ptr++;
-    } else if (*ptr == '+') {
-        ptr++;
-    }
-
-    if (ptr >= end) {
-        return false;
-    }
-
+    /* Ultra-fast path: 1-3 decimal digits (no overflow check needed) */
     if (radix == 10 && (end - ptr) <= 3) {
         int64_t value = 0;
         const char* digit_ptr = ptr;
@@ -508,9 +209,10 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
     const uint64_t cutoff = max_val / radix;
     const uint64_t cutlim = max_val % radix;
 
+    /* SWAR fast path: 8-digit chunks for decimal radix */
     if (radix == 10) {
 #ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
-        /* With underscores enabled, try SWAR for 8-digit chunks without underscores first */
+        /* With underscores enabled, try SWAR for 8-digit chunks without underscores */
         while ((end - ptr) >= 8) {
             /* Check if next 8 bytes are all digits (no underscores) */
             if (is_made_of_eight_digits_fast(ptr)) {
@@ -518,17 +220,17 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
 
                 const uint64_t multiplier = 100000000;
                 if (value > max_val / multiplier) {
-                    return false;
+                    return false; /* Overflow */
                 }
 
                 uint64_t new_value = value * multiplier + eight_digits;
 
                 if (new_value < value) {
-                    return false;
+                    return false; /* Overflow */
                 }
 
                 if (new_value > max_val) {
-                    return false;
+                    return false; /* Overflow */
                 }
 
                 value = new_value;
@@ -553,34 +255,38 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
             int digit = c - '0';
 
             if (value > cutoff || (value == cutoff && (uint64_t) digit > cutlim)) {
-                return false;
+                return false; /* Overflow */
             }
 
             value = value * 10 + digit;
             ptr++;
         }
 #else
-        /* SWAR fast path for 8-digit chunks */
-        while ((end - ptr) >= 8 && is_made_of_eight_digits_fast(ptr)) {
-            uint32_t eight_digits = parse_eight_digits_unrolled(ptr);
+        /* Without underscores, always try SWAR first */
+        while ((end - ptr) >= 8) {
+            if (is_made_of_eight_digits_fast(ptr)) {
+                uint32_t eight_digits = parse_eight_digits_unrolled(ptr);
 
-            const uint64_t multiplier = 100000000;
-            if (value > max_val / multiplier) {
-                return false;
+                const uint64_t multiplier = 100000000;
+                if (value > max_val / multiplier) {
+                    return false; /* Overflow */
+                }
+
+                uint64_t new_value = value * multiplier + eight_digits;
+
+                if (new_value < value) {
+                    return false; /* Overflow */
+                }
+
+                if (new_value > max_val) {
+                    return false; /* Overflow */
+                }
+
+                value = new_value;
+                ptr += 8;
+            } else {
+                break;
             }
-
-            uint64_t new_value = value * multiplier + eight_digits;
-
-            if (new_value < value) {
-                return false;
-            }
-
-            if (new_value > max_val) {
-                return false;
-            }
-
-            value = new_value;
-            ptr += 8;
         }
 
         /* Process remaining digits */
@@ -593,7 +299,7 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
             int digit = c - '0';
 
             if (value > cutoff || (value == cutoff && (uint64_t) digit > cutlim)) {
-                return false;
+                return false; /* Overflow */
             }
 
             value = value * 10 + digit;
@@ -601,6 +307,7 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
         }
 #endif
     } else {
+        /* Non-decimal radix: use scalar loop with overflow detection */
         while (ptr < end) {
 #ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
             if (*ptr == '_') {
@@ -614,7 +321,7 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
             }
 
             if (value > cutoff || (value == cutoff && (uint64_t) digit > cutlim)) {
-                return false;
+                return false; /* Overflow */
             }
 
             value = value * radix + digit;
@@ -622,12 +329,7 @@ bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t r
         }
     }
 
-    if (negative) {
-        *out = -(int64_t) value;
-    } else {
-        *out = (int64_t) value;
-    }
-
+    *out = negative ? -(int64_t) value : (int64_t) value;
     return true;
 }
 
@@ -660,13 +362,13 @@ static const double POWER_OF_TEN_NEGATIVE[23] = {
  * Constraints: exponent in [-22, 22], mantissa < 2^53.
  * Returns true if successful, false to fall back to strtod().
  */
-static inline bool edn_parse_double_fast(int64_t mantissa, int64_t exponent, bool negative,
-                                         double* out) {
+static inline bool parse_double_fast(int64_t mantissa, int64_t exponent, bool negative,
+                                     double* out) {
     if (exponent < -22 || exponent > 22) {
         return false;
     }
 
-    if (mantissa > 9007199254740991LL) {
+    if (mantissa > 9007199254740991LL) { /* 2^53 - 1 */
         return false;
     }
 
@@ -692,19 +394,24 @@ static inline bool edn_parse_double_fast(int64_t mantissa, int64_t exponent, boo
  * 2. Compute effective exponent
  * 3. Try Clinger fast path (90% success rate)
  * 4. Fall back to strtod() for edge cases
+ * 
+ * Skips underscores if EDN_ENABLE_UNDERSCORE_IN_NUMERIC is enabled.
  */
-double edn_parse_double(const char* start, const char* end) {
+static double parse_double_from_buffer(const char* start, const char* end) {
     const char* ptr = start;
     bool negative = false;
 
+    /* Parse sign */
     if (ptr < end && (*ptr == '-' || *ptr == '+')) {
         negative = (*ptr == '-');
         ptr++;
     }
 
+    /* Parse integer and fractional parts into mantissa */
     int64_t mantissa = 0;
     size_t digit_count = 0;
 
+    /* Integer part */
     while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
 #ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
                          || *ptr == '_'
@@ -721,6 +428,7 @@ double edn_parse_double(const char* start, const char* end) {
         ptr++;
     }
 
+    /* Fractional part */
     int64_t exponent = 0;
     if (ptr < end && *ptr == '.') {
         ptr++;
@@ -744,6 +452,7 @@ double edn_parse_double(const char* start, const char* end) {
         digit_count += frac_digits;
     }
 
+    /* Exponent part */
     if (ptr < end && (*ptr == 'e' || *ptr == 'E')) {
         ptr++;
         bool exp_negative = false;
@@ -769,19 +478,22 @@ double edn_parse_double(const char* start, const char* end) {
                 exp_value = 1000;
                 break;
             }
+            ptr++;
         }
 
         exponent += exp_negative ? -exp_value : exp_value;
     }
 
+    /* Try Clinger fast path (90% of cases) */
     double result;
-    if (digit_count <= 15 && edn_parse_double_fast(mantissa, exponent, negative, &result)) {
+    if (digit_count <= 15 && parse_double_fast(mantissa, exponent, negative, &result)) {
         return result;
     }
 
+    /* Fall back to strtod() for edge cases */
 #ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
     /* For strtod fallback with underscores, we need to create a cleaned buffer */
-    char buffer[256];
+    char buffer[512];
     size_t buf_idx = 0;
 
     for (const char* p = start; p < end && buf_idx < sizeof(buffer) - 1; p++) {
@@ -801,13 +513,15 @@ double edn_parse_double(const char* start, const char* end) {
     result = strtod(buffer, &endptr);
 
     if (errno == ERANGE) {
-        return result;
+        return result; /* Infinity or underflow to zero */
     }
 
     return result;
 #else
+    /* No underscores, can use buffer directly */
     size_t len = end - start;
-    char buffer[256];
+    char buffer[512];
+
     if (len >= sizeof(buffer)) {
         return NAN;
     }
@@ -820,9 +534,524 @@ double edn_parse_double(const char* start, const char* end) {
     result = strtod(buffer, &endptr);
 
     if (errno == ERANGE) {
-        return result;
+        return result; /* Infinity or underflow to zero */
     }
 
     return result;
 #endif
+}
+
+/**
+ * Main entry point for number parsing.
+ *
+ * Precondition: parser->current points to sign or first digit of number.
+ * Uses zero-copy approach: stores pointers into input buffer.
+ */
+edn_value_t* edn_read_number(edn_parser_t* parser) {
+    const char* start = parser->current;
+    const char* digits_start = start;
+    bool negative = false;
+    uint8_t radix = 10;
+    bool has_decimal_point = false;
+    bool has_exponent = false;
+
+    char c = peek_char(parser);
+
+    /* Parse sign */
+    if (c == '-' || c == '+') {
+        negative = (c == '-');
+        advance_char(parser);
+        digits_start = parser->current;
+        c = peek_char(parser);
+    }
+
+    /* Check for radix notation: NrDDDD (e.g., 16rFF, 2r1010) */
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+    if (c >= '0' && c <= '9') {
+        /* Look ahead for 'r' to detect radix notation */
+        const char* r_pos = parser->current;
+        while (r_pos < parser->end && *r_pos >= '0' && *r_pos <= '9') {
+            r_pos++;
+        }
+
+        if (r_pos < parser->end && *r_pos == 'r' && r_pos > parser->current) {
+            /* Parse radix value */
+            int radix_val = 0;
+            for (const char* p = parser->current; p < r_pos; p++) {
+                radix_val = radix_val * 10 + (*p - '0');
+            }
+
+            if (radix_val >= 2 && radix_val <= 36) {
+                /* Valid radix notation */
+                radix = (uint8_t) radix_val;
+                parser->current = r_pos + 1; /* Skip past 'r' */
+                digits_start = parser->current;
+                c = peek_char(parser);
+                goto parse_radix_digits;
+            } else {
+                set_error(parser, "Radix must be between 2 and 36");
+                return NULL;
+            }
+        }
+    }
+#endif
+
+    /* Check for zero prefix */
+    if (c == '0') {
+        advance_char(parser);
+        c = peek_char(parser);
+
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+
+        /* Skip all following zeros */
+        while (c == '0') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+
+        if (c == 'x' || c == 'X') {
+            /* Hexadecimal: 0xFF */
+            radix = 16;
+            advance_char(parser);
+            digits_start = parser->current;
+            goto parse_hex_digits;
+        }
+
+        if (c >= '1' && c <= '7') {
+            /* Octal: 0777 */
+            radix = 8;
+            goto parse_octal_digits;
+        }
+
+        if (c == '8' || c == '9') {
+            /* Invalid: 08 or 09 */
+            set_error(parser, "Invalid octal digit");
+            return NULL;
+        }
+#else
+        /* Standard EDN: reject leading zeros before digits */
+        if (c >= '0' && c <= '9') {
+            set_error(parser, "Leading zeros not allowed");
+            return NULL;
+        }
+#endif
+
+        /* Check what follows zero */
+        if (c == '.') {
+            /* Float: 0.5 */
+            has_decimal_point = true;
+            goto parse_decimal_part;
+        }
+
+
+        if (c == 'N') {
+            /* BigInt: 0N */
+            advance_char(parser);
+            goto create_bigint_zero;
+        }
+
+        if (c == 'M') {
+            /* BigDecimal: 0M */
+            advance_char(parser);
+            goto create_bigdec_zero;
+        }
+
+        if (c == 'e' || c == 'E') {
+            /* Scientific: 0e10 */
+            has_exponent = true;
+            goto parse_exponent;
+        }
+
+        /* Just zero */
+        goto create_integer_zero;
+    }
+
+    /* Parse decimal digits */
+    while (c != '\0' && !is_delimiter((unsigned char) c)) {
+        if (c >= '0' && c <= '9') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        else if (c == '_') {
+            advance_char(parser);
+            c = peek_char(parser);
+            /* Next must be digit or underscore */
+            if (c != '_' && (c < '0' || c > '9')) {
+                set_error(parser, "Invalid underscore position");
+                return NULL;
+            }
+        }
+#endif
+        else {
+            break;
+        }
+    }
+
+    /* Check for decimal point */
+    if (c == '.') {
+        has_decimal_point = true;
+    parse_decimal_part:
+        advance_char(parser);
+        c = peek_char(parser);
+
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        /* Underscore immediately after decimal point is invalid */
+        if (c == '_') {
+            set_error(parser, "Underscore cannot be adjacent to decimal point");
+            return NULL;
+        }
+#endif
+
+        /* Parse fractional digits */
+        while ((c >= '0' && c <= '9')
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+               || c == '_'
+#endif
+        ) {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+    }
+
+    /* Check for exponent */
+    if (c == 'e' || c == 'E') {
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        /* Check if previous character was underscore */
+        if (parser->current > digits_start && *(parser->current - 1) == '_') {
+            set_error(parser, "Underscore cannot be adjacent to exponent");
+            return NULL;
+        }
+#endif
+        has_exponent = true;
+    parse_exponent:
+        advance_char(parser);
+        c = peek_char(parser);
+
+        /* Optional sign */
+        if (c == '+' || c == '-') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+
+        /* Exponent digits */
+        if (c < '0' || c > '9') {
+            set_error(parser, "Expected exponent digits");
+            return NULL;
+        }
+
+        while ((c >= '0' && c <= '9')
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+               || c == '_'
+#endif
+        ) {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+    }
+
+    /* Check for suffixes */
+    const char* digits_end = parser->current;
+    bool is_bigint_suffix = false;
+    bool is_bigdec_suffix = false;
+
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    /* Check if previous character was underscore before suffix */
+    if (c == 'N' || c == 'M') {
+        if (parser->current > digits_start && *(parser->current - 1) == '_') {
+            set_error(parser, "Underscore cannot be adjacent to suffix");
+            return NULL;
+        }
+    }
+#endif
+
+    if (c == 'N' && radix == 10 && !has_decimal_point && !has_exponent) {
+        is_bigint_suffix = true;
+        advance_char(parser);
+    } else if (c == 'M') {
+        is_bigdec_suffix = true;
+        advance_char(parser);
+    }
+
+    /* Create value based on type */
+    edn_value_t* value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+
+    if (is_bigdec_suffix) {
+        /* BigDecimal - store pointer to digits with underscores */
+        set_bigdec(value, digits_start, digits_end - digits_start, negative);
+    } else if (is_bigint_suffix) {
+        /* BigInt - store pointer to digits with underscores */
+        set_bigint(value, digits_start, digits_end - digits_start, negative, radix);
+    } else if (has_decimal_point || has_exponent) {
+        /* Double */
+        value->type = EDN_TYPE_FLOAT;
+        value->as.floating = parse_double_from_buffer(start, digits_end);
+    } else {
+        /* Try to fit in int64 */
+        int64_t num;
+        if (parse_int64_from_buffer(digits_start, digits_end, &num, radix, negative)) {
+            value->type = EDN_TYPE_INT;
+            value->as.integer = num;
+        } else {
+            /* Overflow - becomes BigInt */
+            set_bigint(value, digits_start, digits_end - digits_start, negative, radix);
+        }
+    }
+
+    return value;
+
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+    /* Radix notation parsing (2r1010, 16rFF, 36rZZ, etc.) */
+parse_radix_digits:
+    is_bigint_suffix = false; /* Reset suffix flag */
+    is_bigdec_suffix = false; /* Reset suffix flag */
+    c = peek_char(parser);
+
+    /* Must have at least one digit */
+    if (!is_digit_in_radix(c, radix)) {
+        set_error(parser, "Expected digit after radix specifier");
+        return NULL;
+    }
+
+    while (c != '\0' && !is_delimiter((unsigned char) c)) {
+        if (is_digit_in_radix(c, radix)) {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        else if (c == '_') {
+            advance_char(parser);
+            c = peek_char(parser);
+            /* Next must be digit or underscore */
+            if (!is_digit_in_radix(c, radix) && c != '_') {
+                set_error(parser, "Invalid underscore position");
+                return NULL;
+            }
+        }
+#endif
+        else {
+            break;
+        }
+    }
+
+    digits_end = parser->current;
+
+    /* Radix notation cannot have N suffix (N might be a digit in base > 23) */
+    /* But can have M suffix */
+    if (c == 'M') {
+        is_bigdec_suffix = true;
+        advance_char(parser);
+    }
+
+    /* Reject ratio notation with non-decimal radix */
+    if (c == '/') {
+        set_error(parser, "Ratio notation not allowed with radix integers");
+        return NULL;
+    }
+
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+
+    if (is_bigdec_suffix) {
+        set_bigdec(value, digits_start, digits_end - digits_start, negative);
+    } else {
+        int64_t num;
+        if (parse_int64_from_buffer(digits_start, digits_end, &num, radix, negative)) {
+            value->type = EDN_TYPE_INT;
+            value->as.integer = num;
+        } else {
+            set_bigint(value, digits_start, digits_end - digits_start, negative, radix);
+        }
+    }
+
+    return value;
+
+    /* Hexadecimal parsing */
+parse_hex_digits:
+    is_bigint_suffix = false; /* Reset suffix flag */
+    is_bigdec_suffix = false; /* Reset suffix flag */
+    c = peek_char(parser);
+
+    /* Must have at least one hex digit */
+    if (!is_digit_in_radix(c, 16)) {
+        set_error(parser, "Expected hex digit after 0x");
+        return NULL;
+    }
+
+    while (c != '\0' && !is_delimiter((unsigned char) c)) {
+        if (is_digit_in_radix(c, 16)) {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        else if (c == '_') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#endif
+        else {
+            break;
+        }
+    }
+
+    digits_end = parser->current;
+
+    /* Check for N or M suffix */
+    if (c == 'N') {
+        /* N suffix forces BigInt */
+        is_bigint_suffix = true;
+        advance_char(parser);
+        c = peek_char(parser);
+    } else if (c == 'M') {
+        is_bigdec_suffix = true;
+        advance_char(parser);
+        c = peek_char(parser);
+    }
+
+    /* Reject ratio notation with hexadecimal */
+    if (c == '/') {
+        set_error(parser, "Ratio notation not allowed with hexadecimal integers");
+        return NULL;
+    }
+
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+
+    if (is_bigdec_suffix) {
+        set_bigdec(value, digits_start, digits_end - digits_start, negative);
+    } else if (is_bigint_suffix) {
+        /* N suffix forces BigInt representation */
+        set_bigint(value, digits_start, digits_end - digits_start, negative, 16);
+    } else {
+        int64_t num;
+        if (parse_int64_from_buffer(digits_start, digits_end, &num, 16, negative)) {
+            value->type = EDN_TYPE_INT;
+            value->as.integer = num;
+        } else {
+            set_bigint(value, digits_start, digits_end - digits_start, negative, 16);
+        }
+    }
+
+    return value;
+
+    /* Octal parsing */
+parse_octal_digits:
+    is_bigint_suffix = false; /* Reset suffix flag */
+    is_bigdec_suffix = false; /* Reset suffix flag */
+    c = peek_char(parser);
+
+    /* Must have at least one octal digit */
+    if (!is_digit_in_radix(c, 8)) {
+        set_error(parser, "Expected octal digit");
+        return NULL;
+    }
+
+    while (c != '\0' && !is_delimiter((unsigned char) c)) {
+        if (is_digit_in_radix(c, 8)) {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+        else if (c == '_') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+#endif
+        else {
+            break;
+        }
+    }
+
+    digits_end = parser->current;
+
+    /* Check for N or M suffix */
+    if (c == 'N') {
+        /* N suffix forces BigInt */
+        is_bigint_suffix = true;
+        advance_char(parser);
+        c = peek_char(parser);
+    } else if (c == 'M') {
+        is_bigdec_suffix = true;
+        advance_char(parser);
+        c = peek_char(parser); /* Update c after advancing past M */
+    }
+
+    /* Determine which radix to use for parsing */
+    uint8_t parse_radix = 8; /* Default to octal */
+
+    /* Special case: if followed by '/', treat as decimal for ratio notation (Clojure compatibility) */
+    if (c == '/') {
+        parse_radix = 10; /* Reinterpret as decimal */
+    }
+
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+
+    if (is_bigdec_suffix) {
+        set_bigdec(value, digits_start, digits_end - digits_start, negative);
+    } else if (is_bigint_suffix) {
+        /* N suffix forces BigInt representation */
+        set_bigint(value, digits_start, digits_end - digits_start, negative, parse_radix);
+    } else {
+        int64_t num;
+        /* Use parse_radix (10 if followed by '/', 8 otherwise) */
+        if (parse_int64_from_buffer(digits_start, digits_end, &num, parse_radix, negative)) {
+            value->type = EDN_TYPE_INT;
+            value->as.integer = num;
+        } else {
+            set_bigint(value, digits_start, digits_end - digits_start, negative, parse_radix);
+        }
+    }
+
+    return value;
+#endif
+
+    /* Special cases for zero */
+create_integer_zero:
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+    value->type = EDN_TYPE_INT;
+    value->as.integer = 0;
+    return value;
+
+create_bigint_zero:
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+    set_bigint(value, "0", 1, negative, 10);
+    return value;
+
+create_bigdec_zero:
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+    set_bigdec(value, "0", 1, negative);
+    return value;
 }

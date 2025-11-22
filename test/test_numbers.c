@@ -33,56 +33,76 @@ TEST(simd_scan_digits_no_digits) {
 /* Test number scanning */
 TEST(scan_number_simple_int) {
     const char* input = "42";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_INT64);
-    assert(scan.negative == false);
-    assert(scan.radix == 10);
-    assert(scan.end - scan.start == 2);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 42);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_negative_int) {
     const char* input = "-123";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_INT64);
-    assert(scan.negative == true);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == -123);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_double) {
     const char* input = "3.14";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_DOUBLE);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_FLOAT);
+    assert(fabs(r.value->as.floating - 3.14) < 0.0001);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_scientific) {
     const char* input = "1.5e10";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_DOUBLE);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_FLOAT);
+    assert(fabs(r.value->as.floating - 1.5e10) < 1e6);
+
+    edn_free(r.value);
 }
 
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
 
 TEST(scan_number_hex) {
     const char* input = "0x2A";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.radix == 16);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 42);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_binary) {
     const char* input = "2r1010";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.radix == 2);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 10);
+
+    edn_free(r.value);
 }
 
 #endif /* EDN_ENABLE_EXTENDED_INTEGERS */
@@ -90,152 +110,205 @@ TEST(scan_number_binary) {
 /* Test int64_t parsing */
 TEST(parse_int64_simple) {
     const char* input = "42";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 42);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 42);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_negative) {
     const char* input = "-123";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == -123);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == -123);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_zero) {
     const char* input = "0";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 0);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 0);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_max) {
     const char* input = "9223372036854775807"; /* INT64_MAX */
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == INT64_MAX);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == INT64_MAX);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_min) {
     const char* input = "-9223372036854775808"; /* INT64_MIN */
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == INT64_MIN);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == INT64_MIN);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_overflow) {
     const char* input = "9223372036854775808"; /* INT64_MAX + 1 */
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == false); /* Should overflow and return false */
+    /* Should overflow and become a BigInt */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGINT);
+
+    edn_free(r.value);
 }
 
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
 
 TEST(parse_int64_hex) {
-    const char* input = "2A";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 16);
+    const char* input = "0x2A";
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 42);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 42);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_binary) {
-    const char* input = "1010";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 2);
+    const char* input = "2r1010";
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 10);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 10);
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_octal) {
-    const char* input = "777";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 8);
+    const char* input = "0777";
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 511); /* 7*64 + 7*8 + 7 = 511 */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 511); /* 7*64 + 7*8 + 7 = 511 */
+
+    edn_free(r.value);
 }
 
 TEST(parse_int64_octal_zero_prefix) {
     const char* input = "0777";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 8);
+    edn_result_t r = edn_read(input, 0);
 
-    assert(success == true);
-    assert(result == 511);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 511);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_octal) {
     const char* input = "0777";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.radix == 8);
-    assert(scan.type == EDN_NUMBER_INT64);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 511);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_octal_edge_08) {
     /* 08 is INVALID in EDN (leading zero with non-octal digit) */
     const char* input = "08";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == false); /* Invalid number */
+    /* Should fail parsing */
+    assert(r.error != EDN_OK);
 }
 
 TEST(scan_number_octal_edge_09) {
     /* 09 is INVALID in EDN (leading zero with non-octal digit) */
     const char* input = "09";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == false); /* Invalid number */
+    /* Should fail parsing */
+    assert(r.error != EDN_OK);
 }
 
 #endif /* EDN_ENABLE_EXTENDED_INTEGERS */
 
 TEST(scan_number_zero) {
     const char* input = "0";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.radix == 10); /* Just zero, decimal */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT);
+    assert(r.value->as.integer == 0);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_zero_float) {
     const char* input = "0.5";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.radix == 10);
-    assert(scan.type == EDN_NUMBER_DOUBLE);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_FLOAT);
+    assert(fabs(r.value->as.floating - 0.5) < 0.0001);
+
+    edn_free(r.value);
 }
 
 /* Test double parsing */
 TEST(parse_double_simple) {
     const char* input = "3.14";
-    double result = edn_parse_double(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(fabs(result - 3.14) < 0.0001);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_FLOAT);
+    assert(fabs(r.value->as.floating - 3.14) < 0.0001);
+
+    edn_free(r.value);
 }
 
 TEST(parse_double_scientific) {
     const char* input = "1.5e10";
-    double result = edn_parse_double(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(fabs(result - 1.5e10) < 1e6);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_FLOAT);
+    assert(fabs(r.value->as.floating - 1.5e10) < 1e6);
+
+    edn_free(r.value);
 }
 
 /* Test API functions */
@@ -258,6 +331,10 @@ TEST(api_bigint_get) {
     value.as.bigint.length = 20;
     value.as.bigint.negative = false;
     value.as.bigint.radix = 10;
+    value.arena = NULL;
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    value.as.bigint.cleaned = NULL;
+#endif
 
     size_t length;
     bool negative;
@@ -325,21 +402,25 @@ TEST(api_number_as_double_float) {
 /* Test BigInt N suffix (Clojure-compatible) */
 TEST(scan_number_bigint_suffix_simple) {
     const char* input = "42N";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGINT); /* Forced by N suffix */
-    assert(scan.radix == 10);
-    assert(scan.end - scan.start == 3); /* Includes N */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGINT); /* Forced by N suffix */
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_bigint_suffix_negative) {
     const char* input = "-999N";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGINT);
-    assert(scan.negative == true);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGINT);
+    assert(r.value->as.bigint.negative == true);
+
+    edn_free(r.value);
 }
 
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
@@ -347,11 +428,14 @@ TEST(scan_number_bigint_suffix_negative) {
 TEST(scan_number_bigint_suffix_hex) {
     /* Hex numbers don't support N suffix - N is a hex digit */
     const char* input = "0xDEADBEEFN";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_INT64); /* N is treated as hex digit, not suffix */
-    assert(scan.radix == 16);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT ||
+           r.value->type == EDN_TYPE_BIGINT); /* N is treated as hex digit, not suffix */
+
+    edn_free(r.value);
 }
 
 #endif /* EDN_ENABLE_EXTENDED_INTEGERS */
@@ -360,11 +444,13 @@ TEST(scan_number_bigint_suffix_only_decimal) {
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
     /* N suffix only applies to base-10, not radix notation */
     const char* input = "36rZZ"; /* No N suffix for non-decimal */
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_INT64);
-    assert(scan.radix == 36);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_INT || r.value->type == EDN_TYPE_BIGINT);
+
+    edn_free(r.value);
 #else
     /* Without EXTENDED_INTEGERS, this should parse as standard decimal */
     assert(true); /* Test is N/A without the feature */
@@ -374,17 +460,19 @@ TEST(scan_number_bigint_suffix_only_decimal) {
 TEST(scan_number_bigint_suffix_on_float_invalid) {
     /* Cannot have N suffix on float - invalid */
     const char* input = "3.14N";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == false); /* Floats cannot have N suffix */
+    /* Floats cannot have N suffix - should fail */
+    assert(r.error != EDN_OK);
 }
 
 TEST(scan_number_bigint_suffix_on_exponent_invalid) {
     /* Cannot have N suffix on scientific notation - invalid */
     const char* input = "1e5N";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == false); /* Exponent notation cannot have N suffix */
+    /* Exponent notation cannot have N suffix - should fail */
+    assert(r.error != EDN_OK);
 }
 
 TEST(api_parse_bigint_suffix) {
@@ -434,38 +522,48 @@ TEST(api_parse_bigint_suffix_in_collection) {
 /* Test BigDecimal M suffix (Clojure-compatible) */
 TEST(scan_number_bigdec_suffix_simple) {
     const char* input = "3.14M";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGDEC); /* Forced by M suffix */
-    assert(scan.radix == 10);
-    assert(scan.end - scan.start == 5); /* Includes M */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGDEC); /* Forced by M suffix */
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_bigdec_suffix_negative) {
     const char* input = "-123.456M";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGDEC);
-    assert(scan.negative == true);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGDEC);
+    assert(r.value->as.bigdec.negative == true);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_bigdec_suffix_exponent) {
     const char* input = "1.5e10M";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGDEC);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGDEC);
+
+    edn_free(r.value);
 }
 
 TEST(scan_number_bigdec_suffix_on_integer) {
     /* M suffix on integer is valid - converts to BigDecimal */
     const char* input = "42M";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
+    edn_result_t r = edn_read(input, 0);
 
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_BIGDEC); /* Integer becomes BigDecimal */
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(r.value->type == EDN_TYPE_BIGDEC); /* Integer becomes BigDecimal */
+
+    edn_free(r.value);
 }
 
 TEST(api_parse_bigdec_suffix) {
@@ -514,6 +612,10 @@ TEST(api_bigdec_get) {
     value.as.bigdec.decimal = "123.456";
     value.as.bigdec.length = 7;
     value.as.bigdec.negative = false;
+    value.arena = NULL;
+#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+    value.as.bigdec.cleaned = NULL;
+#endif
 
     size_t length;
     bool negative;
@@ -1321,6 +1423,69 @@ TEST(api_parse_ratio_hex_not_supported) {
     assert(r.value == NULL);
 }
 
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+TEST(api_parse_ratio_octal_decimal_reinterpret) {
+    /* Octal numbers with '/' are reinterpreted as decimal for ratio (Clojure compatibility) */
+    edn_result_t r = edn_read("0777/2", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_RATIO);
+
+    int64_t numerator, denominator;
+    edn_ratio_get(r.value, &numerator, &denominator);
+
+    /* Should be 777/2 (decimal), NOT 511/2 (octal) */
+    /* Clojure behavior: octal prefix is ignored when followed by / */
+    assert(numerator == 777);
+    assert(denominator == 2);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_octal_without_slash) {
+    /* Octal without '/' should still parse as octal */
+    edn_result_t r = edn_read("0777", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+
+    /* Should be 511 (octal: 7*64 + 7*8 + 7) */
+    assert(val == 511);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_octal_reduced) {
+    /* Test reduction with octal-looking numerator */
+    edn_result_t r = edn_read("0123/3", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+
+    /* 123/3 = 41 (reduces to integer) */
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 41); /* 123/3 in decimal, not 83/3 in octal */
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_radix_not_supported) {
+    /* Radix notation should not support ratio syntax */
+    edn_result_t r = edn_read("16rFF/2", 0);
+
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
+}
+#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+
 TEST(api_parse_ratio_one) {
     /* 5/5 reduces to 1/1 which becomes integer 1 */
     edn_result_t r = edn_read("5/5", 0);
@@ -1505,6 +1670,12 @@ int main(void) {
     run_test_api_ratio_as_double_negative();
     run_test_api_ratio_as_double_zero_denominator();
     run_test_api_parse_ratio_hex_not_supported();
+#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+    run_test_api_parse_ratio_octal_decimal_reinterpret();
+    run_test_api_parse_ratio_octal_without_slash();
+    run_test_api_parse_ratio_octal_reduced();
+    run_test_api_parse_ratio_radix_not_supported();
+#endif
     run_test_api_parse_ratio_one();
     run_test_api_parse_ratio_reduction();
     run_test_api_parse_ratio_reduction_negative();

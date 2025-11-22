@@ -84,17 +84,25 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
         case EDN_TYPE_INT:
             return a->as.integer == b->as.integer;
 
-        case EDN_TYPE_BIGINT:
+        case EDN_TYPE_BIGINT: {
             if (a->as.bigint.radix != b->as.bigint.radix) {
                 return false;
             }
             if (a->as.bigint.negative != b->as.bigint.negative) {
                 return false;
             }
-            if (a->as.bigint.length != b->as.bigint.length) {
+
+            size_t len_a, len_b;
+            uint8_t radix_a, radix_b;
+            bool neg_a, neg_b;
+            const char* digits_a = edn_bigint_get(a, &len_a, &neg_a, &radix_a);
+            const char* digits_b = edn_bigint_get(b, &len_b, &neg_b, &radix_b);
+
+            if (len_a != len_b) {
                 return false;
             }
-            return memcmp(a->as.bigint.digits, b->as.bigint.digits, a->as.bigint.length) == 0;
+            return memcmp(digits_a, digits_b, len_a) == 0;
+        }
 
         case EDN_TYPE_FLOAT:
             if (isnan(a->as.floating) && isnan(b->as.floating)) {
@@ -102,14 +110,21 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             }
             return a->as.floating == b->as.floating;
 
-        case EDN_TYPE_BIGDEC:
+        case EDN_TYPE_BIGDEC: {
             if (a->as.bigdec.negative != b->as.bigdec.negative) {
                 return false;
             }
-            if (a->as.bigdec.length != b->as.bigdec.length) {
+
+            size_t len_a, len_b;
+            bool neg_a, neg_b;
+            const char* decimal_a = edn_bigdec_get(a, &len_a, &neg_a);
+            const char* decimal_b = edn_bigdec_get(b, &len_b, &neg_b);
+
+            if (len_a != len_b) {
                 return false;
             }
-            return memcmp(a->as.bigdec.decimal, b->as.bigdec.decimal, a->as.bigdec.length) == 0;
+            return memcmp(decimal_a, decimal_b, len_a) == 0;
+        }
 
 #ifdef EDN_ENABLE_RATIO
         case EDN_TYPE_RATIO:
@@ -418,16 +433,23 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             break;
         }
 
-        case EDN_TYPE_BIGINT:
-            hash ^= value->as.bigint.radix;
+        case EDN_TYPE_BIGINT: {
+            /* Use cleaned digits for hashing */
+            size_t len;
+            bool neg;
+            uint8_t radix;
+            const char* digits = edn_bigint_get(value, &len, &neg, &radix);
+
+            hash ^= radix;
             hash *= FNV_PRIME;
-            hash ^= value->as.bigint.negative ? 1 : 0;
+            hash ^= neg ? 1 : 0;
             hash *= FNV_PRIME;
-            for (size_t i = 0; i < value->as.bigint.length; i++) {
-                hash ^= (uint8_t) value->as.bigint.digits[i];
+            for (size_t i = 0; i < len; i++) {
+                hash ^= (uint8_t) digits[i];
                 hash *= FNV_PRIME;
             }
             break;
+        }
 
         case EDN_TYPE_FLOAT: {
             union {
@@ -447,14 +469,20 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             break;
         }
 
-        case EDN_TYPE_BIGDEC:
-            hash ^= value->as.bigdec.negative ? 1 : 0;
+        case EDN_TYPE_BIGDEC: {
+            /* Use cleaned decimal for hashing */
+            size_t len;
+            bool neg;
+            const char* decimal = edn_bigdec_get(value, &len, &neg);
+
+            hash ^= neg ? 1 : 0;
             hash *= FNV_PRIME;
-            for (size_t i = 0; i < value->as.bigdec.length; i++) {
-                hash ^= (uint8_t) value->as.bigdec.decimal[i];
+            for (size_t i = 0; i < len; i++) {
+                hash ^= (uint8_t) decimal[i];
                 hash *= FNV_PRIME;
             }
             break;
+        }
 
 #ifdef EDN_ENABLE_RATIO
         case EDN_TYPE_RATIO: {

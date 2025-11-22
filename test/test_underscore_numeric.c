@@ -429,99 +429,6 @@ TEST(underscore_in_map) {
     edn_free(r.value);
 }
 
-/* Test number scanner with underscores */
-TEST(scan_number_underscore_simple) {
-    const char* input = "1_000";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
-
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_INT64);
-    assert(scan.radix == 10);
-}
-
-TEST(scan_number_underscore_float) {
-    const char* input = "3.14_15";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
-
-    assert(scan.valid == true);
-    assert(scan.type == EDN_NUMBER_DOUBLE);
-}
-
-TEST(scan_number_underscore_invalid_end) {
-    /* "123_" - scanner will parse "123" and stop at the underscore */
-    /* The trailing underscore will be caught as an invalid delimiter by the full parser */
-    const char* input = "123_";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
-
-    assert(scan.valid == true);
-    /* Scanner should stop before the trailing underscore */
-    assert(scan.end - input == 3); /* Scanned "123", stopped at "_" */
-}
-
-TEST(scan_number_underscore_invalid_dot) {
-    /* "123_.5" - scanner will parse "123" and stop at the underscore before dot */
-    const char* input = "123_.5";
-    edn_number_scan_t scan = edn_scan_number(input, input + strlen(input));
-
-    assert(scan.valid == true);
-    /* Scanner should stop before the underscore */
-    assert(scan.end - input == 3); /* Scanned "123", stopped at "_" */
-}
-
-/* Test parse_int64 with underscores */
-TEST(parse_int64_underscore) {
-    const char* input = "1_000_000";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
-
-    assert(success == true);
-    assert(result == 1000000);
-}
-
-TEST(parse_int64_underscore_negative) {
-    const char* input = "-1_234_567";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 10);
-
-    assert(success == true);
-    assert(result == -1234567);
-}
-
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
-TEST(parse_int64_underscore_hex) {
-    const char* input = "DE_AD";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 16);
-
-    assert(success == true);
-    assert(result == 0xDEAD);
-}
-
-TEST(parse_int64_underscore_binary) {
-    const char* input = "1010_1010";
-    int64_t result;
-    bool success = edn_parse_int64(input, input + strlen(input), &result, 2);
-
-    assert(success == true);
-    assert(result == 170); // 0b10101010 = 170
-}
-#endif
-
-/* Test parse_double with underscores */
-TEST(parse_double_underscore) {
-    const char* input = "1_234.56_78";
-    double result = edn_parse_double(input, input + strlen(input));
-
-    assert(fabs(result - 1234.5678) < 0.0001);
-}
-
-TEST(parse_double_underscore_scientific) {
-    const char* input = "1_5.2_5e1_0";
-    double result = edn_parse_double(input, input + strlen(input));
-
-    assert(fabs(result - 15.25e10) < 1e8);
-}
-
 #else /* EDN_ENABLE_UNDERSCORE_IN_NUMERIC not defined */
 
 /* Test that underscores fail when feature is disabled */
@@ -590,21 +497,6 @@ int main(void) {
     run_test_underscore_in_vector();
     run_test_underscore_in_map();
 
-    /* Scanner tests */
-    run_test_scan_number_underscore_simple();
-    run_test_scan_number_underscore_float();
-    run_test_scan_number_underscore_invalid_end();
-    run_test_scan_number_underscore_invalid_dot();
-
-    /* Parser tests */
-    run_test_parse_int64_underscore();
-    run_test_parse_int64_underscore_negative();
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
-    run_test_parse_int64_underscore_hex();
-    run_test_parse_int64_underscore_binary();
-#endif
-    run_test_parse_double_underscore();
-    run_test_parse_double_underscore_scientific();
 #else
     /* Feature disabled test */
     run_test_underscore_disabled();

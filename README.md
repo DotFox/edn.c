@@ -517,6 +517,8 @@ Get ratio numerator and denominator. Returns `true` if value is `EDN_TYPE_RATIO`
 - `3/6` → Automatically reduced to ratio 1/2
 - `10/5` → Automatically reduced to integer 2 (ratios with denominator 1 become integers)
 - `0/5` → Returns integer 0 (zero numerator always becomes integer 0)
+- `0777/3` → Returns 777/2
+- `0777/0777` → Returns 1
 
 **Automatic Reduction:**
 Ratios are automatically reduced to lowest terms using the Binary GCD algorithm (Stein's algorithm):
@@ -525,11 +527,12 @@ Ratios are automatically reduced to lowest terms using the Binary GCD algorithm 
 
 **Restrictions:**
 - Only decimal (base-10) integers supported for both numerator and denominator
+- Octal (base-8) integers supported keeping compatibility with Clojure where it is **incorrectly** interpreted as decimal integers with leading zeros.
 - Both numerator and denominator must fit in `int64_t`
 - Denominator must be positive (negative denominators are rejected)
 - Denominator cannot be zero
 - No whitespace allowed around `/`
-- Hex, octal, binary notations not supported for ratios
+- Hex and binary notations not supported for ratios
 
 **Example:**
 ```c

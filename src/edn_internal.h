@@ -60,16 +60,20 @@ struct edn_value {
         bool boolean;
         int64_t integer;
         struct {
-            const char* digits; /* Pointer to digit string in input buffer (zero-copy) */
-            size_t length;      /* Number of characters in digit string */
-            bool negative;      /* Sign bit */
-            uint8_t radix;      /* Number base (2-36, default 10) */
+            const char*
+                digits; /* Pointer to digit string in input buffer (zero-copy, may contain underscores) */
+            size_t length; /* Number of characters in digit string (including underscores) */
+            bool negative; /* Sign bit */
+            uint8_t radix; /* Number base (2-36, default 10) */
+            char* cleaned; /* Lazy-cleaned string without underscores (NULL until needed) */
         } bigint;
         double floating;
         struct {
-            const char* decimal; /* Pointer to decimal string in input buffer (zero-copy) */
-            size_t length;       /* Number of characters in decimal string */
-            bool negative;       /* Sign bit */
+            const char*
+                decimal; /* Pointer to decimal string in input buffer (zero-copy, may contain underscores) */
+            size_t length; /* Number of characters in decimal string (including underscores) */
+            bool negative; /* Sign bit */
+            char* cleaned; /* Lazy-cleaned string without underscores (NULL until needed) */
         } bigdec;
 #ifdef EDN_ENABLE_RATIO
         struct {
@@ -321,9 +325,7 @@ typedef struct {
     bool valid;               /* True if valid number */
 } edn_number_scan_t;
 
-edn_number_scan_t edn_scan_number(const char* ptr, const char* end);
-bool edn_parse_int64(const char* start, const char* end, int64_t* out, uint8_t radix);
-double edn_parse_double(const char* start, const char* end);
+edn_value_t* edn_read_number(edn_parser_t* parser);
 
 /* SIMD number helper */
 const char* edn_simd_scan_digits(const char* ptr, const char* end);
