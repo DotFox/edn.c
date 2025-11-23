@@ -64,7 +64,11 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
     }
 
     if (a->type != b->type) {
-        return false;
+        bool a_is_seq = (a->type == EDN_TYPE_LIST || a->type == EDN_TYPE_VECTOR);
+        bool b_is_seq = (b->type == EDN_TYPE_LIST || b->type == EDN_TYPE_VECTOR);
+        if (!(a_is_seq && b_is_seq)) {
+            return false;
+        }
     }
 
     /* Cast away const for hash caching (logically const operation) */

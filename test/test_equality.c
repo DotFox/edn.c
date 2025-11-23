@@ -620,27 +620,37 @@ TEST(equal_empty_vectors) {
     edn_free(b);
 }
 
-/* List vs Vector - different types */
-TEST(not_equal_list_vs_vector) {
+TEST(equal_list_vs_vector) {
     edn_value_t* a = parse_helper("(1 2 3)");
     edn_value_t* b = parse_helper("[1 2 3]");
 
     assert(a != NULL);
     assert(b != NULL);
-    /* Lists and vectors are different types, even with same elements */
+    assert(edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(not_equal_list_vs_vector) {
+    edn_value_t* a = parse_helper("(3 2 1)");
+    edn_value_t* b = parse_helper("[1 2 3]");
+
+    assert(a != NULL);
+    assert(b != NULL);
     assert(!edn_value_equal(a, b));
 
     edn_free(a);
     edn_free(b);
 }
 
-TEST(not_equal_empty_list_vs_vector) {
+TEST(equal_empty_list_vs_vector) {
     edn_value_t* a = parse_helper("()");
     edn_value_t* b = parse_helper("[]");
 
     assert(a != NULL);
     assert(b != NULL);
-    assert(!edn_value_equal(a, b));
+    assert(edn_value_equal(a, b));
 
     edn_free(a);
     edn_free(b);
@@ -1042,8 +1052,9 @@ int main(void) {
     RUN_TEST(equal_empty_vectors);
 
     /* List vs Vector */
+    RUN_TEST(equal_list_vs_vector);
+    RUN_TEST(equal_empty_list_vs_vector);
     RUN_TEST(not_equal_list_vs_vector);
-    RUN_TEST(not_equal_empty_list_vs_vector);
 
     /* Map equality */
     RUN_TEST(equal_map_same_order);
