@@ -109,6 +109,7 @@ set(SOURCES
     src/reader.c
     src/metadata.c
     src/text_block.c
+    src/newline_finder.c
 )
 
 # Library target

@@ -27,8 +27,6 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     parser.input = input;
     parser.current = input;
     parser.end = input + length;
-    parser.line = 1;
-    parser.column = 1;
     parser.depth = 0;
     parser.arena = edn_arena_create();
     parser.error = EDN_OK;
@@ -47,9 +45,38 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
 
     result.value = edn_parser_parse_value(&parser);
     result.error = parser.error;
-    result.error_line = parser.line;
-    result.error_column = parser.column;
     result.error_message = parser.error_message;
+
+    /* This needs refactoring. */
+    if (result.error != EDN_OK) {
+        edn_arena_t* temp_arena = edn_arena_create();
+        if (temp_arena) {
+            newline_positions_t* positions =
+                newline_find_all_ex(input, length, NEWLINE_MODE_LF, temp_arena);
+            if (positions) {
+                /* Calculate current byte offset where error occurred */
+                size_t byte_offset = parser.current - parser.input;
+                document_position_t error_pos;
+                if (newline_get_position(positions, byte_offset, &error_pos)) {
+                    result.error_line = error_pos.line;
+                    result.error_column = error_pos.column;
+                } else {
+                    result.error_line = 0;
+                    result.error_column = 0;
+                }
+            } else {
+                result.error_line = 0;
+                result.error_column = 0;
+            }
+            edn_arena_destroy(temp_arena);
+        } else {
+            result.error_line = 0;
+            result.error_column = 0;
+        }
+    } else {
+        result.error_line = 0;
+        result.error_column = 0;
+    }
 
     /* Handle EOF error with eof_value option */
     if (result.error == EDN_ERROR_UNEXPECTED_EOF && options != NULL && options->eof_value != NULL) {

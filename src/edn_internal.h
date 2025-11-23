@@ -43,6 +43,156 @@ struct edn_arena {
 
 typedef struct edn_arena edn_arena_t;
 
+/**
+ * Line terminator detection mode.
+ *
+ * Determines which characters/sequences are recognized as line terminators.
+ */
+typedef enum {
+    /**
+     * LF only mode (default, fastest)
+     * Recognizes: \n (0x0A)
+     * Used by: Unix, Linux, macOS
+     */
+    NEWLINE_MODE_LF = 0,
+
+    /**
+     * CRLF-aware mode (Windows-compatible)
+     * Recognizes: \n (0x0A), \r\n (0x0D 0x0A)
+     * Special handling: \r\n is treated as ONE line terminator at the \n position
+     * Note: Standalone \r is NOT recognized (use NEWLINE_MODE_ANY for that)
+     */
+    NEWLINE_MODE_CRLF_AWARE = 1,
+
+    /**
+     * Any ASCII mode
+     * Recognizes: \n (0x0A), \r (0x0D)
+     * Note: \r\n will be counted as TWO terminators
+     * Used by: Old Mac OS (CR), or when you want to count both separately
+     */
+    NEWLINE_MODE_ANY_ASCII = 2,
+
+    /**
+     * Universal mode (all Unicode line terminators)
+     * Recognizes:
+     *   - \n (LF, 0x0A)
+     *   - \r\n (CRLF, 0x0D 0x0A) - counted as ONE at \n position
+     *   - \r (CR, 0x0D) - only if not followed by \n
+     *   - \u0085 (NEL, Next Line: 0xC2 0x85 in UTF-8)
+     *   - \u2028 (LS, Line Separator: 0xE2 0x80 0xA8 in UTF-8)
+     *   - \u2029 (PS, Paragraph Separator: 0xE2 0x80 0xA9 in UTF-8)
+     */
+    NEWLINE_MODE_UNICODE = 3
+} newline_mode_t;
+
+/**
+ * Structure to hold newline positions.
+ *
+ * Fields:
+ *   - offsets: Array of byte offsets where newlines occur
+ *   - count: Number of newlines found
+ *   - capacity: Allocated capacity (internal use)
+ *   - arena: Arena allocator for memory management (internal use)
+ */
+typedef struct {
+    size_t* offsets;    /* Array of newline positions (byte offsets) */
+    size_t count;       /* Number of newlines found */
+    size_t capacity;    /* Allocated capacity (internal) */
+    edn_arena_t* arena; /* Arena allocator for memory management */
+} newline_positions_t;
+
+/**
+ * Position in a document (line and column).
+ *
+ * Both line and column are 1-indexed (first line is 1, first column is 1).
+ *
+ * Fields:
+ *   - line: Line number (1-indexed)
+ *   - column: Column number (1-indexed, byte offset from start of line)
+ *   - byte_offset: Absolute byte offset in the document
+ */
+typedef struct {
+    size_t line;        /* Line number (1-indexed) */
+    size_t column;      /* Column number (1-indexed, byte offset from line start) */
+    size_t byte_offset; /* Absolute byte offset in document */
+} document_position_t;
+
+/**
+ * Find all newline positions in a UTF-8 string (LF only, default mode).
+ *
+ * This is equivalent to newline_find_all_ex(data, length, NEWLINE_MODE_LF, arena).
+ * Only recognizes \n (0x0A) as a line terminator.
+ *
+ * This function scans the input string using SIMD acceleration when available
+ * and returns all positions where '\n' (0x0A) characters are found.
+ *
+ * Parameters:
+ *   - data: Pointer to UTF-8 string data
+ *   - length: Length of string in bytes
+ *   - arena: Arena allocator for memory management
+ *
+ * Returns:
+ *   - Pointer to newline_positions_t structure (freed when arena is destroyed)
+ *   - NULL on allocation failure
+ */
+newline_positions_t* newline_find_all(const char* data, size_t length, edn_arena_t* arena);
+
+/**
+ * Find all line terminators in a UTF-8 string with configurable mode.
+ *
+ * This function allows you to specify which line terminators to recognize.
+ *
+ * Parameters:
+ *   - data: Pointer to UTF-8 string data
+ *   - length: Length of string in bytes
+ *   - mode: Line terminator detection mode
+ *   - arena: Arena allocator for memory management
+ *
+ * Returns:
+ *   - Pointer to newline_positions_t structure
+ *   - NULL on allocation failure
+ *
+ * Examples:
+ *   // Unix/Linux/macOS (LF only) - fastest
+ *   positions = newline_find_all_ex(text, len, NEWLINE_MODE_LF, arena);
+ *
+ *   // Windows (CRLF-aware, treats \r\n as one terminator)
+ *   positions = newline_find_all_ex(text, len, NEWLINE_MODE_CRLF_AWARE, arena);
+ *
+ *   // Old Mac or count CR and LF separately
+ *   positions = newline_find_all_ex(text, len, NEWLINE_MODE_ANY_ASCII, arena);
+ *
+ *   // All Unicode line terminators
+ *   positions = newline_find_all_ex(text, len, NEWLINE_MODE_UNICODE, arena);
+ */
+newline_positions_t* newline_find_all_ex(const char* data, size_t length, newline_mode_t mode,
+                                         edn_arena_t* arena);
+
+/**
+ * Create a newline_positions_t structure with preallocated capacity.
+ *
+ * Parameters:
+ *   - initial_capacity: Initial capacity for offsets array
+ *   - arena: Arena allocator for memory management
+ *
+ * Returns:
+ *   - Pointer to newline_positions_t structure
+ *   - NULL on allocation failure
+ */
+newline_positions_t* newline_positions_create(size_t initial_capacity, edn_arena_t* arena);
+
+/**
+ * Get line and column position for a given byte offset.
+ *
+ * Uses binary search to find the appropriate line in O(log n) time,
+ * where n is the number of newlines in the document.
+ *
+ * Both line and column are 1-indexed (first line is 1, first column is 1).
+ * The column represents the byte offset from the start of the line.
+ */
+bool newline_get_position(const newline_positions_t* positions, size_t byte_offset,
+                          document_position_t* out_position);
+
 /* Map entry structure for key-value pairs */
 typedef struct {
     edn_value_t* key;
@@ -159,8 +309,6 @@ typedef struct {
     const char* input;
     const char* current;
     const char* end;
-    size_t line;
-    size_t column;
     size_t depth; /* Current nesting depth for collections */
     edn_arena_t* arena;
     edn_error_t error;

@@ -107,7 +107,7 @@ else
 endif
 
 # Source files
-SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c src/text_block.c
+SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.c src/identifier.c src/symbolic.c src/equality.c src/uniqueness.c src/collection.c src/tagged.c src/discard.c src/reader.c src/metadata.c src/text_block.c src/newline_finder.c
 
 # Native build objects and library
 OBJS = $(SRCS:.c=.o)
@@ -173,6 +173,7 @@ test: $(TEST_BINS)
 test/%: test/%.c $(LIB)
 	@echo "  CC      $@"
 	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
+	@./$@
 
 # Build and run quick benchmark
 .PHONY: bench

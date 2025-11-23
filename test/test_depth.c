@@ -14,8 +14,6 @@
         (parser).input = (input_str);                                  \
         (parser).current = (input_str);                                \
         (parser).end = (input_str) + strlen(input_str);                \
-        (parser).line = 1;                                             \
-        (parser).column = 1;                                           \
         (parser).depth = 0;                                            \
         (parser).arena = edn_arena_create();                           \
         (parser).error = EDN_OK;                                       \
