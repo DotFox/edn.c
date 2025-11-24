@@ -1921,6 +1921,7 @@ SOFTWARE.
 
 - EDN specification: https://github.com/edn-format/edn
 - Inspired by Clojure's EDN implementation
+- Benchmark files from [fast-edn](https://github.com/tonsky/fast-edn)
 - SWAR (SIMD Within A Register) digit parsing technique from [simdjson](https://github.com/simdjson/simdjson)
 - Fast double parsing using Clinger's algorithm (William D. Clinger, 1990) - "How to Read Floating Point Numbers Accurately"
 - SIMD optimization patterns from high-performance JSON parsers (simdjson, yyjson)
