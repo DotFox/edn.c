@@ -96,14 +96,14 @@
                                 true "yes"
                                 nil "nothing"
                                 #file "/tmp/file" "tagged"}
-               :map-collection-keys {{} "empty map"
-                                     {:foo 1} "any map"
-                                     [] "empty vector"
-                                     [1 2 3] "any vector"
-                                     () "empty list"
-                                     (1 2 3) "any list"
-                                     #{} "empty set"
-                                     #{1 2 3} "any set"}
+               :map-collection-keys {:map {{} "empty map"
+                                           {:foo 1} "any map"}
+                                     :vector {[] "empty vector"
+                                              [1 2 3] "any vector"}
+                                     :list {() "empty list"
+                                            (1 2 3) "any list"}
+                                     :set {#{} "empty set"
+                                           #{1 2 3} "any set"}}
 
                ;; Sets - #{}
                :set-empty #{}
