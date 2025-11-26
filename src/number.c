@@ -139,6 +139,59 @@ static inline void set_error(edn_parser_t* parser, const char* message) {
     parser->error_message = message;
 }
 
+#ifdef EDN_ENABLE_RATIO
+/*
+ * Binary GCD algorithm (Stein's algorithm)
+ */
+static int64_t ratio_gcd(int64_t a, int64_t b) {
+    /* Make both values positive for GCD calculation */
+    if (a < 0)
+        a = -a;
+    if (b < 0)
+        b = -b;
+
+    /* Handle edge cases */
+    if (a == 0)
+        return b;
+    if (b == 0)
+        return a;
+
+    /* Find common factor of 2 */
+    int shift = 0;
+    while (((a | b) & 1) == 0) {
+        a >>= 1;
+        b >>= 1;
+        shift++;
+    }
+
+    /* Remove remaining factors of 2 from a */
+    while ((a & 1) == 0) {
+        a >>= 1;
+    }
+
+    /* Main loop */
+    do {
+        /* Remove factors of 2 from b */
+        while ((b & 1) == 0) {
+            b >>= 1;
+        }
+
+        /* Ensure a <= b, swap if needed */
+        if (a > b) {
+            int64_t temp = a;
+            a = b;
+            b = temp;
+        }
+
+        /* Subtract: b = b - a (both are odd) */
+        b = b - a;
+    } while (b != 0);
+
+    /* Restore common factors of 2 */
+    return a << shift;
+}
+#endif
+
 /**
  * Helper to set BigInt fields.
  */
@@ -662,6 +715,13 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             goto parse_exponent;
         }
 
+#ifdef EDN_ENABLE_RATIO
+        if (c == '/') {
+            /* Ratio: 0/N */
+            goto create_ratio_zero;
+        }
+#endif
+
         /* Just zero */
         goto create_integer_zero;
     }
@@ -754,10 +814,15 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     const char* digits_end = parser->current;
     bool is_bigint_suffix = false;
     bool is_bigdec_suffix = false;
+#ifdef EDN_ENABLE_RATIO
+    bool is_ratio = false;
+    const char* denom_start = NULL;
+    const char* denom_end = NULL;
+#endif
 
 #ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
     /* Check if previous character was underscore before suffix */
-    if (c == 'N' || c == 'M') {
+    if (c == 'N' || c == 'M' || c == '/') {
         if (parser->current > digits_start && *(parser->current - 1) == '_') {
             set_error(parser, "Underscore cannot be adjacent to suffix");
             return NULL;
@@ -772,6 +837,57 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         is_bigdec_suffix = true;
         advance_char(parser);
     }
+#ifdef EDN_ENABLE_RATIO
+    else if (c == '/' && radix == 10 && !has_decimal_point && !has_exponent) {
+        /* Ratio notation: numerator/denominator */
+        is_ratio = true;
+        advance_char(parser);
+        denom_start = parser->current;
+        c = peek_char(parser);
+
+        /* Must have at least one digit */
+        if (parser->current >= parser->end || c < '0' || c > '9') {
+            set_error(parser, "Expected digit after '/' in ratio");
+            return NULL;
+        }
+
+        /* Check for leading zero */
+        if (c == '0') {
+            advance_char(parser);
+            c = peek_char(parser);
+            if (parser->current >= parser->end || is_delimiter((unsigned char) c)) {
+                set_error(parser, "Divide by zero");
+                return NULL;
+            }
+
+            if (c >= '0' && c <= '9') {
+                set_error(parser, "Leading zeros not allowed in ratio denominator");
+                return NULL;
+            }
+
+            set_error(parser, "Invalid character in ratio denominator");
+            return NULL;
+        }
+
+        /* Parse denominator digits */
+        while (c >= '0' && c <= '9') {
+            advance_char(parser);
+            c = peek_char(parser);
+        }
+
+        denom_end = parser->current;
+
+        if (c == 'N' || c == 'M' || c == '/') {
+            set_error(parser, "Suffix not allowed on ratio denominator");
+            return NULL;
+        }
+
+        if (parser->current < parser->end && !is_delimiter((unsigned char) c)) {
+            set_error(parser, "Invalid character after ratio denominator");
+            return NULL;
+        }
+    }
+#endif
 
     /* Create value based on type */
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
@@ -781,7 +897,56 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     }
     value->arena = parser->arena;
 
-    if (is_bigdec_suffix) {
+#ifdef EDN_ENABLE_RATIO
+    if (is_ratio) {
+        /* Try to parse numerator and denominator as int64 */
+        int64_t numerator;
+        int64_t denominator;
+        bool numer_overflow =
+            !parse_int64_from_buffer(digits_start, digits_end, &numerator, 10, negative);
+        bool denom_overflow =
+            !parse_int64_from_buffer(denom_start, denom_end, &denominator, 10, false);
+
+        if (numer_overflow || denom_overflow) {
+            if (!denom_overflow && denominator == 1) {
+                set_bigint(value, digits_start, digits_end - digits_start, negative, 10);
+            } else {
+                /* Overflow - create BigRatio (store as strings) */
+                value->type = EDN_TYPE_BIGRATIO;
+                value->as.bigratio.numerator = digits_start;
+                value->as.bigratio.numer_length = digits_end - digits_start;
+                value->as.bigratio.numer_negative = negative;
+                value->as.bigratio.denominator = denom_start;
+                value->as.bigratio.denom_length = denom_end - denom_start;
+            }
+        } else {
+            int64_t g = ratio_gcd(numerator, denominator);
+            if (g > 1) {
+                numerator /= g;
+                denominator /= g;
+            }
+
+            /* If numerator is 0, return 0 */
+            if (numerator == 0) {
+                value->type = EDN_TYPE_INT;
+                value->as.integer = 0;
+                return value;
+            }
+
+            /* If denominator is 1, return the integer */
+            if (denominator == 1) {
+                value->type = EDN_TYPE_INT;
+                value->as.integer = numerator;
+                return value;
+            }
+
+            value->type = EDN_TYPE_RATIO;
+            value->as.ratio.numerator = numerator;
+            value->as.ratio.denominator = denominator;
+        }
+    } else
+#endif
+        if (is_bigdec_suffix) {
         /* BigDecimal - store pointer to digits with underscores */
         set_bigdec(value, digits_start, digits_end - digits_start, negative);
     } else if (is_bigint_suffix) {
@@ -989,12 +1154,10 @@ parse_octal_digits:
         c = peek_char(parser); /* Update c after advancing past M */
     }
 
-    /* Determine which radix to use for parsing */
-    uint8_t parse_radix = 8; /* Default to octal */
-
-    /* Special case: if followed by '/', treat as decimal for ratio notation (Clojure compatibility) */
+    /* Reject ratio notation with octal */
     if (c == '/') {
-        parse_radix = 10; /* Reinterpret as decimal */
+        set_error(parser, "Ratio notation not allowed with octal integers");
+        return NULL;
     }
 
     value = edn_arena_alloc_value(parser->arena);
@@ -1008,15 +1171,14 @@ parse_octal_digits:
         set_bigdec(value, digits_start, digits_end - digits_start, negative);
     } else if (is_bigint_suffix) {
         /* N suffix forces BigInt representation */
-        set_bigint(value, digits_start, digits_end - digits_start, negative, parse_radix);
+        set_bigint(value, digits_start, digits_end - digits_start, negative, 8);
     } else {
         int64_t num;
-        /* Use parse_radix (10 if followed by '/', 8 otherwise) */
-        if (parse_int64_from_buffer(digits_start, digits_end, &num, parse_radix, negative)) {
+        if (parse_int64_from_buffer(digits_start, digits_end, &num, 8, negative)) {
             value->type = EDN_TYPE_INT;
             value->as.integer = num;
         } else {
-            set_bigint(value, digits_start, digits_end - digits_start, negative, parse_radix);
+            set_bigint(value, digits_start, digits_end - digits_start, negative, 8);
         }
     }
 
@@ -1054,4 +1216,66 @@ create_bigdec_zero:
     value->arena = parser->arena;
     set_bigdec(value, "0", 1, negative);
     return value;
+
+#ifdef EDN_ENABLE_RATIO
+create_ratio_zero:
+    /* Parse denominator after '/' for 0/N ratio */
+    /* Clojure behavior: 0/N returns integer 0, not a ratio */
+    advance_char(parser);
+    c = peek_char(parser);
+
+    /* Must have at least one digit */
+    if (parser->current >= parser->end || c < '0' || c > '9') {
+        set_error(parser, "Expected digit after '/' in ratio");
+        return NULL;
+    }
+
+    /* Check for leading zero */
+    if (c == '0') {
+        advance_char(parser);
+        c = peek_char(parser);
+        /* Single zero is divide by zero error */
+        if (parser->current >= parser->end || is_delimiter((unsigned char) c)) {
+            set_error(parser, "Divide by zero");
+            return NULL;
+        }
+        /* Leading zero followed by more digits is invalid */
+        if (c >= '0' && c <= '9') {
+            set_error(parser, "Leading zeros not allowed in ratio denominator");
+            return NULL;
+        }
+        /* Any other character after 0 is invalid for denominator */
+        set_error(parser, "Invalid character in ratio denominator");
+        return NULL;
+    }
+
+    /* Parse denominator digits (we validate, but don't need the value since numerator is 0) */
+    while (c >= '0' && c <= '9') {
+        advance_char(parser);
+        c = peek_char(parser);
+    }
+
+    /* No suffixes allowed on denominator */
+    if (c == 'N' || c == 'M' || c == '/') {
+        set_error(parser, "Suffix not allowed on ratio denominator");
+        return NULL;
+    }
+
+    /* Must be followed by EOF, whitespace or delimiter */
+    if (parser->current < parser->end && !is_delimiter((unsigned char) c)) {
+        set_error(parser, "Invalid character after ratio denominator");
+        return NULL;
+    }
+
+    /* 0/N returns integer 0 (Clojure behavior) */
+    value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        set_error(parser, "Out of memory");
+        return NULL;
+    }
+    value->arena = parser->arena;
+    value->type = EDN_TYPE_INT;
+    value->as.integer = 0;
+    return value;
+#endif
 }

@@ -275,9 +275,9 @@ static int edn_to_js_internal(const edn_value_t* value) {
             const char* digits = edn_bigint_get(value, &len, &negative, &radix);
 
             return EM_ASM_INT({
-                const digits = UTF8ToString($0);
-                const negative = $1 !== 0;
-                const radix = $2;
+                const digits = UTF8ToString($0, $1);
+                const negative = $2 !== 0;
+                const radix = $3;
 
                 let bigint;
                 if (radix === 10) {
@@ -293,7 +293,7 @@ static int edn_to_js_internal(const edn_value_t* value) {
                 }
 
                 return Emval.toHandle(negative ? -bigint : bigint);
-            }, digits, negative, radix);
+            }, digits, len, negative, radix);
         }
 
         case EDN_TYPE_FLOAT: {
@@ -322,6 +322,23 @@ static int edn_to_js_internal(const edn_value_t* value) {
 
             return EM_ASM_INT(
                 { return Emval.toHandle($0 / $1); }, (double) numerator, (double) denominator);
+        }
+
+        case EDN_TYPE_BIGRATIO: {
+            const char* numerator_digits;
+            const char* denominator_digits;
+            size_t numer_length;
+            size_t denom_length;
+            bool negative;
+            edn_bigratio_get(value, &numerator_digits, &numer_length, &negative, &denominator_digits, &denom_length);
+
+            return EM_ASM_INT({
+                const numerator_str = UTF8ToString($0, $1);
+                const denominator_str = UTF8ToString($2, $3);
+                const negative = $4 !== 0;
+
+                return Emval.toHandle((negative ? '-' + numerator_str : numerator_str) + '/' + denominator_str);
+            },  numerator_digits, numer_length, denominator_digits, denom_length, negative);
         }
 #endif
 

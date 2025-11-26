@@ -25,6 +25,7 @@ typedef enum {
     EDN_TYPE_BIGDEC,
 #ifdef EDN_ENABLE_RATIO
     EDN_TYPE_RATIO,
+    EDN_TYPE_BIGRATIO,
 #endif
     EDN_TYPE_CHARACTER,
     EDN_TYPE_STRING,
@@ -185,6 +186,25 @@ const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negat
  * @return true if value is EDN_TYPE_RATIO, false otherwise
  */
 bool edn_ratio_get(const edn_value_t* value, int64_t* numerator, int64_t* denominator);
+
+/**
+ * Get numerator and denominator strings from an EDN big ratio.
+ *
+ * Returns pointers to the string representations of numerator and denominator
+ * for use with external BigInt libraries (GMP, OpenSSL BIGNUM, etc.).
+ *
+ * @param value EDN big ratio value
+ * @param numerator Pointer to store numerator digit string
+ * @param numer_length Pointer to store numerator string length (may be NULL)
+ * @param numer_negative Pointer to store numerator sign (may be NULL)
+ * @param denominator Pointer to store denominator digit string
+ * @param denom_length Pointer to store denominator string length (may be NULL)
+ * @return true if value is EDN_TYPE_BIGRATIO, false otherwise
+ *
+ * The returned pointers are valid until the value is freed with edn_free().
+ */
+bool edn_bigratio_get(const edn_value_t* value, const char** numerator, size_t* numer_length,
+                      bool* numer_negative, const char** denominator, size_t* denom_length);
 #endif
 
 /**

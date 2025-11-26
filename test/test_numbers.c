@@ -1346,19 +1346,129 @@ TEST(api_parse_ratio_not_symbol) {
 }
 
 TEST(api_parse_ratio_numerator_overflow) {
-    /* Numerator too large for int64_t */
+    /* Numerator too large for int64_t - becomes BigRatio */
+    /* No GCD in that case so the example does not reduce to BigInt */
     edn_result_t r = edn_read("99999999999999999999/3", 0);
 
-    assert(r.error == EDN_ERROR_INVALID_NUMBER);
-    assert(r.value == NULL);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGRATIO);
+
+    const char* numerator;
+    size_t numer_length;
+    bool numer_negative;
+    const char* denominator;
+    size_t denom_length;
+
+    bool success = edn_bigratio_get(r.value, &numerator, &numer_length, &numer_negative,
+                                    &denominator, &denom_length);
+    assert(success == true);
+    assert(numer_negative == false);
+    assert(numer_length == 20);
+    assert(memcmp(numerator, "99999999999999999999", 20) == 0);
+    assert(denom_length == 1);
+    assert(memcmp(denominator, "3", 1) == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_numerator_overflow_denominator_one) {
+    edn_result_t r = edn_read("99999999999999999999/1", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGINT);
+
+    size_t length;
+    bool negative;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(r.value, &length, &negative, &radix);
+
+    assert(digits != NULL);
+    assert(negative == false);
+    assert(radix == 10);
+    assert(length == 20);
+    assert(memcmp(digits, "99999999999999999999", 20) == 0);
+
+    edn_free(r.value);
 }
 
 TEST(api_parse_ratio_denominator_overflow) {
-    /* Denominator too large for int64_t */
+    /* Denominator too large for int64_t - becomes BigRatio */
     edn_result_t r = edn_read("3/99999999999999999999", 0);
 
-    assert(r.error == EDN_ERROR_INVALID_NUMBER);
-    assert(r.value == NULL);
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGRATIO);
+
+    const char* numerator;
+    size_t numer_length;
+    bool numer_negative;
+    const char* denominator;
+    size_t denom_length;
+
+    bool success = edn_bigratio_get(r.value, &numerator, &numer_length, &numer_negative,
+                                    &denominator, &denom_length);
+    assert(success == true);
+    assert(numer_negative == false);
+    assert(numer_length == 1);
+    assert(memcmp(numerator, "3", 1) == 0);
+    assert(denom_length == 20);
+    assert(memcmp(denominator, "99999999999999999999", 20) == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_both_overflow) {
+    /* Both numerator and denominator too large for int64_t - becomes BigRatio */
+    edn_result_t r = edn_read("99999999999999999999/88888888888888888888", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGRATIO);
+
+    const char* numerator;
+    size_t numer_length;
+    bool numer_negative;
+    const char* denominator;
+    size_t denom_length;
+
+    bool success = edn_bigratio_get(r.value, &numerator, &numer_length, &numer_negative,
+                                    &denominator, &denom_length);
+    assert(success == true);
+    assert(numer_negative == false);
+    assert(numer_length == 20);
+    assert(memcmp(numerator, "99999999999999999999", 20) == 0);
+    assert(denom_length == 20);
+    assert(memcmp(denominator, "88888888888888888888", 20) == 0);
+
+    edn_free(r.value);
+}
+
+TEST(api_parse_ratio_negative_numerator_overflow) {
+    /* Negative numerator too large for int64_t - becomes BigRatio */
+    edn_result_t r = edn_read("-99999999999999999999/3", 0);
+
+    assert(r.error == EDN_OK);
+    assert(r.value != NULL);
+    assert(edn_type(r.value) == EDN_TYPE_BIGRATIO);
+
+    const char* numerator;
+    size_t numer_length;
+    bool numer_negative;
+    const char* denominator;
+    size_t denom_length;
+
+    bool success = edn_bigratio_get(r.value, &numerator, &numer_length, &numer_negative,
+                                    &denominator, &denom_length);
+    assert(success == true);
+    assert(numer_negative == true);
+    assert(numer_length == 20);
+    assert(memcmp(numerator, "99999999999999999999", 20) == 0);
+    assert(denom_length == 1);
+    assert(memcmp(denominator, "3", 1) == 0);
+
+    edn_free(r.value);
 }
 
 TEST(api_parse_ratio_invalid_float_numerator) {
@@ -1426,57 +1536,18 @@ TEST(api_parse_ratio_hex_not_supported) {
 }
 
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
-TEST(api_parse_ratio_octal_decimal_reinterpret) {
-    /* Octal numbers with '/' are reinterpreted as decimal for ratio (Clojure compatibility) */
+TEST(api_parse_ratio_octal_not_supported) {
     edn_result_t r = edn_read("0777/2", 0);
 
-    assert(r.error == EDN_OK);
-    assert(r.value != NULL);
-    assert(edn_type(r.value) == EDN_TYPE_RATIO);
-
-    int64_t numerator, denominator;
-    edn_ratio_get(r.value, &numerator, &denominator);
-
-    /* Should be 777/2 (decimal), NOT 511/2 (octal) */
-    /* Clojure behavior: octal prefix is ignored when followed by / */
-    assert(numerator == 777);
-    assert(denominator == 2);
-
-    edn_free(r.value);
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
 }
 
-TEST(api_parse_ratio_octal_without_slash) {
-    /* Octal without '/' should still parse as octal */
-    edn_result_t r = edn_read("0777", 0);
-
-    assert(r.error == EDN_OK);
-    assert(r.value != NULL);
-    assert(edn_type(r.value) == EDN_TYPE_INT);
-
-    int64_t val;
-    edn_int64_get(r.value, &val);
-
-    /* Should be 511 (octal: 7*64 + 7*8 + 7) */
-    assert(val == 511);
-
-    edn_free(r.value);
-}
-
-TEST(api_parse_ratio_octal_reduced) {
-    /* Test reduction with octal-looking numerator */
+TEST(api_parse_ratio_octal_leading_zero_not_supported) {
     edn_result_t r = edn_read("0123/3", 0);
 
-    assert(r.error == EDN_OK);
-    assert(r.value != NULL);
-
-    /* 123/3 = 41 (reduces to integer) */
-    assert(edn_type(r.value) == EDN_TYPE_INT);
-
-    int64_t val;
-    edn_int64_get(r.value, &val);
-    assert(val == 41); /* 123/3 in decimal, not 83/3 in octal */
-
-    edn_free(r.value);
+    assert(r.error == EDN_ERROR_INVALID_NUMBER);
+    assert(r.value == NULL);
 }
 
 TEST(api_parse_ratio_radix_not_supported) {
@@ -1665,7 +1736,10 @@ int main(void) {
     run_test_api_parse_ratio_with_whitespace();
     run_test_api_parse_ratio_not_symbol();
     run_test_api_parse_ratio_numerator_overflow();
+    run_test_api_parse_ratio_numerator_overflow_denominator_one();
     run_test_api_parse_ratio_denominator_overflow();
+    run_test_api_parse_ratio_both_overflow();
+    run_test_api_parse_ratio_negative_numerator_overflow();
     run_test_api_parse_ratio_invalid_float_numerator();
     run_test_api_parse_ratio_invalid_float_denominator();
     run_test_api_ratio_as_double();
@@ -1673,9 +1747,8 @@ int main(void) {
     run_test_api_ratio_as_double_zero_denominator();
     run_test_api_parse_ratio_hex_not_supported();
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
-    run_test_api_parse_ratio_octal_decimal_reinterpret();
-    run_test_api_parse_ratio_octal_without_slash();
-    run_test_api_parse_ratio_octal_reduced();
+    run_test_api_parse_ratio_octal_not_supported();
+    run_test_api_parse_ratio_octal_leading_zero_not_supported();
     run_test_api_parse_ratio_radix_not_supported();
 #endif
     run_test_api_parse_ratio_one();

@@ -448,59 +448,6 @@ static edn_value_t* parse_string_value(edn_parser_t* parser) {
     return value;
 }
 
-#ifdef EDN_ENABLE_RATIO
-/*
- * Binary GCD algorithm (Stein's algorithm)
- */
-static int64_t edn_gcd(int64_t a, int64_t b) {
-    /* Make both values positive for GCD calculation */
-    if (a < 0)
-        a = -a;
-    if (b < 0)
-        b = -b;
-
-    /* Handle edge cases */
-    if (a == 0)
-        return b;
-    if (b == 0)
-        return a;
-
-    /* Find common factor of 2 */
-    int shift = 0;
-    while (((a | b) & 1) == 0) {
-        a >>= 1;
-        b >>= 1;
-        shift++;
-    }
-
-    /* Remove remaining factors of 2 from a */
-    while ((a & 1) == 0) {
-        a >>= 1;
-    }
-
-    /* Main loop */
-    do {
-        /* Remove factors of 2 from b */
-        while ((b & 1) == 0) {
-            b >>= 1;
-        }
-
-        /* Ensure a <= b, swap if needed */
-        if (a > b) {
-            int64_t temp = a;
-            a = b;
-            b = temp;
-        }
-
-        /* Subtract: b = b - a (both are odd) */
-        b = b - a;
-    } while (b != 0);
-
-    /* Restore common factors of 2 */
-    return a << shift;
-}
-#endif
-
 static edn_value_t* parse_number_value(edn_parser_t* parser) {
     edn_value_t* value = edn_read_number(parser);
 
@@ -508,69 +455,6 @@ static edn_value_t* parse_number_value(edn_parser_t* parser) {
         /* Error already set by edn_read_number */
         return NULL;
     }
-
-#ifdef EDN_ENABLE_RATIO
-    /* Check if this could be a ratio (numerator/denominator) */
-    if (value->type == EDN_TYPE_INT && parser->current < parser->end && *parser->current == '/') {
-        int64_t numerator = value->as.integer;
-
-        /* Move past the / */
-        parser->current++;
-
-        /* Parse denominator */
-        edn_value_t* denom_value = edn_read_number(parser);
-        if (!denom_value) {
-            return NULL;
-        }
-
-        if (denom_value->type != EDN_TYPE_INT) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Ratio denominator must be an integer";
-            return NULL;
-        }
-
-        int64_t denominator = denom_value->as.integer;
-
-        if (denominator == 0) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Ratio denominator cannot be zero";
-            return NULL;
-        }
-
-        if (denominator < 0) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Ratio denominator must be positive";
-            return NULL;
-        }
-
-        /* Reduce the ratio to lowest terms using GCD */
-        int64_t g = edn_gcd(numerator, denominator);
-        if (g > 1) {
-            numerator /= g;
-            denominator /= g;
-        }
-
-        /* If numerator is 0, return 0 */
-        if (numerator == 0) {
-            value->type = EDN_TYPE_INT;
-            value->as.integer = 0;
-            return value;
-        }
-
-        /* If denominator is 1, return the integer */
-        if (denominator == 1) {
-            value->type = EDN_TYPE_INT;
-            value->as.integer = numerator;
-            return value;
-        }
-
-        /* Return as ratio */
-        value->type = EDN_TYPE_RATIO;
-        value->as.ratio.numerator = numerator;
-        value->as.ratio.denominator = denominator;
-        return value;
-    }
-#endif
 
     /* Validate that number is followed by valid delimiter or EOF */
     if (parser->current < parser->end) {
@@ -949,6 +833,24 @@ bool edn_ratio_get(const edn_value_t* value, int64_t* numerator, int64_t* denomi
         *numerator = value->as.ratio.numerator;
     if (denominator)
         *denominator = value->as.ratio.denominator;
+    return true;
+}
+
+bool edn_bigratio_get(const edn_value_t* value, const char** numerator, size_t* numer_length,
+                      bool* numer_negative, const char** denominator, size_t* denom_length) {
+    if (!value || value->type != EDN_TYPE_BIGRATIO) {
+        return false;
+    }
+    if (numerator)
+        *numerator = value->as.bigratio.numerator;
+    if (numer_length)
+        *numer_length = value->as.bigratio.numer_length;
+    if (numer_negative)
+        *numer_negative = value->as.bigratio.numer_negative;
+    if (denominator)
+        *denominator = value->as.bigratio.denominator;
+    if (denom_length)
+        *denom_length = value->as.bigratio.denom_length;
     return true;
 }
 #endif

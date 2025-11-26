@@ -230,6 +230,13 @@ struct edn_value {
             int64_t numerator;
             int64_t denominator;
         } ratio;
+        struct {
+            const char* numerator;   /* Pointer to numerator digits in input buffer (zero-copy) */
+            size_t numer_length;     /* Length of numerator digit string */
+            bool numer_negative;     /* Sign of numerator */
+            const char* denominator; /* Pointer to denominator digits in input buffer (zero-copy) */
+            size_t denom_length;     /* Length of denominator digit string */
+        } bigratio;
 #endif
         uint32_t character; /* Unicode codepoint */
         struct {

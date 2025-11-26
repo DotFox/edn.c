@@ -15,6 +15,9 @@ Module.onRuntimeInitialized = () => {
         { edn: "9007199254740992", desc: "Large integer (BigInt)" },
         { edn: "3.14159", desc: "Float" },
         { edn: "22/7", desc: "Ratio", skip: !Module._wasm_edn_parse_to_js }, // Only if RATIO enabled
+        { edn: "99999999999999999999/88888888888888888888", desc: "BigRatio", skip: !Module._wasm_edn_parse_to_js },
+        { edn: "-99999999999999999999/88888888888888888888", desc: "BigRatio", skip: !Module._wasm_edn_parse_to_js },
+        { edn: "99999999999999999999/1", desc: "BigRatio", skip: !Module._wasm_edn_parse_to_js },
         { edn: "\\a", desc: "Character" },
         { edn: '"hello world"', desc: "String" },
 
