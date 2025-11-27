@@ -676,9 +676,11 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
 #if defined(__wasm__) && defined(__wasm_simd128__)
 
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end) {
-    edn_identifier_scan_result_t result = {.end = ptr, .first_slash = NULL};
+    edn_identifier_scan_result_t result = {
+        .end = ptr, .first_slash = NULL, .has_adjacent_colons = false};
 
     size_t remaining = end - ptr;
+    bool prev_was_colon = false;
 
     if (remaining <= 8) {
         while (ptr < end) {
@@ -686,6 +688,14 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
             if (is_delimiter(c)) {
                 result.end = ptr;
                 return result;
+            }
+            if (c == ':') {
+                if (prev_was_colon) {
+                    result.has_adjacent_colons = true;
+                }
+                prev_was_colon = true;
+            } else {
+                prev_was_colon = false;
             }
             if (c == '/' && !result.first_slash) {
                 result.first_slash = ptr;
@@ -700,6 +710,7 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
         v128_t chunk = wasm_v128_load((const v128_t*) ptr);
 
         v128_t is_slash = wasm_i8x16_eq(chunk, wasm_i8x16_splat('/'));
+        v128_t is_colon = wasm_i8x16_eq(chunk, wasm_i8x16_splat(':'));
 
         v128_t is_control = wasm_u8x16_lt(chunk, wasm_i8x16_splat(0x20));
 
@@ -738,9 +749,27 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
 
         int delim_mask = wasm_i8x16_bitmask(delim);
         int slash_mask = wasm_i8x16_bitmask(is_slash);
+        int colon_mask = wasm_i8x16_bitmask(is_colon);
 
         bool has_delim = (delim_mask != 0);
         bool has_slash = (slash_mask != 0);
+        bool has_colon = (colon_mask != 0);
+
+        /* Check for adjacent colons using bit manipulation */
+        if (has_colon && !result.has_adjacent_colons) {
+            /* Check if prev_was_colon and first bit is colon */
+            if (prev_was_colon && (colon_mask & 1)) {
+                result.has_adjacent_colons = true;
+            }
+            /* Check for adjacent colons within the chunk: (mask & (mask >> 1)) != 0 */
+            if ((colon_mask & (colon_mask >> 1)) != 0) {
+                result.has_adjacent_colons = true;
+            }
+            /* Update prev_was_colon for next iteration */
+            prev_was_colon = (colon_mask & 0x8000) != 0;
+        } else if (!has_colon) {
+            prev_was_colon = false;
+        }
 
         if (!has_delim && (!has_slash || result.first_slash)) {
             ptr += 16;
@@ -768,6 +797,15 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
     while (ptr < end) {
         unsigned char c = (unsigned char) *ptr;
 
+        if (c == ':') {
+            if (prev_was_colon) {
+                result.has_adjacent_colons = true;
+            }
+            prev_was_colon = true;
+        } else {
+            prev_was_colon = false;
+        }
+
         if (c == '/' && !result.first_slash) {
             result.first_slash = ptr;
         }
@@ -787,9 +825,11 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
 #elif defined(__aarch64__) || defined(_M_ARM64)
 
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end) {
-    edn_identifier_scan_result_t result = {.end = ptr, .first_slash = NULL};
+    edn_identifier_scan_result_t result = {
+        .end = ptr, .first_slash = NULL, .has_adjacent_colons = false};
 
     size_t remaining = end - ptr;
+    bool prev_was_colon = false;
 
     /* Fast path for short identifiers (common case: :id, :name, :type, etc.)
      * If total remaining input is ≤8 bytes, use scalar (no SIMD overhead)
@@ -801,6 +841,14 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
             if (is_delimiter(c)) {
                 result.end = ptr;
                 return result;
+            }
+            if (c == ':') {
+                if (prev_was_colon) {
+                    result.has_adjacent_colons = true;
+                }
+                prev_was_colon = true;
+            } else {
+                prev_was_colon = false;
             }
             if (c == '/' && !result.first_slash) {
                 result.first_slash = ptr;
@@ -823,6 +871,9 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
 
         /* Check for slash (namespace separator) - always needed */
         uint8x16_t is_slash = vceqq_u8(chunk, vdupq_n_u8('/'));
+
+        /* Check for colon (for adjacent colon detection) */
+        uint8x16_t is_colon = vceqq_u8(chunk, vdupq_n_u8(':'));
 
         /* Most identifier chars are alphanumeric or symbols in valid ranges.
          * Delimiters cluster in specific ASCII ranges:
@@ -891,6 +942,25 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
         bool has_delim = (delim_low_bits || delim_high_bits);
         bool has_slash = (slash_low_bits || slash_high_bits);
 
+        /* Check for adjacent colons using bitmask */
+        uint16_t colon_mask = edn_neon_movemask_u8(is_colon);
+        bool has_colon = (colon_mask != 0);
+
+        if (has_colon && !result.has_adjacent_colons) {
+            /* Check if prev_was_colon and first bit is colon */
+            if (prev_was_colon && (colon_mask & 1)) {
+                result.has_adjacent_colons = true;
+            }
+            /* Check for adjacent colons within the chunk: (mask & (mask >> 1)) != 0 */
+            if ((colon_mask & (colon_mask >> 1)) != 0) {
+                result.has_adjacent_colons = true;
+            }
+            /* Update prev_was_colon for next iteration */
+            prev_was_colon = (colon_mask & 0x8000) != 0;
+        } else if (!has_colon) {
+            prev_was_colon = false;
+        }
+
         /* Fast path: no delimiters or slashes in this chunk */
         if (!has_delim && (!has_slash || result.first_slash)) {
             ptr += 16;
@@ -922,6 +992,15 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
     while (ptr < end) {
         unsigned char c = (unsigned char) *ptr;
 
+        if (c == ':') {
+            if (prev_was_colon) {
+                result.has_adjacent_colons = true;
+            }
+            prev_was_colon = true;
+        } else {
+            prev_was_colon = false;
+        }
+
         /* Check for first slash */
         if (c == '/' && !result.first_slash) {
             result.first_slash = ptr;
@@ -944,13 +1023,23 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
 
 /* Scalar fallback */
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end) {
-    edn_identifier_scan_result_t result = {.end = ptr, .first_slash = NULL};
+    edn_identifier_scan_result_t result = {
+        .end = ptr, .first_slash = NULL, .has_adjacent_colons = false};
+    bool prev_was_colon = false;
 
     while (ptr < end) {
         char c = *ptr;
         if (is_delimiter(c)) {
             result.end = ptr;
             return result;
+        }
+        if (c == ':') {
+            if (prev_was_colon) {
+                result.has_adjacent_colons = true;
+            }
+            prev_was_colon = true;
+        } else {
+            prev_was_colon = false;
         }
         if (c == '/' && !result.first_slash) {
             result.first_slash = ptr;

@@ -337,6 +337,24 @@ TEST(invalid_keyword_slash_at_end) {
     assert(result.value == NULL);
 }
 
+TEST(invalid_duplicate_colon_at_the_beginning) {
+    edn_result_t result = edn_read("::foo", 0);
+    assert(result.error != EDN_OK);
+    assert(result.value == NULL);
+}
+
+TEST(invalid_duplicate_colon_in_the_middle) {
+    edn_result_t result = edn_read("foo::bar", 0);
+    assert(result.error != EDN_OK);
+    assert(result.value == NULL);
+}
+
+TEST(invalid_duplicate_colon_at_the_end) {
+    edn_result_t result = edn_read("foo::", 0);
+    assert(result.error != EDN_OK);
+    assert(result.value == NULL);
+}
+
 int main(void) {
     printf("Running identifier parsing tests...\n\n");
 
@@ -374,6 +392,9 @@ int main(void) {
     RUN_TEST(invalid_colon_slash);
     RUN_TEST(invalid_colon_slash_name);
     RUN_TEST(invalid_keyword_slash_at_end);
+    RUN_TEST(invalid_duplicate_colon_at_the_beginning);
+    RUN_TEST(invalid_duplicate_colon_in_the_middle);
+    RUN_TEST(invalid_duplicate_colon_at_the_end);
 
     TEST_SUMMARY("identifier parsing");
 }

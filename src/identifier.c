@@ -39,6 +39,7 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
     edn_identifier_scan_t result = {0};
     const char* start = ptr;
     const char* slash = NULL;
+    bool prev_was_colon = false;
 
     size_t remaining = end - ptr;
 
@@ -47,6 +48,15 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
             unsigned char c = (unsigned char) *ptr;
             if (is_delimiter(c)) {
                 break;
+            }
+            if (c == ':') {
+                if (prev_was_colon) {
+                    result.valid = false;
+                    return result;
+                }
+                prev_was_colon = true;
+            } else {
+                prev_was_colon = false;
             }
             if (c == '/' && !slash) {
                 slash = ptr;
@@ -58,10 +68,29 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
         ptr = simd_result.end;
         slash = simd_result.first_slash;
 
+        if (simd_result.has_adjacent_colons) {
+            result.valid = false;
+            return result;
+        }
+
+        /* Track if last character was a colon for continuation */
+        if (ptr > start && *(ptr - 1) == ':') {
+            prev_was_colon = true;
+        }
+
         while (ptr < end) {
             unsigned char c = (unsigned char) *ptr;
             if (is_delimiter(c)) {
                 break;
+            }
+            if (c == ':') {
+                if (prev_was_colon) {
+                    result.valid = false;
+                    return result;
+                }
+                prev_was_colon = true;
+            } else {
+                prev_was_colon = false;
             }
             if (c == '/' && !slash) {
                 slash = ptr;

@@ -490,8 +490,9 @@ edn_value_t* edn_parse_character(edn_parser_t* parser);
 
 /* Identifier parsing functions */
 typedef struct {
-    const char* end;         /* Pointer to first delimiter (end of identifier) */
-    const char* first_slash; /* Pointer to first '/', or NULL if none found */
+    const char* end;          /* Pointer to first delimiter (end of identifier) */
+    const char* first_slash;  /* Pointer to first '/', or NULL if none found */
+    bool has_adjacent_colons; /* True if '::' was found (invalid identifier) */
 } edn_identifier_scan_result_t;
 
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end);
