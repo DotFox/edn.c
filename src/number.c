@@ -627,7 +627,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             r_pos++;
         }
 
-        if (r_pos < parser->end && *r_pos == 'r' && r_pos > parser->current) {
+        if (r_pos < parser->end && (*r_pos == 'r' || *r_pos == 'R') && r_pos > parser->current) {
             /* Parse radix value */
             int radix_val = 0;
             for (const char* p = parser->current; p < r_pos; p++) {

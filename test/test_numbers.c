@@ -882,6 +882,86 @@ TEST(edn_parse_radix_negative) {
     edn_free(r.value);
 }
 
+/* Test binary (radix notation) */
+TEST(edn_parse_binary_simple_capital_r) {
+    edn_result_t r = edn_read("2R1010", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 10); /* 1*8 + 0*4 + 1*2 + 0 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_binary_negative_capital_r) {
+    edn_result_t r = edn_read("-2R1111", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -15);
+
+    edn_free(r.value);
+}
+
+/* Test arbitrary radix notation */
+TEST(edn_parse_radix_base8_capital_r) {
+    edn_result_t r = edn_read("8R77", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 63); /* 7*8 + 7 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_base16_capital_r) {
+    edn_result_t r = edn_read("16RFF", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 255);
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_base36_capital_r) {
+    edn_result_t r = edn_read("36RZZ", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == 1295); /* 35*36 + 35 */
+
+    edn_free(r.value);
+}
+
+TEST(edn_parse_radix_negative_capital_r) {
+    edn_result_t r = edn_read("-36RABC", 0);
+
+    assert(r.error == EDN_OK);
+    assert(edn_type(r.value) == EDN_TYPE_INT);
+
+    int64_t val;
+    edn_int64_get(r.value, &val);
+    assert(val == -13368); /* -(10*36*36 + 11*36 + 12) */
+
+    edn_free(r.value);
+}
+
 #endif /* EDN_ENABLE_EXTENDED_INTEGERS */
 
 #ifndef EDN_ENABLE_EXTENDED_INTEGERS
@@ -1788,6 +1868,16 @@ int main(void) {
     run_test_edn_parse_radix_base16();
     run_test_edn_parse_radix_base36();
     run_test_edn_parse_radix_negative();
+
+    /* Binary (capital radix notation) */
+    run_test_edn_parse_binary_simple_capital_r();
+    run_test_edn_parse_binary_negative_capital_r();
+
+    /* Arbitrary capital radix */
+    run_test_edn_parse_radix_base8_capital_r();
+    run_test_edn_parse_radix_base16_capital_r();
+    run_test_edn_parse_radix_base36_capital_r();
+    run_test_edn_parse_radix_negative_capital_r();
 #else
     /* Test that special integer formats are rejected when disabled */
     run_test_edn_parse_special_integers_disabled_hex();
