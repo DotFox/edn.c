@@ -59,23 +59,22 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         if (ptr + 16 <= end) {
             v128_t chunk = wasm_v128_load((const v128_t*) ptr);
 
-            v128_t is_space = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x20));
-            v128_t is_tab = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x09));
-            v128_t is_newline = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0A));
-            v128_t is_vt = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0B));
-            v128_t is_formfeed = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0C));
-            v128_t is_cr = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x0D));
-            v128_t is_comma = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x2C));
-            v128_t is_fs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1C));
-            v128_t is_gs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1D));
-            v128_t is_rs = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1E));
-            v128_t is_us = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x1F));
+            /* Range check for 0x09-0x0D (tab, LF, VT, FF, CR)
+             * Remap to 0x76-0x7C then signed compare with 0x75 and 0x7D */
+            v128_t shifted1 = wasm_i8x16_add(chunk, wasm_i8x16_splat(0x7F - 0x0D));
+            v128_t in_range1 =
+                wasm_v128_and(wasm_i8x16_gt(shifted1, wasm_i8x16_splat(0x7F - 0x0D + 0x09 - 1)),
+                              wasm_i8x16_lt(shifted1, wasm_i8x16_splat((int8_t) 0x80)));
 
-            v128_t ws_group1 =
-                wasm_v128_or(wasm_v128_or(is_space, is_tab), wasm_v128_or(is_newline, is_vt));
-            v128_t ws_group2 = wasm_v128_or(wasm_v128_or(is_formfeed, is_cr), is_comma);
-            v128_t ws_group3 = wasm_v128_or(wasm_v128_or(is_fs, is_gs), wasm_v128_or(is_rs, is_us));
-            v128_t is_ws = wasm_v128_or(wasm_v128_or(ws_group1, ws_group2), ws_group3);
+            /* Range check for 0x1C-0x20 (FS, GS, RS, US, space)
+             * Remap to 0x7B-0x7F then signed compare with 0x7A */
+            v128_t shifted2 = wasm_i8x16_add(chunk, wasm_i8x16_splat(0x7F - 0x20));
+            v128_t in_range2 = wasm_i8x16_gt(shifted2, wasm_i8x16_splat(0x7F - 0x20 + 0x1C - 1));
+
+            /* Individual check for comma */
+            v128_t is_comma = wasm_i8x16_eq(chunk, wasm_i8x16_splat(0x2C));
+
+            v128_t is_ws = wasm_v128_or(wasm_v128_or(in_range1, in_range2), is_comma);
 
             int mask = wasm_i8x16_bitmask(is_ws);
             if (mask == 0xFFFF) {
@@ -85,7 +84,7 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         }
 
         unsigned char c = (unsigned char) *ptr;
-        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
+        if ((c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x20) || c == ',') {
             ptr++;
         } else {
             break;
@@ -161,26 +160,23 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         if (ptr + 16 <= end) {
             uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
 
-            /* Check for space (0x20), tab (0x09), newline (0x0A), VT (0x0B), formfeed (0x0C), carriage return (0x0D), comma (0x2C) */
-            uint8x16_t is_space = vceqq_u8(chunk, vdupq_n_u8(0x20));
-            uint8x16_t is_tab = vceqq_u8(chunk, vdupq_n_u8(0x09));
-            uint8x16_t is_newline = vceqq_u8(chunk, vdupq_n_u8(0x0A));
-            uint8x16_t is_vt = vceqq_u8(chunk, vdupq_n_u8(0x0B));
-            uint8x16_t is_formfeed = vceqq_u8(chunk, vdupq_n_u8(0x0C));
-            uint8x16_t is_cr = vceqq_u8(chunk, vdupq_n_u8(0x0D));
-            uint8x16_t is_comma = vceqq_u8(chunk, vdupq_n_u8(0x2C));
-            /* Separator characters: 0x1C-0x1F (FS, GS, RS, US) */
-            uint8x16_t is_fs = vceqq_u8(chunk, vdupq_n_u8(0x1C));
-            uint8x16_t is_gs = vceqq_u8(chunk, vdupq_n_u8(0x1D));
-            uint8x16_t is_rs = vceqq_u8(chunk, vdupq_n_u8(0x1E));
-            uint8x16_t is_us = vceqq_u8(chunk, vdupq_n_u8(0x1F));
+            /* Range check for 0x09-0x0D (tab, LF, VT, FF, CR)
+             * Remap to 0x76-0x7A then signed compare with 0x75 */
+            int8x16_t shifted1 = vreinterpretq_s8_u8(vaddq_u8(chunk, vdupq_n_u8(0x7F - 0x0D)));
+            uint8x16_t in_range1 = vandq_u8(
+                vreinterpretq_u8_s8(vcgtq_s8(shifted1, vdupq_n_s8(0x7F - 0x0D + 0x09 - 1))),
+                vreinterpretq_u8_s8(vcltq_s8(shifted1, vdupq_n_s8((int8_t) 0x80))));
 
-            /* Combine all whitespace checks */
-            uint8x16_t ws_group1 =
-                vorrq_u8(vorrq_u8(is_space, is_tab), vorrq_u8(is_newline, is_vt));
-            uint8x16_t ws_group2 = vorrq_u8(vorrq_u8(is_formfeed, is_cr), is_comma);
-            uint8x16_t ws_group3 = vorrq_u8(vorrq_u8(is_fs, is_gs), vorrq_u8(is_rs, is_us));
-            uint8x16_t is_ws = vorrq_u8(vorrq_u8(ws_group1, ws_group2), ws_group3);
+            /* Range check for 0x1C-0x20 (FS, GS, RS, US, space)
+             * Remap to 0x7B-0x7F then signed compare with 0x7A */
+            int8x16_t shifted2 = vreinterpretq_s8_u8(vaddq_u8(chunk, vdupq_n_u8(0x7F - 0x20)));
+            uint8x16_t in_range2 =
+                vreinterpretq_u8_s8(vcgtq_s8(shifted2, vdupq_n_s8(0x7F - 0x20 + 0x1C - 1)));
+
+            /* Individual check for comma */
+            uint8x16_t is_comma = vceqq_u8(chunk, vdupq_n_u8(0x2C));
+
+            uint8x16_t is_ws = vorrq_u8(vorrq_u8(in_range1, in_range2), is_comma);
 
             /* Check if all bytes are whitespace */
             uint64x2_t ws_64 = vreinterpretq_u64_u8(is_ws);
@@ -197,7 +193,7 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         /* Scalar fallback for remaining bytes */
         unsigned char c = (unsigned char) *ptr;
         /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
-        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
+        if ((c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x20) || c == ',') {
             ptr++;
         } else {
             break;
@@ -256,25 +252,22 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         if (ptr + 16 <= end) {
             __m128i chunk = _mm_loadu_si128((const __m128i*) ptr);
 
-            /* Check for whitespace characters */
-            __m128i space = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(' '));
-            __m128i tab = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\t'));
-            __m128i newline = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\n'));
-            __m128i vt = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\v'));
-            __m128i formfeed = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\f'));
-            __m128i cr = _mm_cmpeq_epi8(chunk, _mm_set1_epi8('\r'));
-            __m128i comma = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(','));
-            /* Separator characters: 0x1C-0x1F (FS, GS, RS, US) */
-            __m128i fs = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(0x1C));
-            __m128i gs = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(0x1D));
-            __m128i rs = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(0x1E));
-            __m128i us = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(0x1F));
+            /* Range check for 0x09-0x0D (tab, LF, VT, FF, CR)
+             * Remap to 0x76-0x7A then signed compare with 0x75 */
+            __m128i shifted1 = _mm_add_epi8(chunk, _mm_set1_epi8(0x7F - 0x0D));
+            __m128i in_range1 =
+                _mm_and_si128(_mm_cmpgt_epi8(shifted1, _mm_set1_epi8(0x7F - 0x0D + 0x09 - 1)),
+                              _mm_cmplt_epi8(shifted1, _mm_set1_epi8((char) 0x80)));
 
-            /* Combine all whitespace checks */
-            __m128i ws_group1 = _mm_or_si128(_mm_or_si128(space, tab), _mm_or_si128(newline, vt));
-            __m128i ws_group2 = _mm_or_si128(_mm_or_si128(formfeed, cr), comma);
-            __m128i ws_group3 = _mm_or_si128(_mm_or_si128(fs, gs), _mm_or_si128(rs, us));
-            __m128i is_ws = _mm_or_si128(_mm_or_si128(ws_group1, ws_group2), ws_group3);
+            /* Range check for 0x1C-0x20 (FS, GS, RS, US, space)
+             * Remap to 0x7B-0x7F then signed compare with 0x7A */
+            __m128i shifted2 = _mm_add_epi8(chunk, _mm_set1_epi8(0x7F - 0x20));
+            __m128i in_range2 = _mm_cmpgt_epi8(shifted2, _mm_set1_epi8(0x7F - 0x20 + 0x1C - 1));
+
+            /* Individual check for comma */
+            __m128i is_comma = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(','));
+
+            __m128i is_ws = _mm_or_si128(_mm_or_si128(in_range1, in_range2), is_comma);
 
             /* Check if all bytes are whitespace */
             int mask = _mm_movemask_epi8(is_ws);
@@ -288,7 +281,7 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         /* Scalar fallback for remaining bytes */
         unsigned char c = (unsigned char) *ptr;
         /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
-        if (c == ' ' || c == ',' || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)) {
+        if ((c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x20) || c == ',') {
             ptr++;
         } else {
             break;
@@ -318,9 +311,9 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end) {
         }
 
         /* Handle regular whitespace */
-        /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x1F (FS, GS, RS, US), space, comma */
+        /* Whitespace: 0x09-0x0D (tab, LF, VT, FF, CR), 0x1C-0x20 (FS, GS, RS, US, space), comma */
         unsigned char uc = (unsigned char) c;
-        if (c == ' ' || c == ',' || (uc >= 0x09 && uc <= 0x0D) || (uc >= 0x1C && uc <= 0x1F)) {
+        if ((uc >= 0x09 && uc <= 0x0D) || (uc >= 0x1C && uc <= 0x20) || c == ',') {
             ptr++;
         } else {
             break;
@@ -555,9 +548,10 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
     while (ptr + 16 <= end) {
         v128_t chunk = wasm_v128_load((const v128_t*) ptr);
 
-        v128_t ge_0 = wasm_u8x16_ge(chunk, wasm_i8x16_splat('0'));
-        v128_t le_9 = wasm_u8x16_le(chunk, wasm_i8x16_splat('9'));
-        v128_t is_digit = wasm_v128_and(ge_0, le_9);
+        /* Check if all bytes are digits ('0'-'9' = 0x30-0x39)
+         * Remap to 0x76-0x7F then signed compare with 0x75 */
+        v128_t shifted = wasm_i8x16_add(chunk, wasm_i8x16_splat(0x7F - '9'));
+        v128_t is_digit = wasm_i8x16_gt(shifted, wasm_i8x16_splat(0x7F - '9' + '0' - 1));
 
         int mask = wasm_i8x16_bitmask(is_digit);
 
@@ -594,10 +588,11 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
     while (ptr + 16 <= end) {
         uint8x16_t chunk = vld1q_u8((const uint8_t*) ptr);
 
-        /* Check if all bytes are digits ('0'-'9' = 0x30-0x39) */
-        uint8x16_t ge_0 = vcgeq_u8(chunk, vdupq_n_u8('0'));
-        uint8x16_t le_9 = vcleq_u8(chunk, vdupq_n_u8('9'));
-        uint8x16_t is_digit = vandq_u8(ge_0, le_9);
+        /* Check if all bytes are digits ('0'-'9' = 0x30-0x39)
+         * Remap to 0x76-0x7F then signed compare with 0x75 */
+        int8x16_t shifted = vreinterpretq_s8_u8(vaddq_u8(chunk, vdupq_n_u8(0x7F - '9')));
+        uint8x16_t is_digit =
+            vreinterpretq_u8_s8(vcgtq_s8(shifted, vdupq_n_s8(0x7F - '9' + '0' - 1)));
 
         /* Build a 16-bit mask: bit i == 1 → byte i is a digit */
         uint16_t mask = edn_neon_movemask_u8(is_digit);
@@ -637,9 +632,11 @@ const char* edn_simd_scan_digits(const char* ptr, const char* end) {
     /* Process 16 bytes at a time with SSE */
     while (ptr + 16 <= end) {
         __m128i chunk = _mm_loadu_si128((const __m128i*) ptr);
-        __m128i ge_0 = _mm_cmpgt_epi8(chunk, _mm_set1_epi8('0' - 1));
-        __m128i le_9 = _mm_cmplt_epi8(chunk, _mm_set1_epi8('9' + 1));
-        __m128i is_digit = _mm_and_si128(ge_0, le_9);
+
+        /* Check if all bytes are digits ('0'-'9' = 0x30-0x39)
+         * Remap to 0x76-0x7F then signed compare with 0x75 */
+        __m128i shifted = _mm_add_epi8(chunk, _mm_set1_epi8(0x7F - '9'));
+        __m128i is_digit = _mm_cmpgt_epi8(shifted, _mm_set1_epi8(0x7F - '9' + '0' - 1));
 
         int mask = _mm_movemask_epi8(is_digit);
         if (mask == 0xFFFF) {
