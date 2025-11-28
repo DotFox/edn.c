@@ -448,47 +448,6 @@ static edn_value_t* parse_string_value(edn_parser_t* parser) {
     return value;
 }
 
-static edn_value_t* parse_number_value(edn_parser_t* parser) {
-    edn_value_t* value = edn_read_number(parser);
-
-    if (!value) {
-        /* Error already set by edn_read_number */
-        return NULL;
-    }
-
-    /* Validate that number is followed by valid delimiter or EOF */
-    if (parser->current < parser->end) {
-        unsigned char next = (unsigned char) *parser->current;
-
-        bool valid_delimiter = false;
-
-        /* Whitespace: space, tab, newline, CR, comma, etc. */
-        if (next == ' ' || next == ',' || next == ';' || (next >= 0x09 && next <= 0x0D) ||
-            (next >= 0x1C && next <= 0x1F)) {
-            valid_delimiter = true;
-        }
-        /* Structural delimiters: ), ], }, ", #, (, [ */
-        else if (next == ')' || next == ']' || next == '}' || next == '"' || next == '#' ||
-                 next == '(' || next == '[') {
-            valid_delimiter = true;
-        }
-#ifdef EDN_ENABLE_RATIO
-        /* When ratio support is enabled, '/' is also valid (for ratios) */
-        else if (next == '/' && value->type == EDN_TYPE_INT) {
-            valid_delimiter = true;
-        }
-#endif
-
-        if (!valid_delimiter) {
-            parser->error = EDN_ERROR_INVALID_NUMBER;
-            parser->error_message = "Number must be followed by whitespace or delimiter";
-            return NULL;
-        }
-    }
-
-    return value;
-}
-
 edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
     if (parser->current < parser->end) {
         unsigned char c = (unsigned char) *parser->current;
@@ -558,12 +517,12 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
         case CHAR_TYPE_SIGN:
             /* + or - requires lookahead to distinguish number from identifier */
             if (parser->current + 1 < parser->end && is_digit(parser->current[1])) {
-                return parse_number_value(parser);
+                return edn_read_number(parser);
             }
             return edn_parse_identifier(parser);
 
         case CHAR_TYPE_DIGIT:
-            return parse_number_value(parser);
+            return edn_read_number(parser);
 
         case CHAR_TYPE_DELIMITER:
             /* Closing delimiters: ), ], } */

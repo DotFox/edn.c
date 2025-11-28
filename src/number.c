@@ -139,6 +139,29 @@ static inline void set_error(edn_parser_t* parser, const char* message) {
     parser->error_message = message;
 }
 
+static inline bool validate_number_delimiter(edn_parser_t* parser) {
+    if (parser->current >= parser->end) {
+        return true; /* EOF is valid */
+    }
+
+    unsigned char next = (unsigned char) *parser->current;
+
+    /* Whitespace: space, tab, newline, CR, comma, etc. */
+    if (next == ' ' || next == ',' || next == ';' || (next >= 0x09 && next <= 0x0D) ||
+        (next >= 0x1C && next <= 0x1F)) {
+        return true;
+    }
+
+    /* Structural delimiters: ), ], }, ", #, (, [, { */
+    if (next == ')' || next == ']' || next == '}' || next == '"' || next == '#' || next == '(' ||
+        next == '[' || next == '{') {
+        return true;
+    }
+
+    set_error(parser, "Number must be followed by whitespace or delimiter");
+    return false;
+}
+
 #ifdef EDN_ENABLE_RATIO
 /*
  * Binary GCD algorithm (Stein's algorithm)
@@ -968,6 +991,9 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         }
     }
 
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
 #ifdef EDN_ENABLE_EXTENDED_INTEGERS
@@ -1038,6 +1064,9 @@ parse_radix_digits:
         }
     }
 
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
     /* Hexadecimal parsing */
@@ -1110,6 +1139,9 @@ parse_hex_digits:
         }
     }
 
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
     /* Octal parsing */
@@ -1182,6 +1214,9 @@ parse_octal_digits:
         }
     }
 
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 #endif
 
@@ -1195,6 +1230,9 @@ create_integer_zero:
     value->arena = parser->arena;
     value->type = EDN_TYPE_INT;
     value->as.integer = 0;
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
 create_bigint_zero:
@@ -1205,6 +1243,9 @@ create_bigint_zero:
     }
     value->arena = parser->arena;
     set_bigint(value, "0", 1, negative, 10);
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
 create_bigdec_zero:
@@ -1215,6 +1256,9 @@ create_bigdec_zero:
     }
     value->arena = parser->arena;
     set_bigdec(value, "0", 1, negative);
+    if (!validate_number_delimiter(parser)) {
+        return NULL;
+    }
     return value;
 
 #ifdef EDN_ENABLE_RATIO
