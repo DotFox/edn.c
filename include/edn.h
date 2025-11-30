@@ -35,7 +35,8 @@ typedef enum {
     EDN_TYPE_VECTOR,
     EDN_TYPE_MAP,
     EDN_TYPE_SET,
-    EDN_TYPE_TAGGED
+    EDN_TYPE_TAGGED,
+    EDN_TYPE_EXTERNAL
 } edn_type_t;
 
 /* Opaque EDN value structure */
@@ -509,17 +510,98 @@ bool edn_tagged_get(const edn_value_t* value, const char** tag, size_t* tag_leng
                     edn_value_t** tagged_value);
 
 /**
- * Reader API
+ * External Value API
+ *
+ * External values allow tagged literal readers to return arbitrary C types
+ * wrapped in an EDN value. The data is stored as a void pointer with a
+ * user-defined type identifier for runtime type checking.
  */
 
 /* Forward declarations */
 typedef struct edn_arena edn_arena_t;
+
+/**
+ * Allocate memory from an arena.
+ *
+ * This function is intended for use within tagged literal readers to allocate
+ * memory for external data structures. Memory allocated from the arena is
+ * automatically freed when the EDN value is freed with edn_free().
+ *
+ * @param arena Arena allocator (passed to reader function)
+ * @param size Number of bytes to allocate
+ * @return Pointer to allocated memory, or NULL on allocation failure
+ */
+void* edn_arena_alloc(edn_arena_t* arena, size_t size);
+
+/**
+ * Create an external value wrapping arbitrary user data.
+ *
+ * This function is intended to be called from within a tagged literal reader
+ * to wrap a custom C type in an EDN value.
+ *
+ * @param arena Arena allocator (passed to reader function)
+ * @param data Pointer to user data (should be allocated from arena)
+ * @param type_id User-defined type identifier for runtime type checking
+ * @return New EDN_TYPE_EXTERNAL value, or NULL on allocation failure
+ *
+ * Example:
+ *   // In a reader for #point [x y]
+ *   typedef struct { double x, y; } point_t;
+ *   #define POINT_TYPE_ID 1
+ *
+ *   edn_value_t* point_reader(edn_value_t* value, edn_arena_t* arena,
+ *                             const char** error_message) {
+ *       // ... validate value is vector of 2 numbers ...
+ *       point_t* point = edn_arena_alloc(arena, sizeof(point_t));
+ *       point->x = x_val;
+ *       point->y = y_val;
+ *       return edn_external_create(arena, point, POINT_TYPE_ID);
+ *   }
+ */
+edn_value_t* edn_external_create(edn_arena_t* arena, void* data, uint32_t type_id);
+
+/**
+ * Get data and type from an external value.
+ *
+ * @param value EDN external value
+ * @param data Output for user data pointer (may be NULL)
+ * @param type_id Output for type identifier (may be NULL)
+ * @return true if value is EDN_TYPE_EXTERNAL, false otherwise
+ *
+ * Example:
+ *   void* data;
+ *   uint32_t type_id;
+ *   if (edn_external_get(value, &data, &type_id) && type_id == POINT_TYPE_ID) {
+ *       point_t* point = (point_t*)data;
+ *       printf("Point: (%f, %f)\n", point->x, point->y);
+ *   }
+ */
+bool edn_external_get(const edn_value_t* value, void** data, uint32_t* type_id);
+
+/**
+ * Check if external value has a specific type.
+ *
+ * Convenience function for type checking external values.
+ *
+ * @param value EDN external value
+ * @param type_id Expected type identifier
+ * @return true if value is EDN_TYPE_EXTERNAL with matching type_id
+ */
+bool edn_external_is_type(const edn_value_t* value, uint32_t type_id);
+
+/**
+ * Reader API
+ */
+
+/* Forward declaration for reader registry */
 typedef struct edn_reader_registry edn_reader_registry_t;
 
 /**
  * Reader function for tagged literals.
  * 
  * Transforms a tagged literal value into its target representation.
+ * Readers can return any EDN type, including EDN_TYPE_EXTERNAL for
+ * wrapping arbitrary C types.
  * 
  * @param value The wrapped EDN value (e.g., string, map, vector)
  * @param arena Arena allocator for creating new values
@@ -529,6 +611,11 @@ typedef struct edn_reader_registry edn_reader_registry_t;
  * The returned value must be allocated from the provided arena.
  * On error, set error_message to a static string and return NULL.
  * 
+ * To return a custom C type, use edn_external_create():
+ *   point_t* point = edn_arena_alloc(arena, sizeof(point_t));
+ *   // ... initialize point ...
+ *   return edn_external_create(arena, point, MY_POINT_TYPE_ID);
+ *
  * Note: The reader is invoked based on the tag it was registered for,
  * so tag information is not needed as a parameter.
  */

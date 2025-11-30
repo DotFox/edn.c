@@ -1195,6 +1195,46 @@ bool edn_tagged_get(const edn_value_t* value, const char** tag, size_t* tag_leng
     return true;
 }
 
+/* External Value API */
+
+edn_value_t* edn_external_create(edn_arena_t* arena, void* data, uint32_t type_id) {
+    if (!arena) {
+        return NULL;
+    }
+
+    edn_value_t* value = edn_arena_alloc_value(arena);
+    if (!value) {
+        return NULL;
+    }
+
+    value->type = EDN_TYPE_EXTERNAL;
+    value->as.external.data = data;
+    value->as.external.type_id = type_id;
+    value->arena = arena;
+
+    return value;
+}
+
+bool edn_external_get(const edn_value_t* value, void** data, uint32_t* type_id) {
+    if (!value || value->type != EDN_TYPE_EXTERNAL) {
+        return false;
+    }
+
+    if (data)
+        *data = value->as.external.data;
+    if (type_id)
+        *type_id = value->as.external.type_id;
+
+    return true;
+}
+
+bool edn_external_is_type(const edn_value_t* value, uint32_t type_id) {
+    if (!value || value->type != EDN_TYPE_EXTERNAL) {
+        return false;
+    }
+    return value->as.external.type_id == type_id;
+}
+
 /* Metadata API */
 
 #ifdef EDN_ENABLE_METADATA

@@ -281,6 +281,10 @@ struct edn_value {
             size_t tag_length;
             edn_value_t* value;
         } tagged;
+        struct {
+            void* data;
+            uint32_t type_id;
+        } external;
     } as;
     edn_arena_t* arena; /* Arena that owns this value */
 };
@@ -329,25 +333,7 @@ typedef struct {
 
 edn_arena_t* edn_arena_create(void);
 void edn_arena_destroy(edn_arena_t* arena);
-void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size);
-
-static inline void* edn_arena_alloc(edn_arena_t* arena, size_t size) {
-    if (!arena) {
-        return NULL;
-    }
-
-    size = (size + 7) & ~7;
-
-    arena_block_t* block = arena->current;
-
-    if (block->used + size <= block->capacity) {
-        void* ptr = block->data + block->used;
-        block->used += size;
-        return ptr;
-    }
-
-    return edn_arena_alloc_slow(arena, size);
-}
+void* edn_arena_alloc(edn_arena_t* arena, size_t size);
 
 static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
     edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
