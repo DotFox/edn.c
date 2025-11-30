@@ -270,6 +270,20 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             }
             return edn_value_equal_internal(a->as.tagged.value, b->as.tagged.value, depth + 1);
 
+        case EDN_TYPE_EXTERNAL: {
+            if (a->as.external.type_id != b->as.external.type_id) {
+                return false;
+            }
+
+            edn_external_equal_fn equal_fn = edn_external_lookup_equal(a->as.external.type_id);
+            if (equal_fn) {
+                return equal_fn(a->as.external.data, b->as.external.data);
+            }
+
+            /* Fallback: pointer equality */
+            return a->as.external.data == b->as.external.data;
+        }
+
         default:
             return false;
     }
@@ -586,6 +600,24 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             hash ^= edn_value_hash_internal(value->as.tagged.value);
             hash *= FNV_PRIME;
             break;
+
+        case EDN_TYPE_EXTERNAL: {
+            hash ^= value->as.external.type_id;
+            hash *= FNV_PRIME;
+
+            edn_external_hash_fn hash_fn = edn_external_lookup_hash(value->as.external.type_id);
+            if (hash_fn) {
+                hash ^= hash_fn(value->as.external.data);
+                hash *= FNV_PRIME;
+            } else {
+                uintptr_t ptr = (uintptr_t) value->as.external.data;
+                for (size_t i = 0; i < sizeof(uintptr_t); i++) {
+                    hash ^= (ptr >> (i * 8)) & 0xFF;
+                    hash *= FNV_PRIME;
+                }
+            }
+            break;
+        }
 
         default:
             break;

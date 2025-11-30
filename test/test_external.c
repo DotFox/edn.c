@@ -327,6 +327,189 @@ TEST(external_integer_coords) {
     edn_reader_registry_destroy(registry);
 }
 
+static bool point_equal(const void* a, const void* b) {
+    const point_t* pa = (const point_t*) a;
+    const point_t* pb = (const point_t*) b;
+    return pa->x == pb->x && pa->y == pb->y;
+}
+
+static uint64_t point_hash(const void* data) {
+    const point_t* p = (const point_t*) data;
+    union {
+        double d;
+        uint64_t u;
+    } xu, yu;
+    xu.d = p->x;
+    yu.d = p->y;
+    return xu.u ^ (yu.u * 31);
+}
+
+/* Test equality with registered equal function */
+TEST(external_equality_registered) {
+    assert(edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash));
+
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_reader_register(registry, "point", point_reader);
+
+    edn_parse_options_t opts = {.reader_registry = registry,
+                                .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
+
+    edn_result_t result1 = edn_read_with_options("#point [3 4]", 0, &opts);
+    edn_result_t result2 = edn_read_with_options("#point [3 4]", 0, &opts);
+
+    assert(result1.error == EDN_OK);
+    assert(result2.error == EDN_OK);
+
+    assert(edn_value_equal(result1.value, result2.value) == true);
+
+    edn_result_t result3 = edn_read_with_options("#point [5 6]", 0, &opts);
+    assert(result3.error == EDN_OK);
+
+    assert(edn_value_equal(result1.value, result3.value) == false);
+
+    edn_free(result1.value);
+    edn_free(result2.value);
+    edn_free(result3.value);
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
+/* Test equality without registered function (pointer equality) */
+TEST(external_equality_pointer_fallback) {
+    /* Make sure no equality function is registered */
+    edn_external_unregister_type(POINT_TYPE_ID);
+
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_reader_register(registry, "point", point_reader);
+
+    edn_parse_options_t opts = {.reader_registry = registry,
+                                .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
+
+    /* Parse two points with same coordinates */
+    edn_result_t result1 = edn_read_with_options("#point [3 4]", 0, &opts);
+    edn_result_t result2 = edn_read_with_options("#point [3 4]", 0, &opts);
+
+    assert(result1.error == EDN_OK);
+    assert(result2.error == EDN_OK);
+
+    /* Without registered equality, they should NOT be equal (different pointers) */
+    assert(edn_value_equal(result1.value, result2.value) == false);
+
+    /* Same value should equal itself */
+    assert(edn_value_equal(result1.value, result1.value) == true);
+
+    edn_free(result1.value);
+    edn_free(result2.value);
+    edn_reader_registry_destroy(registry);
+}
+
+/* Test equality with different type_ids */
+TEST(external_equality_different_types) {
+    edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash);
+
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_reader_register(registry, "point", point_reader);
+    edn_reader_register(registry, "rect", rect_reader);
+
+    edn_parse_options_t opts = {.reader_registry = registry,
+                                .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
+
+    edn_result_t point_result = edn_read_with_options("#point [0 0]", 0, &opts);
+    edn_result_t rect_result =
+        edn_read_with_options("#rect {:x 0 :y 0 :width 10 :height 10}", 0, &opts);
+
+    assert(point_result.error == EDN_OK);
+    assert(rect_result.error == EDN_OK);
+
+    /* Different type_ids should never be equal */
+    assert(edn_value_equal(point_result.value, rect_result.value) == false);
+
+    edn_free(point_result.value);
+    edn_free(rect_result.value);
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
+/* Test hash with registered hash function */
+TEST(external_hash_registered) {
+    edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash);
+
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_reader_register(registry, "point", point_reader);
+
+    edn_parse_options_t opts = {.reader_registry = registry,
+                                .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
+
+    /* Parse two identical points */
+    edn_result_t result1 = edn_read_with_options("#point [3 4]", 0, &opts);
+    edn_result_t result2 = edn_read_with_options("#point [3 4]", 0, &opts);
+
+    assert(result1.error == EDN_OK);
+    assert(result2.error == EDN_OK);
+
+    /* Equal values should have same hash */
+    uint64_t hash1 = edn_value_hash(result1.value);
+    uint64_t hash2 = edn_value_hash(result2.value);
+    assert(hash1 == hash2);
+
+    edn_result_t result3 = edn_read_with_options("#point [5 6]", 0, &opts);
+    assert(result3.error == EDN_OK);
+    uint64_t hash3 = edn_value_hash(result3.value);
+    assert(hash1 != hash3);
+
+    edn_free(result1.value);
+    edn_free(result2.value);
+    edn_free(result3.value);
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
+/* Test external values in set (requires equality for duplicate detection) */
+TEST(external_in_set_with_equality) {
+    edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash);
+
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_reader_register(registry, "point", point_reader);
+
+    edn_parse_options_t opts = {.reader_registry = registry,
+                                .default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH};
+
+    edn_result_t result = edn_read_with_options("#{#point [1 2] #point [3 4]}", 0, &opts);
+    assert(result.error == EDN_OK);
+    assert(edn_type(result.value) == EDN_TYPE_SET);
+    assert(edn_set_count(result.value) == 2);
+
+    edn_free(result.value);
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
+TEST(external_register_null_equal) {
+    assert(edn_external_register_type(999, NULL, NULL) == false);
+}
+
+/* Test re-registering updates the functions */
+TEST(external_register_update) {
+    /* Register with one function */
+    assert(edn_external_register_type(POINT_TYPE_ID, point_equal, NULL));
+
+    /* Re-register with hash function added */
+    assert(edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash));
+
+    /* Clean up */
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
 int main(void) {
     printf("Running external value tests...\n\n");
 
@@ -339,6 +522,15 @@ int main(void) {
     RUN_TEST(external_get_null);
     RUN_TEST(external_reader_error);
     RUN_TEST(external_integer_coords);
+
+    printf("\nEquality tests:\n");
+    RUN_TEST(external_equality_registered);
+    RUN_TEST(external_equality_pointer_fallback);
+    RUN_TEST(external_equality_different_types);
+    RUN_TEST(external_hash_registered);
+    RUN_TEST(external_in_set_with_equality);
+    RUN_TEST(external_register_null_equal);
+    RUN_TEST(external_register_update);
 
     TEST_SUMMARY("external value");
 }

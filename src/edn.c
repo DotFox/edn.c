@@ -1197,6 +1197,81 @@ bool edn_tagged_get(const edn_value_t* value, const char** tag, size_t* tag_leng
 
 /* External Value API */
 
+typedef struct edn_external_type_entry {
+    uint32_t type_id;
+    edn_external_equal_fn equal_fn;
+    edn_external_hash_fn hash_fn;
+    struct edn_external_type_entry* next;
+} edn_external_type_entry_t;
+
+/* Simple linked list for external type registry (global) */
+static edn_external_type_entry_t* g_external_type_registry = NULL;
+
+bool edn_external_register_type(uint32_t type_id, edn_external_equal_fn equal_fn,
+                                edn_external_hash_fn hash_fn) {
+    if (!equal_fn) {
+        return false;
+    }
+
+    edn_external_type_entry_t* entry = g_external_type_registry;
+    while (entry) {
+        if (entry->type_id == type_id) {
+            entry->equal_fn = equal_fn;
+            entry->hash_fn = hash_fn;
+            return true;
+        }
+        entry = entry->next;
+    }
+
+    entry = malloc(sizeof(edn_external_type_entry_t));
+    if (!entry) {
+        return false;
+    }
+
+    entry->type_id = type_id;
+    entry->equal_fn = equal_fn;
+    entry->hash_fn = hash_fn;
+    entry->next = g_external_type_registry;
+    g_external_type_registry = entry;
+
+    return true;
+}
+
+void edn_external_unregister_type(uint32_t type_id) {
+    edn_external_type_entry_t** ptr = &g_external_type_registry;
+    while (*ptr) {
+        if ((*ptr)->type_id == type_id) {
+            edn_external_type_entry_t* to_free = *ptr;
+            *ptr = (*ptr)->next;
+            free(to_free);
+            return;
+        }
+        ptr = &(*ptr)->next;
+    }
+}
+
+edn_external_equal_fn edn_external_lookup_equal(uint32_t type_id) {
+    edn_external_type_entry_t* entry = g_external_type_registry;
+    while (entry) {
+        if (entry->type_id == type_id) {
+            return entry->equal_fn;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+edn_external_hash_fn edn_external_lookup_hash(uint32_t type_id) {
+    edn_external_type_entry_t* entry = g_external_type_registry;
+    while (entry) {
+        if (entry->type_id == type_id) {
+            return entry->hash_fn;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
 edn_value_t* edn_external_create(edn_arena_t* arena, void* data, uint32_t type_id) {
     if (!arena) {
         return NULL;

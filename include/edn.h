@@ -521,6 +521,64 @@ bool edn_tagged_get(const edn_value_t* value, const char** tag, size_t* tag_leng
 typedef struct edn_arena edn_arena_t;
 
 /**
+ * Equality function for external values.
+ *
+ * Compares two external values of the same type_id for equality.
+ *
+ * @param a First external value's data pointer
+ * @param b Second external value's data pointer
+ * @return true if values are equal, false otherwise
+ */
+typedef bool (*edn_external_equal_fn)(const void* a, const void* b);
+
+/**
+ * Hash function for external values.
+ *
+ * Computes a hash for an external value's data.
+ * Must return consistent hash values for equal data.
+ *
+ * @param data External value's data pointer
+ * @return 64-bit hash value
+ */
+typedef uint64_t (*edn_external_hash_fn)(const void* data);
+
+/**
+ * Register equality and hash functions for an external type.
+ *
+ * These functions are used by edn_value_equal() and edn_value_hash() to
+ * compare and hash external values. If not registered, external values
+ * with the same type_id are compared by pointer equality.
+ *
+ * @param type_id User-defined type identifier
+ * @param equal_fn Equality function (required)
+ * @param hash_fn Hash function (optional, may be NULL)
+ * @return true on success, false on allocation failure
+ *
+ * Example:
+ *   bool point_equal(const void* a, const void* b) {
+ *       const point_t* pa = a;
+ *       const point_t* pb = b;
+ *       return pa->x == pb->x && pa->y == pb->y;
+ *   }
+ *
+ *   uint64_t point_hash(const void* data) {
+ *       const point_t* p = data;
+ *       return (uint64_t)(p->x * 31 + p->y);
+ *   }
+ *
+ *   edn_external_register_type(POINT_TYPE_ID, point_equal, point_hash);
+ */
+bool edn_external_register_type(uint32_t type_id, edn_external_equal_fn equal_fn,
+                                edn_external_hash_fn hash_fn);
+
+/**
+ * Unregister equality and hash functions for an external type.
+ *
+ * @param type_id User-defined type identifier
+ */
+void edn_external_unregister_type(uint32_t type_id);
+
+/**
  * Allocate memory from an arena.
  *
  * This function is intended for use within tagged literal readers to allocate
