@@ -43,13 +43,7 @@ void edn_arena_destroy(edn_arena_t* arena) {
     free(arena);
 }
 
-void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size) {
-    if (!arena) {
-        return NULL;
-    }
-
-    size = (size + 7) & ~7;
-
+static void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size) {
     arena_block_t* block = arena->current;
 
     /* Use adaptive block size - either the next planned size or the requested size (whichever is larger) */
@@ -82,4 +76,22 @@ void* edn_arena_alloc_slow(edn_arena_t* arena, size_t size) {
     block->used += size;
 
     return ptr;
+}
+
+void* edn_arena_alloc(edn_arena_t* arena, size_t size) {
+    if (!arena) {
+        return NULL;
+    }
+
+    size = (size + 7) & ~7;
+
+    arena_block_t* block = arena->current;
+
+    if (block->used + size <= block->capacity) {
+        void* ptr = block->data + block->used;
+        block->used += size;
+        return ptr;
+    }
+
+    return edn_arena_alloc_slow(arena, size);
 }
