@@ -140,13 +140,160 @@ Module.onRuntimeInitialized = () => {
         console.log(`  Type: ${typeof bigint}`);
     }
 
+    // =========================================================================
+    // Custom JavaScript Readers
+    // =========================================================================
+    console.log("\n" + "=".repeat(70));
+    console.log("Custom JavaScript Readers");
+    console.log("=".repeat(70));
+
+    // Register custom readers for tagged literals
+    console.log("\nRegistering custom readers...");
+
+    // Reader for #inst - convert ISO date strings to Date objects
+    const instReader = (value) => {
+        console.log(`  [inst reader] Received: ${value}`);
+        return new Date(value);
+    };
+
+    // Reader for #uuid - wrap in a UUID object
+    const uuidReader = (value) => {
+        console.log(`  [uuid reader] Received: ${value}`);
+        return { type: "UUID", value: value, toString: () => `UUID(${value})` };
+    };
+
+    // Reader for #point - convert [x, y] vector to Point object
+    const pointReader = (value) => {
+        console.log(`  [point reader] Received:`, value);
+        if (Array.isArray(value) && value.length === 2) {
+            return { type: "Point", x: value[0], y: value[1] };
+        }
+        return null;
+    };
+
+    // Reader for #json - parse nested JSON strings
+    const jsonReader = (value) => {
+        console.log(`  [json reader] Received: ${value}`);
+        try {
+            return JSON.parse(value);
+        } catch (e) {
+            return null;
+        }
+    };
+
+    // Register the readers
+    const registerReader = (tag, callback) => {
+        const callbackHandle = Module.Emval.toHandle(callback);
+        const result = Module.ccall(
+            "wasm_edn_register_reader",
+            "number",
+            ["string", "number"],
+            [tag, callbackHandle],
+        );
+        console.log(`  Registered reader for #${tag}: ${result ? "✓" : "✗"}`);
+        return result;
+    };
+
+    registerReader("inst", instReader);
+    registerReader("uuid", uuidReader);
+    registerReader("point", pointReader);
+    registerReader("json", jsonReader);
+
+    const readerCount = Module.ccall("wasm_edn_reader_count", "number", [], []);
+    console.log(`  Total registered readers: ${readerCount}`);
+
+    console.log("\nParsing with custom readers:");
+
+    const readerExamples = [
+        {
+            edn: '#inst "2024-03-15T10:30:00Z"',
+            desc: "Date parsing with #inst reader",
+        },
+        {
+            edn: '#uuid "550e8400-e29b-41d4-a716-446655440000"',
+            desc: "UUID parsing with #uuid reader",
+        },
+        {
+            edn: "#point [10 20]",
+            desc: "Point parsing with #point reader",
+        },
+        {
+            edn: '#json "{\\"name\\":\\"test\\",\\"value\\":42}"',
+            desc: "JSON parsing with #json reader",
+        },
+        {
+            edn: '{:created #inst "2024-01-01" :location #point [100 200]}',
+            desc: "Multiple readers in one document",
+        },
+    ];
+
+    for (const example of readerExamples) {
+        console.log(`\n${example.desc}:`);
+        console.log(`  EDN: ${example.edn}`);
+
+        try {
+            // Parse with readers (default_mode = 0 = PASSTHROUGH)
+            const jsValue = Module.ccall(
+                "wasm_edn_parse_to_js_with_readers",
+                "number",
+                ["string", "number"],
+                [example.edn, 0],
+            );
+
+            if (jsValue !== 0) {
+                const value = Module.Emval.toValue(jsValue);
+                console.log(`  Result: ${formatJSValue(value)}`);
+                console.log(`  Type: ${getJSType(value)}`);
+
+                if (value instanceof Date) {
+                    console.log(`  ISO: ${value.toISOString()}`);
+                }
+                if (value && value.type === "Point") {
+                    console.log(`  Coordinates: (${value.x}, ${value.y})`);
+                }
+            } else {
+                console.log(`  Error: Failed to parse`);
+            }
+        } catch (e) {
+            console.log(`  Error: ${e.message}`);
+        }
+    }
+
+    console.log("\nUnregistering #point reader...");
+    Module.ccall("wasm_edn_unregister_reader", null, ["string"], ["point"]);
+    const newCount = Module.ccall("wasm_edn_reader_count", "number", [], []);
+    console.log(`  Readers remaining: ${newCount}`);
+
+    // Parse #point without reader (should return tagged literal)
+    console.log("\nParsing #point without reader (passthrough mode):");
+    const pointEDN = "#point [30 40]";
+    const pointHandle = Module.ccall(
+        "wasm_edn_parse_to_js_with_readers",
+        "number",
+        ["string", "number"],
+        [pointEDN, 0], // 0 = PASSTHROUGH mode
+    );
+    if (pointHandle) {
+        const value = Module.Emval.toValue(pointHandle);
+        console.log(`  EDN: ${pointEDN}`);
+        console.log(`  Result: ${formatJSValue(value)}`);
+        console.log(`  (Note: Returns {tag, value} object in passthrough mode)`);
+    }
+
+    console.log("\nClearing all readers...");
+    Module.ccall("wasm_edn_clear_readers", null, [], []);
+    const finalCount = Module.ccall("wasm_edn_reader_count", "number", [], []);
+    console.log(`  Readers remaining: ${finalCount}`);
+
     console.log("\n✅ All examples completed!\n");
 };
 
 // Helper functions
 function formatJSValue(value) {
     if (value === null) return "null";
+    if (value === undefined) return "undefined";
     if (typeof value === "symbol") return value.toString();
+    if (value instanceof Date) return `Date(${value.toISOString()})`;
     if (value instanceof Map) {
         const entries = Array.from(value.entries())
             .map(([k, v]) => `${formatJSValue(k)}: ${formatJSValue(v)}`)
@@ -160,16 +307,21 @@ function formatJSValue(value) {
     if (Array.isArray(value)) {
         return `[${value.map(formatJSValue).join(", ")}]`;
     }
-    if (
-        typeof value === "object" &&
-        value !== null &&
-        "tag" in value &&
-        "value" in value
-    ) {
-        return `#${value.tag} ${formatJSValue(value.value)}`;
-    }
-    if (typeof value === "object") {
-        return JSON.stringify(value);
+    if (typeof value === "object" && value !== null) {
+        if ("tag" in value && "value" in value && Object.keys(value).length === 2) {
+            return `#${value.tag} ${formatJSValue(value.value)}`;
+        }
+        if (value.type === "UUID") {
+            return `UUID(${value.value})`;
+        }
+        if (value.type === "Point") {
+            return `Point(${value.x}, ${value.y})`;
+        }
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return "[Object]";
+        }
     }
     if (typeof value === "bigint") {
         return `${value}n`;
@@ -179,10 +331,14 @@ function formatJSValue(value) {
 
 function getJSType(value) {
     if (value === null) return "null";
+    if (value === undefined) return "undefined";
     if (Array.isArray(value)) return "Array";
     if (value instanceof Map) return "Map";
     if (value instanceof Set) return "Set";
+    if (value instanceof Date) return "Date";
     if (typeof value === "bigint") return "BigInt";
     if (typeof value === "symbol") return "Symbol";
+    if (typeof value === "object" && value.type) return value.type;
     return typeof value;
 }
+
