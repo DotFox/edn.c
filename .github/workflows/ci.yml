@@ -30,7 +30,7 @@ jobs:
     - name: Run tests with enabled features
       run: |
         make clean
-        make test CC=${{ matrix.compiler }} METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 EXTENDED_INTEGERS=1 RATIO=1 UNDERSCORE_IN_NUMERIC=1
+        make test CC=${{ matrix.compiler }} ALL=1
 
     - name: Run tests with sanitizers
       env:
@@ -65,12 +65,12 @@ jobs:
 
     - name: Run tests with enabled features
       run: |
-        make clean test METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 EXTENDED_INTEGERS=1 RATIO=1 UNDERSCORE_IN_NUMERIC=1
+        make clean test ALL=1
 
     - name: Run tests with sanitizers
       run: |
         make clean
-        make DEBUG=1 CC=clang LDFLAGS="-L$(brew --prefix llvm)/lib" test
+        make DEBUG=1 CC=clang ALL=1 LDFLAGS="-L$(brew --prefix llvm)/lib" test
 
   test-windows:
     name: Test on Windows (MinGW)
@@ -102,7 +102,7 @@ jobs:
     - name: Run tests with enabled features
       run: |
         make clean
-        make test METADATA=1 TEXT_BLOCKS=1 MAP_NAMESPACE_SYNTAX=1 EXTENDED_CHARACTERS=1 EXTENDED_INTEGERS=1 RATIO=1 UNDERSCORE_IN_NUMERIC=1
+        make test ALL=1
 
   test-windows-msvc:
     name: Test on Windows (MSVC + CMake)

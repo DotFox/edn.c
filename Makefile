@@ -56,45 +56,45 @@ endif
 
 # Map namespace syntax (Clojure extension, disabled by default)
 MAP_NAMESPACE_SYNTAX ?= 0
-ifeq ($(MAP_NAMESPACE_SYNTAX),1)
+ifneq (,$(filter 1,$(MAP_NAMESPACE_SYNTAX) $(ALL)))
     CFLAGS += -DEDN_ENABLE_MAP_NAMESPACE_SYNTAX
 endif
 
 # Extended characters (\formfeed, \backspace, \oNNN octal, disabled by default)
 EXTENDED_CHARACTERS ?= 0
-ifeq ($(EXTENDED_CHARACTERS),1)
+ifneq (,$(filter 1,$(EXTENDED_CHARACTERS) $(ALL)))
     CFLAGS += -DEDN_ENABLE_EXTENDED_CHARACTERS
 endif
 
 # Metadata parsing (Clojure extension, disabled by default)
 METADATA ?= 0
-ifeq ($(METADATA),1)
+ifneq (,$(filter 1,$(METADATA) $(ALL)))
     CFLAGS += -DEDN_ENABLE_METADATA
 endif
 
 # Text block parsing (experimental feature, disabled by default)
 TEXT_BLOCKS ?= 0
-ifeq ($(TEXT_BLOCKS),1)
+ifneq (,$(filter 1,$(TEXT_BLOCKS) $(ALL)))
     CFLAGS += -DEDN_ENABLE_TEXT_BLOCKS
 endif
 
 # Ratio numbers (Clojure extension, disabled by default)
 RATIO ?= 0
-ifeq ($(RATIO),1)
+ifneq (,$(filter 1,$(RATIO) $(ALL)))
     CFLAGS += -DEDN_ENABLE_RATIO
 endif
 
 # Special integer formats: hex (0xFF), octal (0777), binary (2r1010), arbitrary radix (36rZZ)
 # Clojure extension, disabled by default
 EXTENDED_INTEGERS ?= 0
-ifeq ($(EXTENDED_INTEGERS),1)
+ifneq (,$(filter 1,$(EXTENDED_INTEGERS) $(ALL)))
     CFLAGS += -DEDN_ENABLE_EXTENDED_INTEGERS
 endif
 
 # Underscore in numeric literals (disabled by default)
 # Allows underscores between digits: 1_000 -> 1000, 4____2 -> 42
 UNDERSCORE_IN_NUMERIC ?= 0
-ifeq ($(UNDERSCORE_IN_NUMERIC),1)
+ifneq (,$(filter 1,$(UNDERSCORE_IN_NUMERIC) $(ALL)))
     CFLAGS += -DEDN_ENABLE_UNDERSCORE_IN_NUMERIC
 endif
 
@@ -386,6 +386,7 @@ help:
 	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\\formfeed, \\\backspace, \oNNN)"
 	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
 	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"\\\n...\"\"\" blocks)"
+	@echo "  ALL=1                       - Enable all extra features at once"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 	@echo "  DEBUG=1                     - Enable debug build (native only)"
 	@echo ""
