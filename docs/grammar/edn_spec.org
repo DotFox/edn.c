@@ -266,7 +266,8 @@ A map is a collection of associations between keys and values. Each key should a
 @startebnf
 !theme amiga
 
-Map = "{" , { 2 * ( { WhiteSpace } , EdnElement ) } , "}" ;
+Map = "{" , { WhiteSpace } , { 2 * ( EdnElement , { WhiteSpace } ) } , "}" ;
+
 @endebnf
 #+end_src
 
@@ -460,7 +461,7 @@ List = "(" , { WhiteSpace | EdnElement } , ")" ;
 
 Vector = "[" , { WhiteSpace | EdnElement } , "]" ;
 
-Map = "{" , { 2 * ( { WhiteSpace } , EdnElement ) } , "}" ;
+Map = "{" , { WhiteSpace } , { 2 * ( EdnElement , { WhiteSpace } ) } , "}" ;
 
 Set = "#{" , { WhiteSpace | EdnElement } , "}" ;
 
