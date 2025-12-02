@@ -40,8 +40,8 @@ Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | EndOfInput ) ;
 
 EdnElement = Nil
            | Boolean
-           | String
            | Character
+           | String
            | Integer
            | Float
            | Symbol
@@ -90,26 +90,6 @@ Boolean = "true" | "false" ;
 #+RESULTS:
 [[file:./edn_booleans_ebnf.svg]]
 
-** Strings
-
-#+begin_src plantuml :file ./edn_strings_ebnf.svg :exports results
-@startebnf
-!theme amiga
-
-String = '"' , { StringCharacter } , '"' ;
-
-StringCharacter = InputCharacter
-                | EscapeSequence ;
-
-InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
-
-EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
-@endebnf
-#+end_src
-
-#+RESULTS:
-[[file:./edn_strings_ebnf.svg]]
-
 ** Characters
 
 #+begin_src plantuml :file ./edn_characters_ebnf.svg :exports results
@@ -130,6 +110,26 @@ HexDigit = ? 0-9, a-z, A-Z ? ;
 
 #+RESULTS:
 [[file:./edn_characters_ebnf.svg]]
+
+** Strings
+
+#+begin_src plantuml :file ./edn_strings_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+String = '"' , { StringCharacter } , '"' ;
+
+StringCharacter = InputCharacter
+                | EscapeSequence ;
+
+InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
+
+EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_strings_ebnf.svg]]
 
 ** Symbols
 
