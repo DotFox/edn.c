@@ -193,7 +193,7 @@ Map literals can optionally specify a default namespace context for keys in the 
 @startebnf
 !theme amiga
 
-Map = [ "#:" , KeywordNamespace ] , "{" , { 2 * ( { WhiteSpace } , EdnElement ) } , "}" ;
+Map = [ "#:" , KeywordNamespace ] , "{" , { WhiteSpace } , { 2 * ( EdnElement , { WhiteSpace } ) } , "}" ;
 
 @endebnf
 #+end_src
