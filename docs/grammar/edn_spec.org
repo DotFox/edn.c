@@ -1,0 +1,480 @@
+#+title: Edn Spec
+
+Source: https://github.com/edn-format/edn
+
+Copyright: © Rich Hickey and contributors.
+
+Modifications: This document is a derivative of the original EDN specification. It has been modified by EDN.c project to include a formal EBNF grammar.
+
+-----
+
+* Rationale
+
+~edn~ is an extensible data notation. A superset of ~edn~ is used by Clojure to represent programs, and it is used by Datomic and other applications as a data transfer format. This spec describes ~edn~ in isolation from those and other specific use cases, to help facilitate implementation of readers and writers in other languages, and for other uses.
+
+~edn~ supports a rich set of built-in elements, and the definition of extension elements in terms of the others. Users of data formats without such facilities must rely on either convention or context to convey elements not included in the base set. This greatly complicates application logic, betraying the apparent simplicity of the format. ~edn~ is simple, yet powerful enough to meet the demands of applications without convention or complex context-sensitive logic.
+
+~edn~ is a system for the conveyance of values. It is not a type system, and has no schemas. Nor is it a system for representing objects - there are no reference types, nor should a consumer have an expectation that two equivalent elements in some body of ~edn~ will yield distinct object identities when read, unless a reader implementation goes out of its way to make such a promise. Thus the resulting values should be considered immutable, and a reader implementation should yield values that ensure this, to the extent possible.
+
+~edn~ is a set of definitions for acceptable elements. A use of ~edn~ might be a stream or file containing elements, but it could be as small as the conveyance of a single element in e.g. an HTTP query param.
+
+There is no enclosing element at the top level. Thus ~edn~ is suitable for streaming and interactive applications.
+
+The base set of elements in ~edn~ is meant to cover the basic set of data structures common to most programming languages. While ~edn~ specifies how those elements are formatted in text, it does not dictate the representation that results on the consumer side. A well behaved reader library should endeavor to map the elements to programming language types with similar semantics.
+
+* General considerations
+
+edn elements, streams and files should be encoded using [[http://en.wikipedia.org/wiki/UTF-8][UTF-8]].
+
+Elements are generally separated by whitespace. Whitespace, other than within strings, is not otherwise significant, nor need redundant whitespace be preserved during transmissions. Commas ~,~ are also considered whitespace, other than within strings.
+
+#+begin_src plantuml :file ./edn_document_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Edn = { WhiteSpace | EdnElement } ;
+
+WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
+
+Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | EndOfInput ) ;
+
+EdnElement = Nil
+           | Boolean
+           | String
+           | Character
+           | Integer
+           | Float
+           | Symbol
+           | Keyword
+           | List
+           | Vector
+           | Map
+           | Set
+           | TaggedElement
+           | DiscardSequence ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_document_ebnf.svg]]
+
+* Built-in elements
+
+** Nil
+
+Represents nil, null or nothing. It should be read as an object with similar meaning on the target platform.
+
+#+begin_src plantuml :file ./edn_nil_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Nil = "nil" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_nil_ebnf.svg]]
+
+** Booleans
+
+If a platform has canonic values for true and false, it is a further semantic of booleans that all instances of ~true~ yield that (identical) value, and similarly for ~false~.
+
+#+begin_src plantuml :file ./edn_booleans_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Boolean = "true" | "false" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_booleans_ebnf.svg]]
+
+** Strings
+
+#+begin_src plantuml :file ./edn_strings_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+String = '"' , { StringCharacter } , '"' ;
+
+StringCharacter = InputCharacter
+                | EscapeSequence ;
+
+InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
+
+EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_strings_ebnf.svg]]
+
+** Characters
+
+#+begin_src plantuml :file ./edn_characters_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
+
+CharLiteral = ? Any non-whitespace character ? ;
+
+CharName = "newline" | "space" | "tab" | "return" ;
+
+UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
+
+HexDigit = ? 0-9, a-z, A-Z ? ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_characters_ebnf.svg]]
+
+** Symbols
+
+Symbols are used to represent identifiers, and should map to something other than strings, if possible.
+
+#+begin_src plantuml :file ./edn_symbols_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Symbol = Namespace , "/" , QualifiedName
+       | Name
+       | "/" ;
+
+Namespace = SymbolStart , { SymbolBody } ;
+
+Name = SymbolStart , { SymbolBody } ;
+
+QualifiedName = { SymbolStart } ;
+
+SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
+            | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
+
+SymbolBody = SymbolConstituent
+            | ? Decimal digit ?
+            | "#"
+            | ":" ;
+
+SymbolConstituent = ? Alphanumeric ?
+                  | "."
+                  | "*"
+                  | "+"
+                  | "!"
+                  | "-"
+                  | "_"
+                  | "?"
+                  | "$"
+                  | "%"
+                  | "&"
+                  | "="
+                  | "<"
+                  | ">" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_symbols_ebnf.svg]]
+
+** Keywords
+
+Keywords are identifiers that typically designate themselves. They are semantically akin to enumeration values.
+
+If the target platform supports some notion of interning, it is a further semantic of keywords that all instances of the same keyword yield the identical object.
+
+If the target platform does not have a keyword type distinct from a symbol type, the same type can be used without conflict, since the mandatory leading ~:~ of keywords is disallowed for symbols.
+
+#+begin_src plantuml :file ./edn_keywords_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Keyword = ":" , Symbol - "/" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_keywords_ebnf.svg]]
+
+** Integers
+
+64-bit (signed integer) precision is expected. An integer can have the suffix ~N~ to indicate that arbitrary precision is desired. ~-0~ is a valid integer not distinct from ~0~.
+
+#+begin_src plantuml :file ./edn_integers_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_integers_ebnf.svg]]
+
+** Floating point numbers
+
+64-bit (double) precision is expected.
+
+#+begin_src plantuml :file ./edn_floating_point_numbers_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , [ "." , { ? Decimal digit ? } ] , [ Exponent ] , [ "M" ] ;
+
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_floating_point_numbers_ebnf.svg]]
+
+** Lists
+
+A list is a sequence of values. Note that lists can be heterogeneous.
+
+#+begin_src plantuml :file ./edn_lists_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+List = "(" , { WhiteSpace | EdnElement } , ")" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_lists_ebnf.svg]]
+
+** Vectors
+
+A vector is a sequence of values that supports random access. Note that vectors can be heterogeneous.
+
+#+begin_src plantuml :file ./edn_vectors_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Vector = "[" , { WhiteSpace | EdnElement } , "]" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_vectors_ebnf.svg]]
+
+** Maps
+
+A map is a collection of associations between keys and values. Each key should appear at most once. No semantics should be associated with the order in which the pairs appear.
+
+#+begin_src plantuml :file ./edn_maps_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Map = "{" , { 2 * ( { WhiteSpace } , EdnElement ) } , "}" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_maps_ebnf.svg]]
+
+** Sets
+
+A set is a collection of unique values. No semantics should be associated with the order in which the elements appear. Note that sets can be heterogeneous.
+
+#+begin_src plantuml :file ./edn_sets_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+Set = "#{" , { WhiteSpace | EdnElement } , "}" ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_sets_ebnf.svg]]
+
+** Tagged elements
+
+~edn~ supports extensibility through a simple mechanism. A tag indicates the semantic interpretation of the following element. It is envisioned that a reader implementation will allow clients to register handlers for specific tags. Upon encountering a tag, the reader will first read the next element (which may itself be or comprise other tagged elements), then pass the result to the corresponding handler for further interpretation, and the result of the handler will be the data value yielded by the tag + tagged element, i.e. reading a tag and tagged element yields one value. This value is the value to be returned to the program and is not further interpreted as edn data by the reader.
+
+This process will bottom out on elements either understood or built-in.
+
+Thus you can build new distinct readable elements out of (and only out of) other readable elements, keeping extenders and extension consumers out of the text business.
+
+The semantics of a tag, and the type and interpretation of the tagged element are defined by the steward of the tag.
+
+If a reader encounters a tag for which no handler is registered, the implementation can either report an error, call a designated 'unknown element' handler, or create a well-known generic representation that contains both the tag and the tagged element, as it sees fit. Note that the non-error strategies allow for readers which are capable of reading any and all ~edn~, in spite of being unaware of the details of any extensions present.
+
+Tag symbols without a prefix are reserved by ~edn~ for built-ins defined using the tag system.
+
+User tags must contain a prefix component, which must be owned by the user (e.g. trademark or domain) or known unique in the communication context.
+
+A tag may specify more than one format for the tagged element, e.g. both a string and a vector representation.
+
+Tags themselves are not elements. It is an error to have a tag without a corresponding tagged element.
+
+#+begin_src plantuml :file ./edn_tagged_elements_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+TaggedElement = "#" , Symbol , { WhiteSpace }- , EdnElement ;
+
+(* built-in tagged elements *)
+
+Instant = "#inst" , { WhiteSpace }- , ? RFC-3339 formatted string ? ;
+
+UUID = "#uuid" , { WhiteSpace }- , ? Canonical UUID string representation ? ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_tagged_elements_ebnf.svg]]
+
+*** built-in tagged elements
+
+**** #inst "rfc-3339-format"
+
+An instant in time. The tagged element is a string in [[http://www.ietf.org/rfc/rfc3339.txt][RFC-3339]] format.
+
+**** #inst "1985-04-12T23:20:50.52Z"
+
+A [[http://en.wikipedia.org/wiki/Universally_unique_identifier][UUID]]. The tagged element is a canonical UUID string representation.
+
+** Discard
+
+Discard sequence, indicating that the next element (whether separated from ~#_~ by whitespace or not) should be read and discarded. Note that the next element must still be a readable element. A reader should not call user-supplied tag handlers during the processing of the element to be discarded.
+
+#+begin_src plantuml :file ./edn_discard_ebnf.svg :exports results
+@startebnf
+!theme amiga
+
+DiscardSequence = "#_" , { WhiteSpace } , EdnElement ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_discard_ebnf.svg]]
+
+* Equality
+
+Sets and maps have requirements that their elements and keys respectively be unique, which requires a mechanism for determining when 2 values are not unique (i.e. are equal).
+
+nil, booleans, strings, characters, and symbols are equal to values of the same type with the same ~edn~ representation.
+
+integers and floating point numbers should be considered equal to values only of the same magnitude, type, and precision. Comingling numeric types and precision in map/set key/elements, or constituents therein, is not advised.
+
+sequences (lists and vectors) are equal to other sequences whose count of elements is the same, and for which each corresponding pair of elements (by ordinal) is equal.
+
+sets are equal if they have the same count of elements and, for every element in one set, an equal element is in the other.
+
+maps are equal if they have the same number of entries, and for every key/value entry in one map an equal key is present and mapped to an equal value in the other.
+
+tagged elements must define their own equality semantics. #uuid elements are equal if their canonic representations are equal. #inst elements are equal if their representation strings designate the same timestamp per [[http://www.ietf.org/rfc/rfc3339.txt][RFC-3339]].
+
+* Complete EBNF Grammar
+
+#+begin_src plantuml :file ./edn_ebnf.svg :exports results
+@startebnf
+!theme amiga
+Edn = { WhiteSpace | EdnElement } ;
+
+WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
+
+Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | EndOfInput ) ;
+
+EdnElement = Nil
+           | Boolean
+           | String
+           | Character
+           | Integer
+           | Float
+           | Symbol
+           | Keyword
+           | List
+           | Vector
+           | Map
+           | Set
+           | TaggedElement
+           | DiscardSequence ;
+
+Nil = "nil" ;
+
+Boolean = "true" | "false" ;
+
+String = '"' , { StringCharacter } , '"' ;
+
+StringCharacter = InputCharacter
+                | EscapeSequence ;
+
+InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
+
+EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
+
+Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
+
+CharLiteral = ? Any non-whitespace character ? ;
+
+CharName = "newline" | "space" | "tab" | "return" ;
+
+UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
+
+HexDigit = ? 0-9, a-z, A-Z ? ;
+
+Symbol = Namespace , "/" , QualifiedName
+       | Name
+       | "/" ;
+
+Namespace = SymbolStart , { SymbolBody } ;
+
+Name = SymbolStart , { SymbolBody } ;
+
+QualifiedName = { SymbolStart } ;
+
+SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
+            | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
+
+SymbolBody = SymbolConstituent
+            | ? Decimal digit ?
+            | "#"
+            | ":" ;
+
+SymbolConstituent = ? Alphanumeric ?
+                  | "."
+                  | "*"
+                  | "+"
+                  | "!"
+                  | "-"
+                  | "_"
+                  | "?"
+                  | "$"
+                  | "%"
+                  | "&"
+                  | "="
+                  | "<"
+                  | ">" ;
+
+Keyword = ":" , Symbol - "/" ;
+
+Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+
+Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , [ "." , { ? Decimal digit ? } ] , [ Exponent ] , [ "M" ] ;
+
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+
+List = "(" , { WhiteSpace | EdnElement } , ")" ;
+
+Vector = "[" , { WhiteSpace | EdnElement } , "]" ;
+
+Map = "{" , { 2 * ( { WhiteSpace } , EdnElement ) } , "}" ;
+
+Set = "#{" , { WhiteSpace | EdnElement } , "}" ;
+
+TaggedElement = "#" , Symbol , { WhiteSpace }- , EdnElement ;
+
+DiscardSequence = "#_" , { WhiteSpace } , EdnElement ;
+
+(* built-in tagged elements *)
+
+Instant = "#inst" , { WhiteSpace }- , ? RFC-3339 formatted string ? ;
+
+UUID = "#uuid" , { WhiteSpace }- , ? Canonical UUID string representation ? ;
+@endebnf
+#+end_src
+
+#+RESULTS:
+[[file:./edn_ebnf.svg]]
