@@ -28,15 +28,16 @@ edn elements, streams and files should be encoded using [[http://en.wikipedia.or
 
 Elements are generally separated by whitespace. Whitespace, other than within strings, is not otherwise significant, nor need redundant whitespace be preserved during transmissions. Commas ~,~ are also considered whitespace, other than within strings.
 
-#+begin_src plantuml :file ./edn_document_ebnf.svg :exports results
+#+begin_src plantuml :file ./edn_document_ebnf.svg
+
 @startebnf
 !theme amiga
 
-Edn = { WhiteSpace | EdnElement } ;
+Edn = { WhiteSpace | EdnElement }- ;
 
 WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
 
-Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | EndOfInput ) ;
+Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | ? End of input ? ) ;
 
 EdnElement = Nil
            | Boolean
@@ -139,21 +140,14 @@ Symbols are used to represent identifiers, and should map to something other tha
 @startebnf
 !theme amiga
 
-Symbol = Namespace , "/" , QualifiedName
-       | Name
+Symbol = SymbolStart , { SymbolBody } , "/" , { SymbolStart }-
+       | SymbolStart , { SymbolBody }
        | "/" ;
-
-Namespace = SymbolStart , { SymbolBody } ;
-
-Name = SymbolStart , { SymbolBody } ;
-
-QualifiedName = { SymbolStart } ;
 
 SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
             | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
 
 SymbolBody = SymbolConstituent
-            | ? Decimal digit ?
             | "#"
             | ":" ;
 
@@ -171,6 +165,7 @@ SymbolConstituent = ? Alphanumeric ?
                   | "="
                   | "<"
                   | ">" ;
+
 @endebnf
 #+end_src
 
@@ -219,9 +214,12 @@ Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) 
 @startebnf
 !theme amiga
 
-Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , [ "." , { ? Decimal digit ? } ] , [ Exponent ] , [ "M" ] ;
+Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+
+Fractional = "." , { ? Decimal digit ? } ;
 
 Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+
 @endebnf
 #+end_src
 
@@ -376,14 +374,14 @@ Edn = { WhiteSpace | EdnElement } ;
 
 WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
 
-Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | EndOfInput ) ;
+Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | ? End of input ? ) ;
 
 EdnElement = Nil
            | Boolean
            | String
            | Character
-           | Integer
            | Float
+           | Integer
            | Symbol
            | Keyword
            | List
@@ -416,21 +414,14 @@ UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
 
 HexDigit = ? 0-9, a-z, A-Z ? ;
 
-Symbol = Namespace , "/" , QualifiedName
-       | Name
+Symbol = SymbolStart , { SymbolBody } , "/" , { SymbolStart }-
+       | SymbolStart , { SymbolBody }
        | "/" ;
-
-Namespace = SymbolStart , { SymbolBody } ;
-
-Name = SymbolStart , { SymbolBody } ;
-
-QualifiedName = { SymbolStart } ;
 
 SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
             | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
 
 SymbolBody = SymbolConstituent
-            | ? Decimal digit ?
             | "#"
             | ":" ;
 
@@ -453,7 +444,9 @@ Keyword = ":" , Symbol - "/" ;
 
 Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
 
-Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , [ "." , { ? Decimal digit ? } ] , [ Exponent ] , [ "M" ] ;
+Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+
+Fractional = "." , { ? Decimal digit ? } ;
 
 Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
 
