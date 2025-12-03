@@ -28,24 +28,40 @@ edn elements, streams and files should be encoded using [[http://en.wikipedia.or
 
 Elements are generally separated by whitespace. Whitespace, other than within strings, is not otherwise significant, nor need redundant whitespace be preserved during transmissions. Commas ~,~ are also considered whitespace, other than within strings.
 
-#+begin_src plantuml :file ./edn_document_ebnf.svg
+#+name: edn_document
+#+begin_src ebnf :eval no :exports code
+Edn = { Spacing | EdnElement | ? End of input ? }- ;
 
+Spacing = { WhiteSpace | Comment | "," }- ;
+
+WhiteSpace = " " | "\t" | "\n" | "\r" ;
+
+Comment = ";" , { ( ? Any character ? - LineEnd ) } , LineEnd ;
+
+LineEnd = "\n" | "\r" | ? End of input ? ;
+#+end_src
+
+#+begin_src plantuml :file edn_document.svg :noweb yes :exports results
 @startebnf
 !theme amiga
+<<edn_document>>
+@endebnf
+#+end_src
 
-Edn = { WhiteSpace | EdnElement }- ;
+#+RESULTS:
+[[file:edn_document.svg]]
 
-WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
+* Built-in elements
 
-Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | ? End of input ? ) ;
-
-EdnElement = Nil
-           | Boolean
-           | Character
+#+name: edn_elements
+#+begin_src ebnf :eval no :exports code
+EdnElement = Character
            | String
-           | Integer
            | Float
+           | Integer
            | Symbol
+           | Nil
+           | Boolean
            | Keyword
            | List
            | Vector
@@ -53,124 +69,153 @@ EdnElement = Nil
            | Set
            | TaggedElement
            | DiscardSequence ;
+#+end_src
+
+#+begin_src plantuml :file edn_elements.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_elements>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_document_ebnf.svg]]
-
-* Built-in elements
+[[file:edn_elements.svg]]
 
 ** Nil
 
 Represents nil, null or nothing. It should be read as an object with similar meaning on the target platform.
 
-#+begin_src plantuml :file ./edn_nil_ebnf.svg :exports results
+#+name: edn_nil
+#+begin_src ebnf :eval no :exports code
+Nil = "nil" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_nil.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Nil = "nil" ;
+<<edn_nil>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_nil_ebnf.svg]]
+[[file:./edn_nil.svg]]
 
 ** Booleans
 
 If a platform has canonic values for true and false, it is a further semantic of booleans that all instances of ~true~ yield that (identical) value, and similarly for ~false~.
 
-#+begin_src plantuml :file ./edn_booleans_ebnf.svg :exports results
+#+name: edn_boolean
+#+begin_src ebnf :eval no :exports code
+Boolean = "true" | "false" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_boolean.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Boolean = "true" | "false" ;
+<<edn_boolean>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_booleans_ebnf.svg]]
+[[file:./edn_boolean.svg]]
 
 ** Characters
 
-#+begin_src plantuml :file ./edn_characters_ebnf.svg :exports results
-@startebnf
-!theme amiga
-
+#+name: edn_character
+#+begin_src ebnf :eval no :exports code
 Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
 
-CharLiteral = ? Any non-whitespace character ? ;
+CharLiteral = ? Any character ? - WhiteSpace ;
 
 CharName = "newline" | "space" | "tab" | "return" ;
 
 UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
 
 HexDigit = ? 0-9, a-z, A-Z ? ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_character.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_character>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_characters_ebnf.svg]]
+[[file:./edn_character.svg]]
 
 ** Strings
 
-#+begin_src plantuml :file ./edn_strings_ebnf.svg :exports results
-@startebnf
-!theme amiga
-
+#+name: edn_string
+#+begin_src ebnf :eval no :exports code
 String = '"' , { StringCharacter } , '"' ;
 
 StringCharacter = InputCharacter
                 | EscapeSequence ;
 
-InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
+InputCharacter = ? Any character ? - ( "\" | '"' ) ;
 
-EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
+EscapeSequence = "\" , ( "t" | "r" | "n" | "\" | '"' ) ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_string.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_string>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_strings_ebnf.svg]]
+[[file:./edn_string.svg]]
 
 ** Symbols
 
 Symbols are used to represent identifiers, and should map to something other than strings, if possible.
 
-#+begin_src plantuml :file ./edn_symbols_ebnf.svg :exports results
+#+name: edn_symbol
+#+begin_src ebnf :eval no :exports code
+Symbol = Identifier - ( Nil | Boolean ) ;
+
+Identifier = IdentifierPrefix , "/" , IdentifierName
+           | IdentifierPrefix
+           | "/" ;
+
+IdentifierPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , { IdentifierBody }
+                 | ( "+" | "-" | "." ) , [ ( IdentifierBody - ? Decimal digit ? ) , { IdentifierBody } ];
+
+IdentifierName = { IdentifierStart }- ;
+
+IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? ) ;
+
+IdentifierBody = IdentifierConstituent
+               | "#"
+               | ":" ;
+
+IdentifierConstituent = ? Alphanumeric ?
+                      | "."
+                      | "*"
+                      | "+"
+                      | "!"
+                      | "-"
+                      | "_"
+                      | "?"
+                      | "$"
+                      | "%"
+                      | "&"
+                      | "="
+                      | "<"
+                      | ">" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_symbol.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Symbol = SymbolStart , { SymbolBody } , "/" , { SymbolStart }-
-       | SymbolStart , { SymbolBody }
-       | "/" ;
-
-SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
-            | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
-
-SymbolBody = SymbolConstituent
-            | "#"
-            | ":" ;
-
-SymbolConstituent = ? Alphanumeric ?
-                  | "."
-                  | "*"
-                  | "+"
-                  | "!"
-                  | "-"
-                  | "_"
-                  | "?"
-                  | "$"
-                  | "%"
-                  | "&"
-                  | "="
-                  | "<"
-                  | ">" ;
-
+<<edn_symbol>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_symbols_ebnf.svg]]
+[[file:./edn_symbol.svg]]
 
 ** Keywords
 
@@ -180,112 +225,140 @@ If the target platform supports some notion of interning, it is a further semant
 
 If the target platform does not have a keyword type distinct from a symbol type, the same type can be used without conflict, since the mandatory leading ~:~ of keywords is disallowed for symbols.
 
-#+begin_src plantuml :file ./edn_keywords_ebnf.svg :exports results
+#+name: edn_keyword
+#+begin_src ebnf :eval no :exports code
+Keyword = ":" , Identifier - "/" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_keyword.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Keyword = ":" , Symbol - "/" ;
+<<edn_keyword>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_keywords_ebnf.svg]]
+[[file:./edn_keyword.svg]]
 
 ** Integers
 
 64-bit (signed integer) precision is expected. An integer can have the suffix ~N~ to indicate that arbitrary precision is desired. ~-0~ is a valid integer not distinct from ~0~.
 
-#+begin_src plantuml :file ./edn_integers_ebnf.svg :exports results
+#+name: edn_integer
+#+begin_src ebnf :eval no :exports code
+Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_integer.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+<<edn_integer>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_integers_ebnf.svg]]
+[[file:./edn_integer.svg]]
 
 ** Floating point numbers
 
 64-bit (double) precision is expected.
 
-#+begin_src plantuml :file ./edn_floating_point_numbers_ebnf.svg :exports results
-@startebnf
-!theme amiga
-
-Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+#+name: edn_float
+#+begin_src ebnf :eval no :exports code
+Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
 
 Fractional = "." , { ? Decimal digit ? } ;
 
 Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+#+end_src
 
+#+begin_src plantuml :file ./edn_float.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_float>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_floating_point_numbers_ebnf.svg]]
+[[file:./edn_float.svg]]
 
 ** Lists
 
 A list is a sequence of values. Note that lists can be heterogeneous.
 
-#+begin_src plantuml :file ./edn_lists_ebnf.svg :exports results
+#+name: edn_list
+#+begin_src ebnf :eval no :exports code
+List = "(" , { Spacing | EdnElement } , ")" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_list.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-List = "(" , { WhiteSpace | EdnElement } , ")" ;
+<<edn_list>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_lists_ebnf.svg]]
+[[file:./edn_list.svg]]
 
 ** Vectors
 
 A vector is a sequence of values that supports random access. Note that vectors can be heterogeneous.
 
-#+begin_src plantuml :file ./edn_vectors_ebnf.svg :exports results
+#+name: edn_vector
+#+begin_src ebnf :eval no :exports code
+Vector = "[" , { Spacing | EdnElement } , "]" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_vector.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Vector = "[" , { WhiteSpace | EdnElement } , "]" ;
+<<edn_vector>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_vectors_ebnf.svg]]
+[[file:./edn_vector.svg]]
 
 ** Maps
 
 A map is a collection of associations between keys and values. Each key should appear at most once. No semantics should be associated with the order in which the pairs appear.
 
-#+begin_src plantuml :file ./edn_maps_ebnf.svg :exports results
+#+name: edn_map
+#+begin_src ebnf :eval no :exports code
+Map = "{" , { Spacing | MapEntry } , "}" ;
+
+MapEntry = EdnElement , [ Spacing ] , EdnElement ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_map.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Map = "{" , { WhiteSpace } , { 2 * ( EdnElement , { WhiteSpace } ) } , "}" ;
-
+<<edn_map>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_maps_ebnf.svg]]
+[[file:./edn_map.svg]]
 
 ** Sets
 
 A set is a collection of unique values. No semantics should be associated with the order in which the elements appear. Note that sets can be heterogeneous.
 
-#+begin_src plantuml :file ./edn_sets_ebnf.svg :exports results
+#+name: edn_set
+#+begin_src ebnf :eval no :exports code
+Set = "#{" , { Spacing | EdnElement } , "}" ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_set.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-Set = "#{" , { WhiteSpace | EdnElement } , "}" ;
+<<edn_set>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_sets_ebnf.svg]]
+[[file:./edn_set.svg]]
 
 ** Tagged elements
 
@@ -307,22 +380,31 @@ A tag may specify more than one format for the tagged element, e.g. both a strin
 
 Tags themselves are not elements. It is an error to have a tag without a corresponding tagged element.
 
-#+begin_src plantuml :file ./edn_tagged_elements_ebnf.svg :exports results
-@startebnf
-!theme amiga
+#+name: edn_tagged
+#+begin_src ebnf :eval no :exports code
+TaggedElement = "#" , Tag , [ Spacing ] , EdnElement ;
 
-TaggedElement = "#" , Symbol , { WhiteSpace }- , EdnElement ;
+Tag = TagPrefix , "/" , IdentifierName
+    | TagPrefix ;
+
+TagPrefix = ? Alpha ? , { IdentifierBody } ;
 
 (* built-in tagged elements *)
 
-Instant = "#inst" , { WhiteSpace }- , ? RFC-3339 formatted string ? ;
+Instant = "#inst" , [ Spacing ] , ? RFC-3339 formatted string ? ;
 
-UUID = "#uuid" , { WhiteSpace }- , ? Canonical UUID string representation ? ;
+UUID = "#uuid" , [ Spacing ] , ? Canonical UUID string representation ? ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_tagged.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_tagged>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_tagged_elements_ebnf.svg]]
+[[file:./edn_tagged.svg]]
 
 *** built-in tagged elements
 
@@ -338,16 +420,20 @@ A [[http://en.wikipedia.org/wiki/Universally_unique_identifier][UUID]]. The tagg
 
 Discard sequence, indicating that the next element (whether separated from ~#_~ by whitespace or not) should be read and discarded. Note that the next element must still be a readable element. A reader should not call user-supplied tag handlers during the processing of the element to be discarded.
 
-#+begin_src plantuml :file ./edn_discard_ebnf.svg :exports results
+#+name: edn_discard
+#+begin_src ebnf :eval no :exports code
+DiscardSequence = "#_" , [ Spacing ] , EdnElement ;
+#+end_src
+
+#+begin_src plantuml :file ./edn_discard.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-
-DiscardSequence = "#_" , { WhiteSpace } , EdnElement ;
+<<edn_discard>>
 @endebnf
 #+end_src
 
 #+RESULTS:
-[[file:./edn_discard_ebnf.svg]]
+[[file:./edn_discard.svg]]
 
 * Equality
 
@@ -367,106 +453,54 @@ tagged elements must define their own equality semantics. #uuid elements are equ
 
 * Complete EBNF Grammar
 
-#+begin_src plantuml :file ./edn_ebnf.svg :exports results
+#+name: edn_ebnf
+#+begin_src ebnf :eval no :noweb yes :exports results :tangle edn_grammar.ebnf
+<<edn_document>>
+
+<<edn_elements>>
+
+<<edn_nil>>
+
+<<edn_boolean>>
+
+<<edn_character>>
+
+<<edn_string>>
+
+<<edn_symbol>>
+
+<<edn_keyword>>
+
+<<edn_integer>>
+
+<<edn_float>>
+
+<<edn_list>>
+
+<<edn_vector>>
+
+<<edn_map>>
+
+<<edn_set>>
+
+<<edn_discard>>
+
+<<edn_tagged>>
+#+end_src
+
+#+RESULTS:
+[[file:edn_grammar.ebnf]]
+
+#+begin_src plantuml :file ./edn_ebnf.svg :noweb yes :exports results
 @startebnf
 !theme amiga
-Edn = { WhiteSpace | EdnElement } ;
+title EDN grammar
 
-WhiteSpace = " " | "\t" | "\n" | "\r" | "," | Comment ;
+(* Assumes greedy repetition
+   Assumes ordered alternation *)
 
-Comment = ";" , { ? Any char except newline ? } , ( "\n" | "\r" | ? End of input ? ) ;
+<<edn_ebnf>>
 
-EdnElement = Nil
-           | Boolean
-           | String
-           | Character
-           | Float
-           | Integer
-           | Symbol
-           | Keyword
-           | List
-           | Vector
-           | Map
-           | Set
-           | TaggedElement
-           | DiscardSequence ;
-
-Nil = "nil" ;
-
-Boolean = "true" | "false" ;
-
-String = '"' , { StringCharacter } , '"' ;
-
-StringCharacter = InputCharacter
-                | EscapeSequence ;
-
-InputCharacter = ? All Unicode Characters ? - ( '\' | '"' ) ;
-
-EscapeSequence = '\' , ( 't' | 'r' | 'n' | '\' | '"' ) ;
-
-Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
-
-CharLiteral = ? Any non-whitespace character ? ;
-
-CharName = "newline" | "space" | "tab" | "return" ;
-
-UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
-
-HexDigit = ? 0-9, a-z, A-Z ? ;
-
-Symbol = SymbolStart , { SymbolBody } , "/" , { SymbolStart }-
-       | SymbolStart , { SymbolBody }
-       | "/" ;
-
-SymbolStart = ( SymbolConstituent - ( ? Decimal digit ? | "-" | "+" | "." ) )
-            | ( "-" | "+" | "." ) , SymbolConstituent - ? Decimal digit ? ;
-
-SymbolBody = SymbolConstituent
-            | "#"
-            | ":" ;
-
-SymbolConstituent = ? Alphanumeric ?
-                  | "."
-                  | "*"
-                  | "+"
-                  | "!"
-                  | "-"
-                  | "_"
-                  | "?"
-                  | "$"
-                  | "%"
-                  | "&"
-                  | "="
-                  | "<"
-                  | ">" ;
-
-Keyword = ":" , Symbol - "/" ;
-
-Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
-
-Float = [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
-
-Fractional = "." , { ? Decimal digit ? } ;
-
-Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
-
-List = "(" , { WhiteSpace | EdnElement } , ")" ;
-
-Vector = "[" , { WhiteSpace | EdnElement } , "]" ;
-
-Map = "{" , { WhiteSpace } , { 2 * ( EdnElement , { WhiteSpace } ) } , "}" ;
-
-Set = "#{" , { WhiteSpace | EdnElement } , "}" ;
-
-TaggedElement = "#" , Symbol , { WhiteSpace }- , EdnElement ;
-
-DiscardSequence = "#_" , { WhiteSpace } , EdnElement ;
-
-(* built-in tagged elements *)
-
-Instant = "#inst" , { WhiteSpace }- , ? RFC-3339 formatted string ? ;
-
-UUID = "#uuid" , { WhiteSpace }- , ? Canonical UUID string representation ? ;
 @endebnf
 #+end_src
 

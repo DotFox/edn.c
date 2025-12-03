@@ -1,0 +1,114 @@
+Edn = { Spacing | EdnElement | ? End of input ? }- ;
+
+Spacing = { WhiteSpace | Comment | "," }- ;
+
+WhiteSpace = " " | "\t" | "\n" | "\r" ;
+
+Comment = ";" , { ( ? Any character ? - LineEnd ) } , LineEnd ;
+
+LineEnd = "\n" | "\r" | ? End of input ? ;
+
+EdnElement = Character
+           | String
+           | Float
+           | Integer
+           | Symbol
+           | Nil
+           | Boolean
+           | Keyword
+           | List
+           | Vector
+           | Map
+           | Set
+           | TaggedElement
+           | DiscardSequence ;
+
+Nil = "nil" ;
+
+Boolean = "true" | "false" ;
+
+Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
+
+CharLiteral = ? Any character ? - WhiteSpace ;
+
+CharName = "newline" | "space" | "tab" | "return" ;
+
+UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
+
+HexDigit = ? 0-9, a-z, A-Z ? ;
+
+String = '"' , { StringCharacter } , '"' ;
+
+StringCharacter = InputCharacter
+                | EscapeSequence ;
+
+InputCharacter = ? Any character ? - ( "\" | '"' ) ;
+
+EscapeSequence = "\" , ( "t" | "r" | "n" | "\" | '"' ) ;
+
+Symbol = Identifier - ( Nil | Boolean ) ;
+
+Identifier = IdentifierPrefix , "/" , IdentifierName
+           | IdentifierPrefix
+           | "/" ;
+
+IdentifierPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , { IdentifierBody }
+                 | ( "+" | "-" | "." ) , [ ( IdentifierBody - ? Decimal digit ? ) , { IdentifierBody } ];
+
+IdentifierName = { IdentifierStart }- ;
+
+IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? ) ;
+
+IdentifierBody = IdentifierConstituent
+               | "#"
+               | ":" ;
+
+IdentifierConstituent = ? Alphanumeric ?
+                      | "."
+                      | "*"
+                      | "+"
+                      | "!"
+                      | "-"
+                      | "_"
+                      | "?"
+                      | "$"
+                      | "%"
+                      | "&"
+                      | "="
+                      | "<"
+                      | ">" ;
+
+Keyword = ":" , Identifier - "/" ;
+
+Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+
+Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+
+Fractional = "." , { ? Decimal digit ? } ;
+
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+
+List = "(" , { Spacing | EdnElement } , ")" ;
+
+Vector = "[" , { Spacing | EdnElement } , "]" ;
+
+Map = "{" , { Spacing | MapEntry } , "}" ;
+
+MapEntry = EdnElement , [ Spacing ] , EdnElement ;
+
+Set = "#{" , { Spacing | EdnElement } , "}" ;
+
+DiscardSequence = "#_" , [ Spacing ] , EdnElement ;
+
+TaggedElement = "#" , Tag , [ Spacing ] , EdnElement ;
+
+Tag = TagPrefix , "/" , IdentifierName
+    | TagPrefix ;
+
+TagPrefix = ? Alpha ? , { IdentifierBody } ;
+
+(* built-in tagged elements *)
+
+Instant = "#inst" , [ Spacing ] , ? RFC-3339 formatted string ? ;
+
+UUID = "#uuid" , [ Spacing ] , ? Canonical UUID string representation ? ;
