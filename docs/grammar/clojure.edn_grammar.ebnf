@@ -1,0 +1,167 @@
+Edn = { Spacing | EdnElement | ? End of input ? }- ;
+
+Spacing = { WhiteSpace | Comment | "," }- ;
+
+WhiteSpace = " "      (* U+0020 SPACE *)
+           | "\t"     (* U+0009 HORIZONTAL TABULATION *)
+           | "\n"     (* U+000A LINE FEED *)
+           | "\u000B" (* U+000B VERTICAL TABULATION *)
+           | "\f"     (* U+000C FORM FEED *)
+           | "\r"     (* U+000D CARRIAGE RETURN *)
+           | "\u001C" (* U+001C FILE SEPARATOR *)
+           | "\u001D" (* U+001D GROUP SEPARATOR *)
+           | "\u001E" (* U+001E RECORD SEPARATOR *)
+           | "\u001F" (* U+001F UNIT SEPARATOR *)
+           ;
+
+Comment = ";" , { ( ? Any character ? - LineEnd ) } , LineEnd ;
+
+LineEnd = "\n" | "\r" | ? End of input ? ;
+
+EdnElement = Character        (* Additional named characters and octal form *)
+           | String           (* Additional octal escape sequence *)
+           | Float
+           | Ratio            (* Rational ratios *)
+           | Integer          (* Additional integer forms and minor deviations *)
+           | List
+           | Vector
+           | Map              (* Additional syntax for namespaced maps *)
+           | Set
+           | Symbolic         (* ##Inf, ##-Inf, and ##NaN *)
+           | TaggedElement
+           | DiscardSequence
+           | MetadataSequence (* Metadata literal for some EdnElements *)
+           | Symbol           (* Many small additions and deviations *)
+           | Nil
+           | Boolean
+           | Keyword          (* Same as Symbols *)
+           ;
+
+Nil = "nil" ;
+
+Boolean = "true" | "false" ;
+
+Character = "\" , ( CharLiteral | CharName | UnicodeEscape | OctalEscape ) ;
+
+CharLiteral = ? Any character ? - WhiteSpace ;
+
+CharName = "newline" | "space" | "tab" | "return" | "formfeed" | "backspace" ;
+
+UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
+
+HexDigit = ? 0-9, a-z, A-Z ? ;
+
+OctalEscape = "o", ZeroToThree , OctalDigit , OctalDigit ;
+
+OctalDigit = ? 0-7 ? ;
+
+ZeroToThree = ? 0-3 ? ;
+
+String = '"' , { StringCharacter } , '"' ;
+
+StringCharacter = InputCharacter
+                | EscapeSequence ;
+
+InputCharacter = ? Any character ? - ( "\" | '"' ) ;
+
+EscapeSequence = "\" , ( ( "\" | '"' | "n" | "r" | "t" | "b" | "f" )
+                       | UnicodeEscape
+                       | ( ZeroToThree , OctalDigit , OctalDigit ) ) ;
+
+Symbolic = "##Inf" | "##-Inf" | "NaN" ;
+
+(* TODO incomplete *)
+Symbol = Identifier - ( Nil | Boolean ) ;
+
+Identifier = IdentifierPrefix , "/" , IdentifierName
+           | IdentifierPrefix
+           | "/" ;
+
+IdentifierPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , { IdentifierBody }
+                 | ( "+" | "-" | "." ) , [ ( IdentifierBody - ? Decimal digit ? ) , { IdentifierBody } ];
+
+IdentifierName = { IdentifierStart }- ;
+
+IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? ) ;
+
+IdentifierBody = IdentifierConstituent
+               | "#"
+               | ":" ;
+
+IdentifierConstituent = ? Alphanumeric ?
+                      | "."
+                      | "*"
+                      | "+"
+                      | "!"
+                      | "-"
+                      | "_"
+                      | "?"
+                      | "$"
+                      | "%"
+                      | "&"
+                      | "="
+                      | "<"
+                      | ">" ;
+(* TODO end *)
+
+(* TODO incomplete *)
+Keyword = ":" , Identifier - "/" ;
+(* TODO end *)
+
+Integer = [ "-" | "+" ] , ( OctalInteger
+                          | HexadecimalInteger
+                          | RadixInteger
+                          | DecimalInteger ) ;
+
+DecimalInteger = ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , [ "N" ] ;
+
+OctalInteger = "0" , { OctalDigit }- ;
+
+HexadecimalInteger = "0x" , { HexDigit }- , [ "N" ] ;
+
+RadixInteger = Radix , "r" , { RadixDigit }- ;
+
+Radix = ( ? Decimal digit ? - ( "0" | "1" ) )
+      | ( "2" , ? Decimal digit ? )
+      | ( "3" , ZeroToSix ) ;
+
+RadixDigit = ? 0-9, a-z, A-Z ? ;
+ZeroToSix = ? 0-6 ? ;
+
+Ratio = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , "/" , ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) ;
+
+Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+
+Fractional = "." , { ? Decimal digit ? } ;
+
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+
+List = "(" , { Spacing | EdnElement } , ")" ;
+
+Vector = "[" , { Spacing | EdnElement } , "]" ;
+
+Map = [ "#:" , SimpleSymbol ] , "{" , { Spacing | MapEntry } , "}" ;
+
+MapEntry = ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
+
+ReadableEdnElement = ( EdnElement - DiscardSequence )
+                   | DiscardSequence , [ Spacing ] , ReadableEdnElement ;
+
+Set = "#{" , { Spacing | EdnElement } , "}" ;
+
+DiscardSequence = "#_" , [ Spacing ] , EdnElement ;
+
+MetadataSequence = "^" , [ Spacing ] , ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
+
+Metadata = String
+         | Keyword
+         | Symbol
+         | Map ;
+
+TaggedElement = "#" , Symbol , [ Spacing ] , ReadableEdnElement ;
+
+(* built-in tagged elements *)
+
+Instant = "#inst" , [ Spacing ] , ? RFC-3339 formatted string ? ;
+
+UUID = "#uuid" , [ Spacing ] , ? Canonical UUID string representation ? ;
