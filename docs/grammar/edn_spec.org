@@ -131,7 +131,7 @@ CharName = "newline" | "space" | "tab" | "return" ;
 
 UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
 
-HexDigit = ? 0-9, a-z, A-Z ? ;
+HexDigit = ? 0-9, a-f, A-F ? ;
 #+end_src
 
 #+begin_src plantuml :file ./edn_character.svg :noweb yes :exports results
@@ -328,7 +328,10 @@ A map is a collection of associations between keys and values. Each key should a
 #+begin_src ebnf :eval no :exports code
 Map = "{" , { Spacing | MapEntry } , "}" ;
 
-MapEntry = EdnElement , [ Spacing ] , EdnElement ;
+MapEntry = ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
+
+ReadableEdnElement = ( EdnElement - DiscardSequence )
+                   | DiscardSequence , [ Spacing ] , ReadableEdnElement ;
 #+end_src
 
 #+begin_src plantuml :file ./edn_map.svg :noweb yes :exports results
@@ -382,7 +385,7 @@ Tags themselves are not elements. It is an error to have a tag without a corresp
 
 #+name: edn_tagged
 #+begin_src ebnf :eval no :exports code
-TaggedElement = "#" , Tag , [ Spacing ] , EdnElement ;
+TaggedElement = "#" , Tag , [ Spacing ] , ReadableEdnElement ;
 
 Tag = TagPrefix , "/" , IdentifierName
     | TagPrefix ;
