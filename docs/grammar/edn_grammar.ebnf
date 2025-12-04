@@ -35,7 +35,7 @@ CharName = "newline" | "space" | "tab" | "return" ;
 
 UnicodeEscape = "u" , HexDigit , HexDigit , HexDigit , HexDigit ;
 
-HexDigit = ? 0-9, a-z, A-Z ? ;
+HexDigit = ? 0-9, a-f, A-F ? ;
 
 String = '"' , { StringCharacter } , '"' ;
 
@@ -94,13 +94,16 @@ Vector = "[" , { Spacing | EdnElement } , "]" ;
 
 Map = "{" , { Spacing | MapEntry } , "}" ;
 
-MapEntry = EdnElement , [ Spacing ] , EdnElement ;
+MapEntry = ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
+
+ReadableEdnElement = ( EdnElement - DiscardSequence )
+                   | DiscardSequence , [ Spacing ] , ReadableEdnElement ;
 
 Set = "#{" , { Spacing | EdnElement } , "}" ;
 
 DiscardSequence = "#_" , [ Spacing ] , EdnElement ;
 
-TaggedElement = "#" , Tag , [ Spacing ] , EdnElement ;
+TaggedElement = "#" , Tag , [ Spacing ] , ReadableEdnElement ;
 
 Tag = TagPrefix , "/" , IdentifierName
     | TagPrefix ;
