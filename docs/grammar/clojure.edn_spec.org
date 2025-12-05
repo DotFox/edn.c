@@ -156,39 +156,33 @@ Symbolic = "##Inf" | "##-Inf" | "NaN" ;
 
 #+name: edn_symbol
 #+begin_src ebnf :eval no :exports code
-(* TODO incomplete *)
 Symbol = Identifier - ( Nil | Boolean ) ;
 
-Identifier = IdentifierPrefix , "/" , IdentifierName
-           | IdentifierPrefix
+Identifier = SymbolPrefix , "/" , IdentifierName
+           | SymbolPrefix
            | "/" ;
 
-IdentifierPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , { IdentifierBody }
-                 | ( "+" | "-" | "." ) , [ ( IdentifierBody - ? Decimal digit ? ) , { IdentifierBody } ];
+(* SymbolPrefix can't contain repeating ":" *)
+SymbolPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , [ { SymbolPrefixBody } , IdentifierEnd ]
+             | ( "+" | "-" | "." ) , [ ( SymbolPrefixBody - ? Decimal digit ? ) , [ { SymbolPrefixBody } , IdentifierEnd ] ] ;
 
-IdentifierName = { IdentifierStart }- ;
+(* IdentifierName can't contain repeating ":" *)
+IdentifierName = ( IdentifierConstituent - ? DecimalDigit ? ) , [ { IdentifierConstituent } , IdentifierEnd ] ;
 
-IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? ) ;
+IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? | ":" | "/" ) ;
 
-IdentifierBody = IdentifierConstituent
-               | "#"
-               | ":" ;
+IdentifierEnd = IdentifierConstituent - ( ":" | "/" ) ;
 
-IdentifierConstituent = ? Alphanumeric ?
-                      | "."
-                      | "*"
-                      | "+"
-                      | "!"
-                      | "-"
-                      | "_"
-                      | "?"
-                      | "$"
-                      | "%"
-                      | "&"
-                      | "="
-                      | "<"
-                      | ">" ;
-(* TODO end *)
+SymbolPrefixBody = IdentifierConstituent - "/" ;
+
+IdentifierConstituent = ? Any char ? - ( WhiteSpace | "," | ";" | StructuralDelimiter | "`" | "@" | "~" ) ;
+
+StructuralDelimiter = '"'
+                    | "\\"
+                    | "[" | "]"
+                    | "{" | "}"
+                    | "(" | ")"
+                    | "#" ;
 #+end_src
 
 #+begin_src plantuml :file ./clojure.edn_symbol.svg :noweb yes :exports results
@@ -205,9 +199,14 @@ IdentifierConstituent = ? Alphanumeric ?
 
 #+name: edn_keyword
 #+begin_src ebnf :eval no :exports code
-(* TODO incomplete *)
-Keyword = ":" , Identifier - "/" ;
-(* TODO end *)
+Keyword = ":" , KeywordIdentifier ;
+
+KeywordIdentifier = KeywordPrefix , "/" , IdentifierName
+                  | KeywordPrefix
+                  | "/" ;
+
+(* KeywordPrefix can't contain repeating ":" *)
+KeywordPrefix = IdentifierConstituent - "/" , [ { IdentifierConstituent } , IdentifierEnd ] ;
 #+end_src
 
 #+begin_src plantuml :file ./clojure.edn_keyword.svg :noweb yes :exports results
@@ -276,7 +275,7 @@ Ratio = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | 
 
 #+name: edn_map
 #+begin_src ebnf :eval no :exports code
-Map = [ "#:" , SimpleSymbol ] , "{" , { Spacing | MapEntry } , "}" ;
+Map = [ "#:" , KeywordPrefix ] , "{" , { Spacing | MapEntry } , "}" ;
 
 MapEntry = ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
 
