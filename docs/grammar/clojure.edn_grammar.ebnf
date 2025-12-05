@@ -70,43 +70,42 @@ EscapeSequence = "\" , ( ( "\" | '"' | "n" | "r" | "t" | "b" | "f" )
 
 Symbolic = "##Inf" | "##-Inf" | "NaN" ;
 
-(* TODO incomplete *)
 Symbol = Identifier - ( Nil | Boolean ) ;
 
-Identifier = IdentifierPrefix , "/" , IdentifierName
-           | IdentifierPrefix
+Identifier = SymbolPrefix , "/" , IdentifierName
+           | SymbolPrefix
            | "/" ;
 
-IdentifierPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , { IdentifierBody }
-                 | ( "+" | "-" | "." ) , [ ( IdentifierBody - ? Decimal digit ? ) , { IdentifierBody } ];
+(* SymbolPrefix can't contain repeating ":" *)
+SymbolPrefix = ( IdentifierStart - ( "+" | "-" | "." ) ) , [ { SymbolPrefixBody } , IdentifierEnd ]
+             | ( "+" | "-" | "." ) , [ ( SymbolPrefixBody - ? Decimal digit ? ) , [ { SymbolPrefixBody } , IdentifierEnd ] ] ;
 
-IdentifierName = { IdentifierStart }- ;
+(* IdentifierName can't contain repeating ":" *)
+IdentifierName = ( IdentifierConstituent - ? DecimalDigit ? ) , [ { IdentifierConstituent } , IdentifierEnd ] ;
 
-IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? ) ;
+IdentifierStart = IdentifierConstituent - ( ? Decimal digit ? | ":" | "/" ) ;
 
-IdentifierBody = IdentifierConstituent
-               | "#"
-               | ":" ;
+IdentifierEnd = IdentifierConstituent - ( ":" | "/" ) ;
 
-IdentifierConstituent = ? Alphanumeric ?
-                      | "."
-                      | "*"
-                      | "+"
-                      | "!"
-                      | "-"
-                      | "_"
-                      | "?"
-                      | "$"
-                      | "%"
-                      | "&"
-                      | "="
-                      | "<"
-                      | ">" ;
-(* TODO end *)
+SymbolPrefixBody = IdentifierConstituent - "/" ;
 
-(* TODO incomplete *)
-Keyword = ":" , Identifier - "/" ;
-(* TODO end *)
+IdentifierConstituent = ? Any char ? - ( WhiteSpace | "," | ";" | StructuralDelimiter | "`" | "@" | "~" ) ;
+
+StructuralDelimiter = '"'
+                    | "\\"
+                    | "[" | "]"
+                    | "{" | "}"
+                    | "(" | ")"
+                    | "#" ;
+
+Keyword = ":" , KeywordIdentifier ;
+
+KeywordIdentifier = KeywordPrefix , "/" , IdentifierName
+                  | KeywordPrefix
+                  | "/" ;
+
+(* KeywordPrefix can't contain repeating ":" *)
+KeywordPrefix = IdentifierConstituent - "/" , [ { IdentifierConstituent } , IdentifierEnd ] ;
 
 Integer = [ "-" | "+" ] , ( OctalInteger
                           | HexadecimalInteger
@@ -140,7 +139,7 @@ List = "(" , { Spacing | EdnElement } , ")" ;
 
 Vector = "[" , { Spacing | EdnElement } , "]" ;
 
-Map = [ "#:" , SimpleSymbol ] , "{" , { Spacing | MapEntry } , "}" ;
+Map = [ "#:" , KeywordPrefix ] , "{" , { Spacing | MapEntry } , "}" ;
 
 MapEntry = ReadableEdnElement , [ Spacing ] , ReadableEdnElement ;
 
