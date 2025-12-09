@@ -41,7 +41,7 @@ Comment = ";" , { ( ? Any character ? - LineEnd ) } , LineEnd ;
 LineEnd = "\n" | "\r" | ? End of input ? ;
 #+end_src
 
-#+begin_src plantuml :file edn_document.svg :noweb yes :exports results
+#+begin_src plantuml :file ./edn_document.svg :noweb yes :exports results
 @startebnf
 !theme amiga
 <<edn_document>>
@@ -71,7 +71,7 @@ EdnElement = Character
            | DiscardSequence ;
 #+end_src
 
-#+begin_src plantuml :file edn_elements.svg :noweb yes :exports results
+#+begin_src plantuml :file ./edn_elements.svg :noweb yes :exports results
 @startebnf
 !theme amiga
 <<edn_elements>>
@@ -123,7 +123,7 @@ Boolean = "true" | "false" ;
 
 #+name: edn_character
 #+begin_src ebnf :eval no :exports code
-Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
+Character = '\' , ( CharName | UnicodeEscape | CharLiteral ) ;
 
 CharLiteral = ? Any character ? - WhiteSpace ;
 
@@ -153,9 +153,9 @@ String = '"' , { StringCharacter } , '"' ;
 StringCharacter = InputCharacter
                 | EscapeSequence ;
 
-InputCharacter = ? Any character ? - ( "\" | '"' ) ;
+InputCharacter = ? Any character ? - ( '\' | '"' ) ;
 
-EscapeSequence = "\" , ( "t" | "r" | "n" | "\" | '"' ) ;
+EscapeSequence = '\' , ( "t" | "r" | "n" | '\' | '"' ) ;
 #+end_src
 
 #+begin_src plantuml :file ./edn_string.svg :noweb yes :exports results
@@ -267,9 +267,9 @@ Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) 
 #+begin_src ebnf :eval no :exports code
 Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
 
-Fractional = "." , { ? Decimal digit ? } ;
+Fractional = "." , { ? Decimal digit ? }- ;
 
-Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , { ? Decimal digit ? }- ;
 #+end_src
 
 #+begin_src plantuml :file ./edn_float.svg :noweb yes :exports results

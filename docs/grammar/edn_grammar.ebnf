@@ -27,7 +27,7 @@ Nil = "nil" ;
 
 Boolean = "true" | "false" ;
 
-Character = "\" , ( CharLiteral | CharName | UnicodeEscape ) ;
+Character = '\' , ( CharName | UnicodeEscape | CharLiteral ) ;
 
 CharLiteral = ? Any character ? - WhiteSpace ;
 
@@ -42,9 +42,9 @@ String = '"' , { StringCharacter } , '"' ;
 StringCharacter = InputCharacter
                 | EscapeSequence ;
 
-InputCharacter = ? Any character ? - ( "\" | '"' ) ;
+InputCharacter = ? Any character ? - ( '\' | '"' ) ;
 
-EscapeSequence = "\" , ( "t" | "r" | "n" | "\" | '"' ) ;
+EscapeSequence = '\' , ( "t" | "r" | "n" | '\' | '"' ) ;
 
 Symbol = Identifier - ( Nil | Boolean ) ;
 
@@ -84,9 +84,9 @@ Integer = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) 
 
 Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
 
-Fractional = "." , { ? Decimal digit ? } ;
+Fractional = "." , { ? Decimal digit ? }- ;
 
-Exponent = ( "e" | "E" ) , [ "-" | "+" ] , ? Decimal digit ? , { ? Decimal digit ? } ;
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , { ? Decimal digit ? }- ;
 
 List = "(" , { Spacing | EdnElement } , ")" ;
 

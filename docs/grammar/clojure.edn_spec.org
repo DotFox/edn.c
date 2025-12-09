@@ -34,7 +34,7 @@ Comment = ";" , { ( ? Any character ? - LineEnd ) } , LineEnd ;
 LineEnd = "\n" | "\r" | ? End of input ? ;
 #+end_src
 
-#+begin_src plantuml :file clojure.edn_document.svg :noweb yes :exports results
+#+begin_src plantuml :file ./clojure.edn_document.svg :noweb yes :exports results
 @startebnf
 !theme amiga
 <<edn_document>>
@@ -42,7 +42,7 @@ LineEnd = "\n" | "\r" | ? End of input ? ;
 #+end_src
 
 #+RESULTS:
-[[file:clojure.edn_document.svg]]
+[[file:./clojure.edn_document.svg]]
 
 * Built-in elements
 
@@ -68,7 +68,7 @@ EdnElement = Character        (* Additional named characters and octal form *)
            ;
 #+end_src
 
-#+begin_src plantuml :file edn_elements.svg :noweb yes :exports results
+#+begin_src plantuml :file ./clojure.edn_elements.svg :noweb yes :exports results
 @startebnf
 !theme amiga
 <<edn_elements>>
@@ -76,13 +76,13 @@ EdnElement = Character        (* Additional named characters and octal form *)
 #+end_src
 
 #+RESULTS:
-[[file:edn_elements.svg]]
+[[file:clojure.edn_elements.svg]]
 
 ** Character
 
 #+name: edn_character
 #+begin_src ebnf :eval no :exports code
-Character = "\" , ( CharLiteral | CharName | UnicodeEscape | OctalEscape ) ;
+Character = '\' , ( CharName | UnicodeEscape | OctalEscape | CharLiteral ) ;
 
 CharLiteral = ? Any character ? - WhiteSpace ;
 
@@ -118,9 +118,9 @@ String = '"' , { StringCharacter } , '"' ;
 StringCharacter = InputCharacter
                 | EscapeSequence ;
 
-InputCharacter = ? Any character ? - ( "\" | '"' ) ;
+InputCharacter = ? Any character ? - ( '\' | '"' ) ;
 
-EscapeSequence = "\" , ( ( "\" | '"' | "n" | "r" | "t" | "b" | "f" )
+EscapeSequence = '\' , ( ( '\' | '"' | "n" | "r" | "t" | "b" | "f" )
                        | UnicodeEscape
                        | ( ZeroToThree , OctalDigit , OctalDigit ) ) ;
 #+end_src
@@ -178,7 +178,7 @@ SymbolPrefixBody = IdentifierConstituent - "/" ;
 IdentifierConstituent = ? Any char ? - ( WhiteSpace | "," | ";" | StructuralDelimiter | "`" | "@" | "~" ) ;
 
 StructuralDelimiter = '"'
-                    | "\\"
+                    | '\'
                     | "[" | "]"
                     | "{" | "}"
                     | "(" | ")"
@@ -382,7 +382,7 @@ Metadata = String
 #+end_src
 
 #+RESULTS:
-[[file:edn_grammar.ebnf]]
+[[file:clojure.edn_grammar.ebnf]]
 
 #+begin_src plantuml :file ./clojure.edn_ebnf.svg :noweb yes :exports results
 @startebnf
