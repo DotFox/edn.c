@@ -20,7 +20,7 @@ LineEnd = "\n" | "\r" | ? End of input ? ;
 
 EdnElement = Character        (* Additional named characters and octal form *)
            | String           (* Additional octal escape sequence *)
-           | Float
+           | Float            (* Allow zero digits after literal dot in fractional part *)
            | Ratio            (* Rational ratios *)
            | Integer          (* Additional integer forms and minor deviations *)
            | List
@@ -131,7 +131,7 @@ Ratio = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | 
 
 Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
 
-Fractional = "." , { ? Decimal digit ? }- ;
+Fractional = "." , { ? Decimal digit ? } ;
 
 Exponent = ( "e" | "E" ) , [ "-" | "+" ] , { ? Decimal digit ? }- ;
 
