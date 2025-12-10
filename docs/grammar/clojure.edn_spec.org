@@ -1,7 +1,6 @@
 #+title: EDN Spec implemented by clojure.edn
 #+INCLUDE: "./edn_spec.org::edn_nil" src ebnf
 #+INCLUDE: "./edn_spec.org::edn_boolean" src ebnf
-#+INCLUDE: "./edn_spec.org::edn_float" src ebnf
 #+INCLUDE: "./edn_spec.org::edn_list" src ebnf
 #+INCLUDE: "./edn_spec.org::edn_vector" src ebnf
 #+INCLUDE: "./edn_spec.org::edn_set" src ebnf
@@ -50,7 +49,7 @@ LineEnd = "\n" | "\r" | ? End of input ? ;
 #+begin_src ebnf :eval no :exports code
 EdnElement = Character        (* Additional named characters and octal form *)
            | String           (* Additional octal escape sequence *)
-           | Float
+           | Float            (* Allow zero digits after literal dot in fractional part *)
            | Ratio            (* Rational ratios *)
            | Integer          (* Additional integer forms and minor deviations *)
            | List
@@ -134,6 +133,24 @@ EscapeSequence = '\' , ( ( '\' | '"' | "n" | "r" | "t" | "b" | "f" )
 
 #+RESULTS:
 [[file:./clojure.edn_string.svg]]
+
+** Float
+
+#+name: edn_float
+#+begin_src ebnf :eval no :exports code
+Float = [ "-" | "+" ] , ( ( ? Decimal digit ? - "0" , { ? Decimal digit ? } ) | "0" ) , ( Fractional , [ Exponent ] , [ "M" ] | [ Fractional ] , Exponent , [ "M" ] | [ Fractional ] , [ Exponent ] , "M" ) ;
+
+Fractional = "." , { ? Decimal digit ? } ;
+
+Exponent = ( "e" | "E" ) , [ "-" | "+" ] , { ? Decimal digit ? }- ;
+#+end_src
+
+#+begin_src plantuml :file ./clojure.edn_float.svg :noweb yes :exports results
+@startebnf
+!theme amiga
+<<edn_float>>
+@endebnf
+#+end_src
 
 ** Symbolic
 
