@@ -412,42 +412,6 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
     [255] = CHAR_TYPE_IDENTIFIER,
 };
 
-static edn_value_t* parse_string_value(edn_parser_t* parser) {
-#ifdef EDN_ENABLE_TEXT_BLOCKS
-    /* Check for text block pattern: """\n */
-    if (parser->current + 3 < parser->end && parser->current[0] == '"' &&
-        parser->current[1] == '"' && parser->current[2] == '"' && parser->current[3] == '\n') {
-        return edn_parse_text_block(parser);
-    }
-#endif
-
-    edn_string_scan_t scan = edn_parse_string_lazy(parser->current, parser->end);
-
-    if (!scan.valid) {
-        parser->error = EDN_ERROR_INVALID_STRING;
-        parser->error_message = "Unterminated string";
-        return NULL;
-    }
-
-    edn_value_t* value = edn_arena_alloc_value(parser->arena);
-    if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
-        return NULL;
-    }
-
-    value->type = EDN_TYPE_STRING;
-    value->as.string.data = scan.start;
-    edn_string_set_length(value, scan.end - scan.start);
-    edn_string_set_has_escapes(value, scan.has_escapes);
-    value->as.string.decoded = NULL;
-    value->arena = parser->arena;
-
-    parser->current = scan.end + 1;
-
-    return value;
-}
-
 edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
     if (parser->current < parser->end) {
         unsigned char c = (unsigned char) *parser->current;
@@ -471,7 +435,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
 
     switch (dispatch_type) {
         case CHAR_TYPE_STRING:
-            return parse_string_value(parser);
+            return edn_read_string(parser);
 
         case CHAR_TYPE_CHARACTER:
             return edn_parse_character(parser);

@@ -35,58 +35,99 @@ TEST(simd_find_quote_not_found) {
     assert(result == NULL);
 }
 
-/* Test lazy string parsing */
+/* Test string parsing via edn_read */
 TEST(parse_string_simple) {
     const char* input = "\"hello\"";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == true);
-    assert(result.has_escapes == false);
-    assert(result.end - result.start == 5);
-    assert(strncmp(result.start, "hello", 5) == 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_STRING);
+
+    size_t length;
+    const char* str = edn_string_get(result.value, &length);
+    assert(str != NULL);
+    assert(length == 5);
+    assert(strcmp(str, "hello") == 0);
+
+    edn_free(result.value);
 }
 
 TEST(parse_string_empty) {
     const char* input = "\"\"";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == true);
-    assert(result.has_escapes == false);
-    assert(result.end - result.start == 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_STRING);
+
+    size_t length;
+    const char* str = edn_string_get(result.value, &length);
+    assert(str != NULL);
+    assert(length == 0);
+    assert(strcmp(str, "") == 0);
+
+    edn_free(result.value);
 }
 
 TEST(parse_string_with_escapes) {
     const char* input = "\"hello\\nworld\"";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == true);
-    assert(result.has_escapes == true);
-    assert(result.end - result.start == 12);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_STRING);
+
+    size_t length;
+    const char* str = edn_string_get(result.value, &length);
+    assert(str != NULL);
+    assert(length == 11); /* "hello\nworld" = 11 chars after decoding */
+    assert(strcmp(str, "hello\nworld") == 0);
+
+    edn_free(result.value);
 }
 
 TEST(parse_string_with_escaped_quote) {
     const char* input = "\"hello \\\" world\"";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == true);
-    assert(result.has_escapes == true);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_STRING);
+
+    size_t length;
+    const char* str = edn_string_get(result.value, &length);
+    assert(str != NULL);
+    assert(length == 13); /* "hello " world" = 13 chars after decoding */
+    assert(strcmp(str, "hello \" world") == 0);
+
+    edn_free(result.value);
 }
 
 TEST(parse_string_unterminated) {
     const char* input = "\"hello world";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == false);
+    assert(result.error != EDN_OK);
+    assert(result.value == NULL);
 }
 
 TEST(parse_string_long) {
     /* Test SIMD path with 50+ character string */
     const char* input = "\"This is a very long string that will test the SIMD path\"";
-    edn_string_scan_t result = edn_parse_string_lazy(input, input + strlen(input));
+    edn_result_t result = edn_read(input, 0);
 
-    assert(result.valid == true);
-    assert(result.has_escapes == false);
-    assert(result.end - result.start == 55); /* 55 chars (not 56) */
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_STRING);
+
+    size_t length;
+    const char* str = edn_string_get(result.value, &length);
+    assert(str != NULL);
+    assert(length == 55); /* 55 chars */
+    assert(strcmp(str, "This is a very long string that will test the SIMD path") == 0);
+
+    edn_free(result.value);
 }
 
 /* Test string decoding */
