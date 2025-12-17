@@ -108,7 +108,6 @@ set(SOURCES
     src/discard.c
     src/reader.c
     src/metadata.c
-    src/text_block.c
     src/newline_finder.c
 )
 

@@ -39,17 +39,17 @@ static void benchmark_simd_find_quote(void) {
            iterations / elapsed / 1e6);
 }
 
-static void benchmark_parse_string_lazy(void) {
-    printf("Lazy String Parsing:\n");
+static void benchmark_read_string(void) {
+    printf("String Parsing (edn_read):\n");
 
     /* Simple string without escapes */
     const char* simple = "\"hello world\"";
-    int iterations = 10000000;
+    int iterations = 1000000;
 
     double start = get_time();
     for (int i = 0; i < iterations; i++) {
-        edn_string_scan_t result = edn_parse_string_lazy(simple, simple + strlen(simple));
-        (void) result;
+        edn_result_t result = edn_read(simple, 0);
+        edn_free(result.value);
     }
     double elapsed = get_time() - start;
 
@@ -61,8 +61,8 @@ static void benchmark_parse_string_lazy(void) {
 
     start = get_time();
     for (int i = 0; i < iterations; i++) {
-        edn_string_scan_t result = edn_parse_string_lazy(escaped, escaped + strlen(escaped));
-        (void) result;
+        edn_result_t result = edn_read(escaped, 0);
+        edn_free(result.value);
     }
     elapsed = get_time() - start;
 
@@ -75,8 +75,8 @@ static void benchmark_parse_string_lazy(void) {
 
     start = get_time();
     for (int i = 0; i < iterations; i++) {
-        edn_string_scan_t result = edn_parse_string_lazy(long_str, long_str + strlen(long_str));
-        (void) result;
+        edn_result_t result = edn_read(long_str, 0);
+        edn_free(result.value);
     }
     elapsed = get_time() - start;
 
@@ -142,7 +142,7 @@ static void benchmark_decode_string(void) {
 static void benchmark_end_to_end(void) {
     printf("End-to-End String Processing:\n");
 
-    /* Simulate complete workflow: parse + lazy decode */
+    /* Simulate complete workflow: parse + access string */
 
     /* Case 1: String without escapes (zero-copy path) */
     const char* simple_input = "\"hello world\"";
@@ -150,27 +150,14 @@ static void benchmark_end_to_end(void) {
 
     double start = get_time();
     for (int i = 0; i < iterations; i++) {
-        edn_arena_t* arena = edn_arena_create();
-
-        /* Parse */
-        edn_string_scan_t scan =
-            edn_parse_string_lazy(simple_input, simple_input + strlen(simple_input));
-
-        /* Simulate creating value */
-        edn_value_t value;
-        value.type = EDN_TYPE_STRING;
-        value.as.string.data = scan.start;
-        edn_string_set_length(&value, scan.end - scan.start);
-        edn_string_set_has_escapes(&value, scan.has_escapes);
-        value.as.string.decoded = NULL;
-        value.arena = arena;
+        edn_result_t result = edn_read(simple_input, 0);
 
         /* Access string (triggers lazy decode if needed) */
         size_t len;
-        const char* str = edn_string_get(&value, &len);
+        const char* str = edn_string_get(result.value, &len);
         (void) str;
 
-        edn_arena_destroy(arena);
+        edn_free(result.value);
     }
     double elapsed = get_time() - start;
 
@@ -181,27 +168,14 @@ static void benchmark_end_to_end(void) {
 
     start = get_time();
     for (int i = 0; i < iterations; i++) {
-        edn_arena_t* arena = edn_arena_create();
-
-        /* Parse */
-        edn_string_scan_t scan =
-            edn_parse_string_lazy(escaped_input, escaped_input + strlen(escaped_input));
-
-        /* Simulate creating value */
-        edn_value_t value;
-        value.type = EDN_TYPE_STRING;
-        value.as.string.data = scan.start;
-        edn_string_set_length(&value, scan.end - scan.start);
-        edn_string_set_has_escapes(&value, scan.has_escapes);
-        value.as.string.decoded = NULL;
-        value.arena = arena;
+        edn_result_t result = edn_read(escaped_input, 0);
 
         /* Access string (triggers decode) */
         size_t len;
-        const char* str = edn_string_get(&value, &len);
+        const char* str = edn_string_get(result.value, &len);
         (void) str;
 
-        edn_arena_destroy(arena);
+        edn_free(result.value);
     }
     elapsed = get_time() - start;
 
@@ -212,24 +186,13 @@ static void benchmark_cached_access(void) {
     printf("Cached String Access:\n");
 
     /* Create a string value and access it multiple times */
-    edn_arena_t* arena = edn_arena_create();
-
     const char* escaped_input = "\"hello\\nworld\\t!\"";
-    edn_string_scan_t scan =
-        edn_parse_string_lazy(escaped_input, escaped_input + strlen(escaped_input));
-
-    edn_value_t value;
-    value.type = EDN_TYPE_STRING;
-    value.as.string.data = scan.start;
-    edn_string_set_length(&value, scan.end - scan.start);
-    edn_string_set_has_escapes(&value, scan.has_escapes);
-    value.as.string.decoded = NULL;
-    value.arena = arena;
+    edn_result_t result = edn_read(escaped_input, 0);
 
     /* First access (triggers decode) */
     double start = get_time();
     size_t len;
-    const char* str = edn_string_get(&value, &len);
+    const char* str = edn_string_get(result.value, &len);
     double first_access = get_time() - start;
     (void) str;
 
@@ -237,7 +200,7 @@ static void benchmark_cached_access(void) {
     int iterations = 10000000;
     start = get_time();
     for (int i = 0; i < iterations; i++) {
-        const char* str2 = edn_string_get(&value, &len);
+        const char* str2 = edn_string_get(result.value, &len);
         (void) str2;
     }
     double elapsed = get_time() - start;
@@ -246,7 +209,7 @@ static void benchmark_cached_access(void) {
     printf("  Cached access (x10M):      %.2f ns/op\n", (elapsed / iterations) * 1e9);
     printf("  Speedup:                   %.0fx faster\n\n", first_access / (elapsed / iterations));
 
-    edn_arena_destroy(arena);
+    edn_free(result.value);
 }
 
 int main(void) {
@@ -256,12 +219,13 @@ int main(void) {
     printf("Warming up...\n");
     for (int i = 0; i < 100000; i++) {
         const char* test = "\"warm up string\"";
-        edn_parse_string_lazy(test, test + strlen(test));
+        edn_result_t result = edn_read(test, 0);
+        edn_free(result.value);
     }
     printf("\n");
 
     benchmark_simd_find_quote();
-    benchmark_parse_string_lazy();
+    benchmark_read_string();
     benchmark_decode_string();
     benchmark_end_to_end();
     benchmark_cached_access();

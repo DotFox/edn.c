@@ -436,15 +436,8 @@ const char* edn_simd_skip_whitespace(const char* ptr, const char* end);
 const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash);
 
 /* String parsing functions */
-typedef struct {
-    const char* start; /* Start of string content (after opening quote) */
-    const char* end;   /* End of string content (before closing quote) */
-    bool has_escapes;  /* True if backslash found in string */
-    bool valid;        /* True if string is valid (found closing quote) */
-} edn_string_scan_t;
-
-edn_string_scan_t edn_parse_string_lazy(const char* ptr, const char* end);
 char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length);
+edn_value_t* edn_read_string(edn_parser_t* parser);
 
 /* Number parsing functions */
 typedef enum {
