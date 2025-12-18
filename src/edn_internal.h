@@ -478,7 +478,7 @@ edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const cha
 edn_value_t* edn_parse_identifier(edn_parser_t* parser);
 
 /* Symbolic value parsing function */
-edn_value_t* edn_parse_symbolic_value(edn_parser_t* parser);
+edn_value_t* edn_read_symbolic_value(edn_parser_t* parser);
 
 /* Value equality and comparison functions */
 bool edn_value_equal(const edn_value_t* a, const edn_value_t* b);

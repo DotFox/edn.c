@@ -3,7 +3,7 @@
 
 #include "edn_internal.h"
 
-edn_value_t* edn_parse_symbolic_value(edn_parser_t* parser) {
+edn_value_t* edn_read_symbolic_value(edn_parser_t* parser) {
     const char* ptr = parser->current;
 
     ptr += 2;
