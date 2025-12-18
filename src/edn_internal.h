@@ -515,7 +515,7 @@ edn_value_t* edn_read_namespaced_map(edn_parser_t* parser);
 
 /* Metadata parser (Clojure extension, requires EDN_ENABLE_METADATA) */
 #ifdef EDN_ENABLE_METADATA
-edn_value_t* edn_parse_metadata(edn_parser_t* parser);
+edn_value_t* edn_read_metadata(edn_parser_t* parser);
 #endif
 
 /* Text block parser (experimental, requires EDN_ENABLE_TEXT_BLOCKS) */
