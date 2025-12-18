@@ -233,7 +233,7 @@ static edn_value_t* create_keyword_value(edn_parser_t* parser, const char* names
  * Fast path optimized for non-namespaced identifiers (80% of cases).
  * Validates namespace/name syntax and colon placement.
  */
-edn_value_t* edn_parse_identifier(edn_parser_t* parser) {
+edn_value_t* edn_read_identifier(edn_parser_t* parser) {
     edn_identifier_scan_t scan = scan_identifier(parser->current, parser->end);
 
     if (!scan.valid) {

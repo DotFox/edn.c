@@ -483,7 +483,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             if (parser->current + 1 < parser->end && is_digit(parser->current[1])) {
                 return edn_read_number(parser);
             }
-            return edn_parse_identifier(parser);
+            return edn_read_identifier(parser);
 
         case CHAR_TYPE_DIGIT:
             return edn_read_number(parser);
@@ -513,7 +513,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
         case CHAR_TYPE_IDENTIFIER:
         default:
             /* Default: identifier (symbol, keyword, nil, true, false) */
-            return edn_parse_identifier(parser);
+            return edn_read_identifier(parser);
     }
 }
 
