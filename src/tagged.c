@@ -6,7 +6,7 @@
 
 #include "edn_internal.h"
 
-edn_value_t* edn_parse_tagged(edn_parser_t* parser) {
+edn_value_t* edn_read_tagged(edn_parser_t* parser) {
     /* Skip '#' and increment depth */
     parser->current++;
     parser->depth++;
