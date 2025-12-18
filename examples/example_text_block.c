@@ -2,7 +2,7 @@
  * Example: Text Block parsing with automatic indentation stripping
  * 
  * Demonstrates Java-style text blocks in EDN with automatic indentation handling.
- * Compile with: -DEDN_ENABLE_TEXT_BLOCKS
+ * Compile with: -DEDN_ENABLE_EXPERIMENTAL_EXTENSION
  */
 
 #include <stdio.h>
@@ -10,7 +10,7 @@
 
 #include "../include/edn.h"
 
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 
 int main(void) {
     printf("=== Text Block with Indentation Stripping ===\n\n");
@@ -225,7 +225,7 @@ int main(void) {
 
 int main(void) {
     printf("Text block feature is not enabled.\n");
-    printf("Compile with -DEDN_ENABLE_TEXT_BLOCKS to enable.\n");
+    printf("Compile with -DEDN_ENABLE_EXPERIMENTAL_EXTENSION to enable.\n");
     return 0;
 }
 

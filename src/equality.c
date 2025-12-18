@@ -130,7 +130,7 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             return memcmp(decimal_a, decimal_b, len_a) == 0;
         }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO:
             return a->as.ratio.numerator == b->as.ratio.numerator &&
                    a->as.ratio.denominator == b->as.ratio.denominator;
@@ -502,7 +502,7 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             break;
         }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO: {
             for (size_t i = 0; i < sizeof(int64_t); i++) {
                 hash ^= (value->as.ratio.numerator >> (i * 8)) & 0xFF;

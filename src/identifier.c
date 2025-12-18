@@ -147,14 +147,14 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
  */
 static edn_value_t edn_singleton_nil = {.type = EDN_TYPE_NIL,
                                         .cached_hash = 0,
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                                         .metadata = NULL,
 #endif
                                         .arena = NULL};
 
 static edn_value_t edn_singleton_true = {.type = EDN_TYPE_BOOL,
                                          .cached_hash = 0,
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                                          .metadata = NULL,
 #endif
                                          .as.boolean = true,
@@ -162,7 +162,7 @@ static edn_value_t edn_singleton_true = {.type = EDN_TYPE_BOOL,
 
 static edn_value_t edn_singleton_false = {.type = EDN_TYPE_BOOL,
                                           .cached_hash = 0,
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                                           .metadata = NULL,
 #endif
                                           .as.boolean = false,

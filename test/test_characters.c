@@ -399,7 +399,7 @@ TEST(api_null_out) {
     edn_free(result.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(extended_formfeed) {
     edn_result_t result = edn_read("\\formfeed", 0);
@@ -577,7 +577,7 @@ TEST(octal_in_vector) {
     edn_free(result.value);
 }
 
-#else /* !EDN_ENABLE_EXTENDED_CHARACTERS */
+#else /* !EDN_ENABLE_CLOJURE_EXTENSION */
 
 TEST(fallback_formfeed) {
     edn_result_t result = edn_read("[\\f ormfeed]", 0);
@@ -688,7 +688,7 @@ TEST(fallback_single_o) {
     edn_free(result.value);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_CHARACTERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 int main(void) {
     printf("Running character parsing tests...\n\n");
@@ -728,7 +728,7 @@ int main(void) {
     RUN_TEST(api_null_value);
     RUN_TEST(api_null_out);
 
-#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(extended_formfeed);
     RUN_TEST(extended_backspace);
     RUN_TEST(octal_single_digit);

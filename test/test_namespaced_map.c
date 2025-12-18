@@ -2,7 +2,7 @@
  * Test: Namespaced map syntax (#:ns{...})
  * 
  * This is a Clojure extension to EDN, not part of the official spec.
- * Requires EDN_ENABLE_MAP_NAMESPACE_SYNTAX compilation flag.
+ * Requires EDN_ENABLE_CLOJURE_EXTENSION compilation flag.
  */
 
 #include <string.h>
@@ -10,7 +10,7 @@
 #include "../include/edn.h"
 #include "test_framework.h"
 
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(basic_namespaced_map) {
     /* #:foo{:x 1 :y 2} should be equivalent to {:foo/x 1 :foo/y 2} */
@@ -529,7 +529,7 @@ TEST(namespaced_map_underscore_only_single_char) {
     edn_free(result.value);
 }
 
-#else /* EDN_ENABLE_MAP_NAMESPACE_SYNTAX */
+#else /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /* Test that namespaced map syntax fails when disabled */
 TEST(namespaced_map_syntax_disabled) {
@@ -540,10 +540,10 @@ TEST(namespaced_map_syntax_disabled) {
     assert(strstr(result.error_message, "symbol") != NULL);
 }
 
-#endif /* !EDN_ENABLE_MAP_NAMESPACE_SYNTAX */
+#endif /* !EDN_ENABLE_CLOJURE_EXTENSION */
 
 int main(void) {
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     printf("Running namespaced map tests:\n");
 
     RUN_TEST(basic_namespaced_map);
@@ -564,7 +564,7 @@ int main(void) {
 
     TEST_SUMMARY("namespaced map");
 #else
-    printf("Namespaced map syntax is disabled (EDN_ENABLE_MAP_NAMESPACE_SYNTAX not defined)\n");
+    printf("Namespaced map syntax is disabled (EDN_ENABLE_CLOJURE_EXTENSION not defined)\n");
     printf("Running disabled feature tests:\n");
 
     RUN_TEST(namespaced_map_syntax_disabled);

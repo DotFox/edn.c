@@ -54,7 +54,7 @@ static inline int digit_value(char c, uint8_t radix) {
     return (val >= 0 && val < radix) ? val : -1;
 }
 
-#if defined(EDN_ENABLE_EXTENDED_INTEGERS) || defined(EDN_ENABLE_UNDERSCORE_IN_NUMERIC)
+#if defined(EDN_ENABLE_CLOJURE_EXTENSION)
 
 /**
  * Check if character is a valid digit in current radix.
@@ -63,7 +63,7 @@ static inline bool is_digit_in_radix(char c, uint8_t radix) {
     return digit_value(c, radix) >= 0;
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS || EDN_ENABLE_UNDERSCORE_IN_NUMERIC */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /**
  * SWAR (SIMD Within A Register) - 8-digit parallel parsing.
@@ -162,7 +162,7 @@ static inline bool validate_number_delimiter(edn_parser_t* parser) {
     return false;
 }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 /*
  * Binary GCD algorithm (Stein's algorithm)
  */
@@ -248,7 +248,7 @@ static inline void set_bigdec(edn_value_t* value, const char* decimal, size_t le
  * 2. SWAR: 8-digit chunks for long decimals (5x scalar speed)
  * 3. General: Scalar with full overflow detection
  * 
- * Skips underscores if EDN_ENABLE_UNDERSCORE_IN_NUMERIC is enabled.
+ * Skips underscores if EDN_ENABLE_EXPERIMENTAL_EXTENSION is enabled.
  * Returns false on overflow.
  */
 static bool parse_int64_from_buffer(const char* start, const char* end, int64_t* out, uint8_t radix,
@@ -262,7 +262,7 @@ static bool parse_int64_from_buffer(const char* start, const char* end, int64_t*
 
         while (digit_ptr < end) {
             char c = *digit_ptr;
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             if (c == '_') {
                 digit_ptr++;
                 continue;
@@ -287,7 +287,7 @@ static bool parse_int64_from_buffer(const char* start, const char* end, int64_t*
 
     /* SWAR fast path: 8-digit chunks for decimal radix */
     if (radix == 10) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         /* With underscores enabled, try SWAR for 8-digit chunks without underscores */
         while ((end - ptr) >= 8) {
             /* Check if next 8 bytes are all digits (no underscores) */
@@ -385,7 +385,7 @@ static bool parse_int64_from_buffer(const char* start, const char* end, int64_t*
     } else {
         /* Non-decimal radix: use scalar loop with overflow detection */
         while (ptr < end) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             if (*ptr == '_') {
                 ptr++;
                 continue;
@@ -471,7 +471,7 @@ static inline bool parse_double_fast(int64_t mantissa, int64_t exponent, bool ne
  * 3. Try Clinger fast path (90% success rate)
  * 4. Fall back to strtod() for edge cases
  * 
- * Skips underscores if EDN_ENABLE_UNDERSCORE_IN_NUMERIC is enabled.
+ * Skips underscores if EDN_ENABLE_EXPERIMENTAL_EXTENSION is enabled.
  */
 static double parse_double_from_buffer(const char* start, const char* end) {
     const char* ptr = start;
@@ -489,11 +489,11 @@ static double parse_double_from_buffer(const char* start, const char* end) {
 
     /* Integer part */
     while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                          || *ptr == '_'
 #endif
                          )) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         if (*ptr == '_') {
             ptr++;
             continue;
@@ -510,11 +510,11 @@ static double parse_double_from_buffer(const char* start, const char* end) {
         ptr++;
         size_t frac_digits = 0;
         while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                              || *ptr == '_'
 #endif
                              )) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             if (*ptr == '_') {
                 ptr++;
                 continue;
@@ -539,11 +539,11 @@ static double parse_double_from_buffer(const char* start, const char* end) {
 
         int64_t exp_value = 0;
         while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                              || *ptr == '_'
 #endif
                              )) {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             if (*ptr == '_') {
                 ptr++;
                 continue;
@@ -567,7 +567,7 @@ static double parse_double_from_buffer(const char* start, const char* end) {
     }
 
     /* Fall back to strtod() for edge cases */
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* For strtod fallback with underscores, we need to create a cleaned buffer */
     char buffer[512];
     size_t buf_idx = 0;
@@ -642,7 +642,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     }
 
     /* Check for radix notation: NrDDDD (e.g., 16rFF, 2r1010) */
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (c >= '0' && c <= '9') {
         /* Look ahead for 'r' to detect radix notation */
         const char* r_pos = parser->current;
@@ -677,7 +677,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         advance_char(parser);
         c = peek_char(parser);
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
         /* Skip all following zeros */
         while (c == '0') {
@@ -738,7 +738,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             goto parse_exponent;
         }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         if (c == '/') {
             /* Ratio: 0/N */
             goto create_ratio_zero;
@@ -755,7 +755,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             advance_char(parser);
             c = peek_char(parser);
         }
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         else if (c == '_') {
             advance_char(parser);
             c = peek_char(parser);
@@ -778,7 +778,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         advance_char(parser);
         c = peek_char(parser);
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         /* Underscore immediately after decimal point is invalid */
         if (c == '_') {
             set_error(parser, "Underscore cannot be adjacent to decimal point");
@@ -788,7 +788,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 
         /* Parse fractional digits */
         while ((c >= '0' && c <= '9')
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                || c == '_'
 #endif
         ) {
@@ -799,7 +799,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 
     /* Check for exponent */
     if (c == 'e' || c == 'E') {
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         /* Check if previous character was underscore */
         if (parser->current > digits_start && *(parser->current - 1) == '_') {
             set_error(parser, "Underscore cannot be adjacent to exponent");
@@ -824,7 +824,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         }
 
         while ((c >= '0' && c <= '9')
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                || c == '_'
 #endif
         ) {
@@ -837,13 +837,13 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     const char* digits_end = parser->current;
     bool is_bigint_suffix = false;
     bool is_bigdec_suffix = false;
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     bool is_ratio = false;
     const char* denom_start = NULL;
     const char* denom_end = NULL;
 #endif
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Check if previous character was underscore before suffix */
     if (c == 'N' || c == 'M' || c == '/') {
         if (parser->current > digits_start && *(parser->current - 1) == '_') {
@@ -860,7 +860,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         is_bigdec_suffix = true;
         advance_char(parser);
     }
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     else if (c == '/' && radix == 10 && !has_decimal_point && !has_exponent) {
         /* Ratio notation: numerator/denominator */
         is_ratio = true;
@@ -920,7 +920,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     }
     value->arena = parser->arena;
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (is_ratio) {
         /* Try to parse numerator and denominator as int64 */
         int64_t numerator;
@@ -996,7 +996,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     }
     return value;
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* Radix notation parsing (2r1010, 16rFF, 36rZZ, etc.) */
 parse_radix_digits:
     is_bigint_suffix = false; /* Reset suffix flag */
@@ -1014,7 +1014,7 @@ parse_radix_digits:
             advance_char(parser);
             c = peek_char(parser);
         }
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         else if (c == '_') {
             advance_char(parser);
             c = peek_char(parser);
@@ -1086,7 +1086,7 @@ parse_hex_digits:
             advance_char(parser);
             c = peek_char(parser);
         }
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         else if (c == '_') {
             advance_char(parser);
             c = peek_char(parser);
@@ -1161,7 +1161,7 @@ parse_octal_digits:
             advance_char(parser);
             c = peek_char(parser);
         }
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         else if (c == '_') {
             advance_char(parser);
             c = peek_char(parser);
@@ -1261,7 +1261,7 @@ create_bigdec_zero:
     }
     return value;
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 create_ratio_zero:
     /* Parse denominator after '/' for 0/N ratio */
     /* Clojure behavior: 0/N returns integer 0, not a ratio */

@@ -30,7 +30,7 @@ static bool parse_unicode_escape(const char* ptr, const char* end, uint32_t* cod
     return true;
 }
 
-#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 static bool parse_octal_escape(const char* ptr, const char* end, uint32_t* codepoint,
                                const char** next_ptr) {
     if (ptr >= end) {
@@ -105,7 +105,7 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         codepoint = 0x09;
         ptr += 3;
     }
-#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     else if (match_string(ptr, end, "formfeed", 8)) {
         codepoint = 0x0C;
         ptr += 8;

@@ -5,9 +5,9 @@
 #include "../include/edn.h"
 #include "test_framework.h"
 
-/* Test underscore in numeric literals (EDN_ENABLE_UNDERSCORE_IN_NUMERIC) */
+/* Test underscore in numeric literals (EDN_ENABLE_EXPERIMENTAL_EXTENSION) */
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 
 #include <math.h>
 
@@ -235,7 +235,7 @@ TEST(underscore_bigdec_exponent) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 /* Test hex with underscores */
 TEST(underscore_hex) {
@@ -306,7 +306,7 @@ TEST(underscore_radix_36) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /* Test invalid underscore positions */
 TEST(underscore_invalid_at_start) {
@@ -429,7 +429,7 @@ TEST(underscore_in_map) {
     edn_free(r.value);
 }
 
-#else /* EDN_ENABLE_UNDERSCORE_IN_NUMERIC not defined */
+#else /* EDN_ENABLE_EXPERIMENTAL_EXTENSION not defined */
 
 /* Test that underscores fail when feature is disabled */
 TEST(underscore_disabled) {
@@ -442,12 +442,12 @@ TEST(underscore_disabled) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_UNDERSCORE_IN_NUMERIC */
+#endif /* EDN_ENABLE_EXPERIMENTAL_EXTENSION */
 
 int main(void) {
     printf("Running underscore in numeric tests...\n");
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Integer tests */
     run_test_underscore_integer_simple();
     run_test_underscore_integer_multiple();
@@ -474,7 +474,7 @@ int main(void) {
     run_test_underscore_bigdec();
     run_test_underscore_bigdec_exponent();
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* Extended integer format tests */
     run_test_underscore_hex();
     run_test_underscore_hex_uppercase();

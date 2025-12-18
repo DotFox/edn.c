@@ -77,7 +77,7 @@ typedef struct display_node {
     edn_value_t* value;
     edn_value_t* map_value;    /* For map entries, the value part (key is in 'value') */
     edn_value_t* tagged_value; /* For tagged literals, the wrapped value */
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     edn_value_t* meta_value; /* For metadata, the metadata map */
 #endif
     int depth;
@@ -88,7 +88,7 @@ typedef struct display_node {
     size_t key_name_len;
     bool is_map_entry; /* True if this is a key-value pair from a map */
     bool is_tagged;    /* True if this is a tagged literal */
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     bool is_metadata; /* True if this represents metadata */
 #endif
     bool is_closing_bracket; /* True for closing bracket lines */
@@ -99,7 +99,7 @@ typedef struct display_node {
 typedef struct {
     edn_value_t* root;
     edn_value_t* original_root; /* Original parsed root for reset */
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     edn_value_t*
         metadata_view_original; /* Value whose metadata we're viewing (NULL if not in metadata view) */
 #endif
@@ -264,7 +264,7 @@ static void render_value(edn_value_t* val, char* buf, size_t bufsize, bool colla
             }
             break;
         }
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO: {
             int64_t numerator, denominator;
             if (edn_ratio_get(val, &numerator, &denominator)) {
@@ -556,7 +556,7 @@ static const char* get_value_color(edn_value_t* val) {
         case EDN_TYPE_BIGINT:
         case EDN_TYPE_BIGDEC:
         case EDN_TYPE_FLOAT:
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO:
 #endif
             return COLOR_NUMBER;
@@ -629,7 +629,7 @@ static void add_display_node(app_state_t* state, edn_value_t* value, int depth, 
                              size_t index, const char* key_name, size_t key_name_len,
                              bool is_map_entry, bool is_closing_bracket, edn_value_t* map_value,
                              bool is_tagged, edn_value_t* tagged_value
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                              ,
                              bool is_metadata, edn_value_t* meta_value
 #endif
@@ -644,7 +644,7 @@ static void add_display_node(app_state_t* state, edn_value_t* value, int depth, 
     node->value = value;
     node->map_value = map_value;
     node->tagged_value = tagged_value;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     node->meta_value = meta_value;
     node->is_metadata = is_metadata;
 #endif
@@ -685,7 +685,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
 
         /* Add tagged literal as a single node showing tag and wrapped value */
         add_display_node(state, value, depth, false, 0, NULL, 0, false, false, NULL, true, wrapped
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -702,7 +702,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
     /* Add self node unless we're skipping it (map value case) */
     if (!skip_self) {
         add_display_node(state, value, depth, expanded, 0, NULL, 0, false, false, NULL, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -731,7 +731,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
         }
         /* Add closing bracket */
         add_display_node(state, value, depth, false, 0, NULL, 0, false, true, NULL, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -745,7 +745,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
         }
         /* Add closing bracket */
         add_display_node(state, value, depth, false, 0, NULL, 0, false, true, NULL, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -767,7 +767,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
             /* Add a single node representing the key-value pair */
             add_display_node(state, key, depth + 1, false, i, key_name, key_name_len, true, false,
                              val, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                              ,
                              false, NULL
 #endif
@@ -807,7 +807,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
         }
         /* Add closing bracket */
         add_display_node(state, value, depth, false, 0, NULL, 0, false, true, NULL, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -821,7 +821,7 @@ static void build_node_list_internal(app_state_t* state, edn_value_t* value, int
         }
         /* Add closing bracket */
         add_display_node(state, value, depth, false, 0, NULL, 0, false, true, NULL, false, NULL
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                          ,
                          false, NULL
 #endif
@@ -1207,7 +1207,7 @@ static void draw_screen(app_state_t* state) {
     MOVE_CURSOR(1, 1);
     printf(COLOR_STATUS "EDN Viewer - arrows:navigate (L/R for map cells), Enter/Space/Tab:expand, "
                         "f:focus, F:unfocus"
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                         ", m:metadata, M:back"
 #endif
                         ", q:quit" COLOR_RESET);
@@ -1225,7 +1225,7 @@ static void draw_screen(app_state_t* state) {
     /* Status bar */
     MOVE_CURSOR(state->screen_height, 1);
     printf(CLEAR_LINE);
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (state->metadata_view_original != NULL) {
         printf(COLOR_STATUS "Node %zu/%zu [METADATA VIEW - press Shift+M to return]" COLOR_RESET,
                state->cursor_pos + 1, state->node_count);
@@ -1435,7 +1435,7 @@ static void handle_key(app_state_t* state, int key) {
                 /* Shift+F: Reset to original root */
                 if (state->root != state->original_root) {
                     state->root = state->original_root;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                     state->metadata_view_original = NULL;
 #endif
                     state->cursor_pos = 0;
@@ -1447,7 +1447,7 @@ static void handle_key(app_state_t* state, int key) {
             break;
         }
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case KEY_M:
         case KEY_SHIFT_M: {
             if (key == KEY_M) {
@@ -1612,7 +1612,7 @@ int main(int argc, char** argv) {
             printf("  Enter/Space/Tab   Expand/collapse\n");
             printf("  f                 Focus on current value\n");
             printf("  F (Shift+f)       Reset to original view\n");
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
             printf("  m                 View metadata of current value\n");
             printf("  M (Shift+m)       Return from metadata view\n");
 #endif
@@ -1668,7 +1668,7 @@ int main(int argc, char** argv) {
     app_state_t state = {0};
     state.root = result.value;
     state.original_root = result.value; /* Save original for reset */
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     state.metadata_view_original = NULL;
 #endif
     state.node_capacity = 1024;

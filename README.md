@@ -285,7 +285,7 @@ edn_type_t edn_type(const edn_value_t *value);
 - `EDN_TYPE_BIGINT` (arbitrary precision integer)
 - `EDN_TYPE_FLOAT` (double)
 - `EDN_TYPE_BIGDEC` (exact precision decimal)
-- `EDN_TYPE_RATIO` (rational number, requires `RATIO=1` build flag)
+- `EDN_TYPE_RATIO` (rational number, requires `CLOJURE_EXTENSION=1` build flag)
 - `EDN_TYPE_CHARACTER` (Unicode codepoint)
 - `EDN_TYPE_STRING`
 - `EDN_TYPE_SYMBOL`
@@ -597,12 +597,12 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make RATIO=1
+make CLOJURE_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_RATIO=ON ..
+cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..
 make
 ```
 
@@ -673,12 +673,12 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make EXTENDED_INTEGERS=1
+make CLOJURE_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_EXTENDED_INTEGERS=ON ..
+cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..
 make
 ```
 
@@ -701,10 +701,10 @@ EDN.C supports underscores as visual separators in numeric literals for improved
 - **Scientific notation**: `1_500e10`, `1.5e1_0`, `1_5.2_5e1_0` → `1500e10`, `1.5e10`, `15.25e10`
 - **BigInt**: `1_234_567_890_123_456_789N`
 - **BigDecimal**: `1_234.56_78M`, `1_5.2_5e1_0M`
-- **Hexadecimal** (with `EXTENDED_INTEGERS=1`): `0xDE_AD_BE_EF` → `0xDEADBEEF`
-- **Octal** (with `EXTENDED_INTEGERS=1`): `07_77` → `0777`
-- **Binary** (with `EXTENDED_INTEGERS=1`): `2r1010_1010` → `170`
-- **Radix notation** (with `EXTENDED_INTEGERS=1`): `36rZ_Z` → `1295`
+- **Hexadecimal** (with `CLOJURE_EXTENSION=1`): `0xDE_AD_BE_EF` → `0xDEADBEEF`
+- **Octal** (with `CLOJURE_EXTENSION=1`): `07_77` → `0777`
+- **Binary** (with `CLOJURE_EXTENSION=1`): `2r1010_1010` → `170`
+- **Radix notation** (with `CLOJURE_EXTENSION=1`): `36rZ_Z` → `1295`
 
 **Rules:**
 - Underscores are only allowed **between digits** (not at start, end, or adjacent to special characters)
@@ -730,7 +730,7 @@ edn_double_get(r2.value, &val2);
 // val2 = 3.141592653589793
 edn_free(r2.value);
 
-// Hex bytes (requires EXTENDED_INTEGERS=1)
+// Hex bytes (requires CLOJURE_EXTENSION=1)
 edn_result_t r3 = edn_read("0xFF_EC_DE_5E", 0);
 int64_t val3;
 edn_int64_get(r3.value, &val3);
@@ -777,19 +777,19 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make UNDERSCORE_IN_NUMERIC=1
+make EXPERIMENTAL_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_UNDERSCORE_IN_NUMERIC=ON ..
+cmake -DEDN_ENABLE_EXPERIMENTAL_EXTENSION=ON ..
 make
 ```
 
 **Combined with other features:**
 ```bash
-# Enable underscores with extended integers and ratios
-make UNDERSCORE_IN_NUMERIC=1 EXTENDED_INTEGERS=1 RATIO=1
+# Enable all features
+make ALL=1
 ```
 
 When disabled (default):
@@ -1325,7 +1325,7 @@ if (result.error == EDN_OK) {
 
 This feature is disabled by default. To enable it:
 ```bash
-make MAP_NAMESPACE_SYNTAX=1
+make CLOJURE_EXTENSION=1
 ```
 
 When disabled (default), `#:foo{...}` will fail to parse.
@@ -1373,12 +1373,12 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make EXTENDED_CHARACTERS=1
+make CLOJURE_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_EXTENDED_CHARACTERS=ON ..
+cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..
 make
 ```
 
@@ -1481,12 +1481,12 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make METADATA=1
+make CLOJURE_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_METADATA=ON ..
+cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..
 make
 ```
 
@@ -1501,7 +1501,7 @@ See `examples/example_metadata.c` for more details.
 
 ### Text Blocks
 
-**Experimental feature** that adds Java-style multi-line text blocks with automatic indentation stripping to EDN. Requires `EDN_ENABLE_TEXT_BLOCKS` compilation flag (disabled by default).
+**Experimental feature** that adds Java-style multi-line text blocks with automatic indentation stripping to EDN. Requires `EDN_ENABLE_EXPERIMENTAL_EXTENSION` compilation flag (disabled by default).
 
 Text blocks start with three double quotes followed by a newline (`"""\n`) and end with three double quotes (`"""`):
 
@@ -1586,12 +1586,12 @@ This feature is disabled by default. To enable it:
 
 **Make:**
 ```bash
-make TEXT_BLOCKS=1
+make EXPERIMENTAL_EXTENSION=1
 ```
 
 **CMake:**
 ```bash
-cmake -DEDN_ENABLE_TEXT_BLOCKS=ON ..
+cmake -DEDN_ENABLE_EXPERIMENTAL_EXTENSION=ON ..
 make
 ```
 
@@ -1793,18 +1793,14 @@ For detailed Windows build instructions, see **[docs/WINDOWS.md](docs/WINDOWS.md
 - `VERBOSE=1` - Show full compiler commands
 
 **Optional EDN features (disabled by default):**
-- `MAP_NAMESPACE_SYNTAX=1` - Enable `#:ns{...}` map namespace syntax
-- `EXTENDED_CHARACTERS=1` - Enable `\formfeed`, `\backspace`, `\oNNN` octal escapes
-- `METADATA=1` - Enable Clojure-style metadata `^{...}` syntax
-- `TEXT_BLOCKS=1` - Enable Java-style text blocks `"""\n...\n"""`
-- `RATIO=1` - Enable ratio numbers `22/7`
-- `EXTENDED_INTEGERS=1` - Enable hex (`0xFF`), octal (`0777`), binary (`2r1010`), and radix (`36rZZ`) formats
-- `UNDERSCORE_IN_NUMERIC=1` - Enable underscores in numeric literals `1_000_000`
+- `CLOJURE_EXTENSION=1` - Enable Clojure extensions (ratio, extended integers, metadata, map namespace syntax, extended characters)
+- `EXPERIMENTAL_EXTENSION=1` - Enable experimental features (text blocks, underscores in numeric literals)
+- `ALL=1` - Enable all optional features
 
 **Example:**
 ```bash
-# Build with metadata and ratio support
-make METADATA=1 RATIO=1
+# Build with all Clojure extensions
+make CLOJURE_EXTENSION=1
 ```
 
 ### Code Formatting

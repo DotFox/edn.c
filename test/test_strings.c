@@ -164,6 +164,19 @@ TEST(decode_string_tab) {
     edn_arena_destroy(arena);
 }
 
+TEST(decode_string_basic_escapes) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\\"\\\\\\n\\t\\r";
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert(strcmp(result, "\"\\\n\t\r") == 0);
+
+    edn_arena_destroy(arena);
+}
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+
 TEST(decode_string_all_escapes) {
     edn_arena_t* arena = edn_arena_create();
     const char* input = "\\\"\\\\\\n\\t\\r\\f\\b";
@@ -327,6 +340,8 @@ TEST(decode_string_octal_mixed) {
     edn_arena_destroy(arena);
 }
 
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
 TEST(decode_string_invalid_escape) {
     edn_arena_t* arena = edn_arena_create();
     const char* input = "hello\\xworld"; /* \x is not valid */
@@ -342,7 +357,8 @@ TEST(decode_string_invalid_unicode) {
     const char* input = "\\u123"; /* Not enough digits */
     char* result = edn_decode_string(arena, input, strlen(input));
 
-    assert(result == NULL); /* Should fail */
+    /* Both with and without Clojure extension, \u with not enough digits should fail */
+    assert(result == NULL);
 
     edn_arena_destroy(arena);
 }
@@ -367,6 +383,8 @@ int main(void) {
     run_test_decode_string_no_escapes();
     run_test_decode_string_newline();
     run_test_decode_string_tab();
+    run_test_decode_string_basic_escapes();
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     run_test_decode_string_all_escapes();
     run_test_decode_string_unicode_ascii();
     run_test_decode_string_unicode_2byte();
@@ -380,6 +398,7 @@ int main(void) {
     run_test_decode_string_octal_overflow_stops();
     run_test_decode_string_octal_non_octal_stops();
     run_test_decode_string_octal_mixed();
+#endif
     run_test_decode_string_invalid_escape();
     run_test_decode_string_invalid_unicode();
 

@@ -11,7 +11,7 @@
 
 #include "edn.h"
 
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 static void print_map(edn_value_t* map) {
     if (!map || edn_type(map) != EDN_TYPE_MAP) {
@@ -116,7 +116,7 @@ int main(void) {
     example("#:api{}", "Empty namespaced map:");
 
     printf("\nNote: This feature is a Clojure extension, not part of official EDN.\n");
-    printf("It can be disabled at compile time with MAP_NAMESPACE_SYNTAX=0\n");
+    printf("It can be disabled at compile time by not setting CLOJURE_EXTENSION=1\n");
 
     return 0;
 }
@@ -125,7 +125,7 @@ int main(void) {
 
 int main(void) {
     printf("Map namespace syntax is disabled.\n");
-    printf("Rebuild with MAP_NAMESPACE_SYNTAX=1 to enable this feature.\n");
+    printf("Rebuild with CLOJURE_EXTENSION=1 to enable this feature.\n");
     return 0;
 }
 

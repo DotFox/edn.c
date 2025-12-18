@@ -2,7 +2,7 @@
  * Test: Metadata parsing (^{...} form)
  *
  * This is a Clojure extension to EDN, not part of the official spec.
- * Requires EDN_ENABLE_METADATA compilation flag.
+ * Requires EDN_ENABLE_CLOJURE_EXTENSION compilation flag.
  */
 
 #include <string.h>
@@ -10,7 +10,7 @@
 #include "../include/edn.h"
 #include "test_framework.h"
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(basic_metadata_map) {
     /* ^{:test true} [1 2 3] */
@@ -468,7 +468,7 @@ TEST(metadata_disabled) {
 #endif
 
 int main(void) {
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(basic_metadata_map);
     RUN_TEST(keyword_metadata_shorthand);
     RUN_TEST(string_metadata_tag);

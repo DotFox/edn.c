@@ -54,48 +54,18 @@ else
     CFLAGS += -DNDEBUG
 endif
 
-# Map namespace syntax (Clojure extension, disabled by default)
-MAP_NAMESPACE_SYNTAX ?= 0
-ifneq (,$(filter 1,$(MAP_NAMESPACE_SYNTAX) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_MAP_NAMESPACE_SYNTAX
+# Clojure extension features (disabled by default)
+# Includes: map namespace syntax, extended characters, metadata, ratio, extended integers
+CLOJURE_EXTENSION ?= 0
+ifneq (,$(filter 1,$(CLOJURE_EXTENSION) $(ALL)))
+    CFLAGS += -DEDN_ENABLE_CLOJURE_EXTENSION
 endif
 
-# Extended characters (\formfeed, \backspace, \oNNN octal, disabled by default)
-EXTENDED_CHARACTERS ?= 0
-ifneq (,$(filter 1,$(EXTENDED_CHARACTERS) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_EXTENDED_CHARACTERS
-endif
-
-# Metadata parsing (Clojure extension, disabled by default)
-METADATA ?= 0
-ifneq (,$(filter 1,$(METADATA) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_METADATA
-endif
-
-# Text block parsing (experimental feature, disabled by default)
-TEXT_BLOCKS ?= 0
-ifneq (,$(filter 1,$(TEXT_BLOCKS) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_TEXT_BLOCKS
-endif
-
-# Ratio numbers (Clojure extension, disabled by default)
-RATIO ?= 0
-ifneq (,$(filter 1,$(RATIO) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_RATIO
-endif
-
-# Special integer formats: hex (0xFF), octal (0777), binary (2r1010), arbitrary radix (36rZZ)
-# Clojure extension, disabled by default
-EXTENDED_INTEGERS ?= 0
-ifneq (,$(filter 1,$(EXTENDED_INTEGERS) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_EXTENDED_INTEGERS
-endif
-
-# Underscore in numeric literals (disabled by default)
-# Allows underscores between digits: 1_000 -> 1000, 4____2 -> 42
-UNDERSCORE_IN_NUMERIC ?= 0
-ifneq (,$(filter 1,$(UNDERSCORE_IN_NUMERIC) $(ALL)))
-    CFLAGS += -DEDN_ENABLE_UNDERSCORE_IN_NUMERIC
+# Experimental extension features (disabled by default)
+# Includes: text blocks, underscore in numeric literals
+EXPERIMENTAL_EXTENSION ?= 0
+ifneq (,$(filter 1,$(EXPERIMENTAL_EXTENSION) $(ALL)))
+    CFLAGS += -DEDN_ENABLE_EXPERIMENTAL_EXTENSION
 endif
 
 # Verbose mode
@@ -305,13 +275,8 @@ info-wasm:
 	@echo "Sources:      $(WASM_SRCS)"
 	@echo ""
 	@echo "Optional features:"
-	@echo "  MAP_NAMESPACE_SYNTAX:     $(MAP_NAMESPACE_SYNTAX)"
-	@echo "  EXTENDED_CHARACTERS:      $(EXTENDED_CHARACTERS)"
-	@echo "  METADATA:                 $(METADATA)"
-	@echo "  TEXT_BLOCKS:              $(TEXT_BLOCKS)"
-	@echo "  RATIO:                    $(RATIO)"
-	@echo "  EXTENDED_INTEGERS:        $(EXTENDED_INTEGERS)"
-	@echo "  UNDERSCORE_IN_NUMERIC:    $(UNDERSCORE_IN_NUMERIC)"
+	@echo "  CLOJURE_EXTENSION:        $(CLOJURE_EXTENSION)"
+	@echo "  EXPERIMENTAL_EXTENSION:   $(EXPERIMENTAL_EXTENSION)"
 
 # Help
 # Format all source files with clang-format
@@ -379,14 +344,9 @@ help:
 	@echo "  make help             - Show this help message"
 	@echo ""
 	@echo "Options (apply to both native and WASM builds):"
-	@echo "  EXTENDED_INTEGERS=1         - Enable hex (0xFF), octal (0777), binary (2r1010), and radix (36rZZ) integers"
-	@echo "  RATIO=1                     - Enable ratio numbers (22/7)"
-	@echo "  UNDERSCORE_IN_NUMERIC=1     - Enable underscores in numeric literals (1_000 -> 1000)"
-	@echo "  MAP_NAMESPACE_SYNTAX=1      - Enable map namespace syntax (#:ns{...})"
-	@echo "  EXTENDED_CHARACTERS=1       - Enable extended characters (\\\formfeed, \\\backspace, \oNNN)"
-	@echo "  METADATA=1                  - Enable metadata parsing (^{...} form)"
-	@echo "  TEXT_BLOCKS=1               - Enable text block parsing (\"\"\"\\\n...\"\"\" blocks)"
-	@echo "  ALL=1                       - Enable all extra features at once"
+	@echo "  CLOJURE_EXTENSION=1        - Enable Clojure extensions (ratio, extended integers, metadata, etc.)"
+	@echo "  EXPERIMENTAL_EXTENSION=1   - Enable experimental features (text blocks, underscores in numbers)"
+	@echo "  ALL=1                       - Enable all features at once"
 	@echo "  VERBOSE=1                   - Show full compiler commands"
 	@echo "  DEBUG=1                     - Enable debug build (native only)"
 	@echo ""

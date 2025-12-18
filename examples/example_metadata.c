@@ -2,7 +2,7 @@
  * Example: Metadata parsing
  * 
  * Demonstrates Clojure-style metadata syntax.
- * Compile with: make METADATA=1 examples/example_metadata
+ * Compile with: make CLOJURE_EXTENSION=1 examples/example_metadata
  */
 
 #include <stdio.h>
@@ -10,7 +10,7 @@
 
 #include "../include/edn.h"
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 static void print_metadata(edn_value_t* meta) {
     if (meta == NULL) {
@@ -224,7 +224,7 @@ int main(void) {
 
 int main(void) {
     printf("This example requires metadata support.\n");
-    printf("Compile with: make METADATA=1 examples/example_metadata\n");
+    printf("Compile with: make CLOJURE_EXTENSION=1 examples/example_metadata\n");
     return 1;
 }
 
