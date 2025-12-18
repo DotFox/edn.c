@@ -226,6 +226,107 @@ TEST(decode_string_unicode_mixed) {
     edn_arena_destroy(arena);
 }
 
+TEST(decode_string_octal_null) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "hello\\0world";
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    /* \0 = null character (0x00) */
+    assert(strncmp(result, "hello", 5) == 0);
+    assert(result[5] == '\0'); /* The embedded null */
+    /* Note: strcmp won't work here due to embedded null */
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_single_digit) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\7"; /* 7 octal = 7 decimal */
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert((unsigned char) result[0] == 7);
+    assert(result[1] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_two_digits) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\77"; /* 77 octal = 63 decimal = '?' */
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert(result[0] == '?'); /* 63 = '?' */
+    assert(result[1] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_three_digits) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\101"; /* 101 octal = 65 decimal = 'A' */
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert(result[0] == 'A');
+    assert(result[1] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_max_value) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\377"; /* 377 octal = 255 decimal */
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert((unsigned char) result[0] == 255);
+    assert(result[1] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_overflow_stops) {
+    edn_arena_t* arena = edn_arena_create();
+    /* \400 would be 256, which is > 255, so it should parse as \40 (32) followed by '0' */
+    const char* input = "\\400";
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert((unsigned char) result[0] == 32); /* \40 = 32 decimal (space) */
+    assert(result[1] == '0');                /* literal '0' */
+    assert(result[2] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_non_octal_stops) {
+    edn_arena_t* arena = edn_arena_create();
+    /* \18 should parse as \1 followed by '8' (8 is not octal) */
+    const char* input = "\\18";
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert((unsigned char) result[0] == 1); /* \1 = 1 */
+    assert(result[1] == '8');               /* literal '8' */
+    assert(result[2] == '\0');
+
+    edn_arena_destroy(arena);
+}
+
+TEST(decode_string_octal_mixed) {
+    edn_arena_t* arena = edn_arena_create();
+    const char* input = "\\110\\145\\154\\154\\157"; /* "Hello" in octal */
+    char* result = edn_decode_string(arena, input, strlen(input));
+
+    assert(result != NULL);
+    assert(strcmp(result, "Hello") == 0);
+
+    edn_arena_destroy(arena);
+}
+
 TEST(decode_string_invalid_escape) {
     edn_arena_t* arena = edn_arena_create();
     const char* input = "hello\\xworld"; /* \x is not valid */
@@ -271,6 +372,14 @@ int main(void) {
     run_test_decode_string_unicode_2byte();
     run_test_decode_string_unicode_3byte();
     run_test_decode_string_unicode_mixed();
+    run_test_decode_string_octal_null();
+    run_test_decode_string_octal_single_digit();
+    run_test_decode_string_octal_two_digits();
+    run_test_decode_string_octal_three_digits();
+    run_test_decode_string_octal_max_value();
+    run_test_decode_string_octal_overflow_stops();
+    run_test_decode_string_octal_non_octal_stops();
+    run_test_decode_string_octal_mixed();
     run_test_decode_string_invalid_escape();
     run_test_decode_string_invalid_unicode();
 
