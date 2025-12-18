@@ -537,7 +537,7 @@ edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     const char* ns_name = ns_keyword->as.keyword.name;
     size_t ns_length = ns_keyword->as.keyword.name_length;
 
-    edn_parser_skip_whitespace(parser);
+    edn_skip_whitespace(parser);
 
     if (parser->current >= parser->end || *parser->current != '{') {
         parser->error = EDN_ERROR_INVALID_SYNTAX;

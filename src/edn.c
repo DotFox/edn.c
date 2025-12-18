@@ -107,7 +107,7 @@ edn_type_t edn_type(const edn_value_t* value) {
     return value ? value->type : EDN_TYPE_NIL;
 }
 
-bool edn_parser_skip_whitespace(edn_parser_t* parser) {
+bool edn_skip_whitespace(edn_parser_t* parser) {
     parser->current = edn_simd_skip_whitespace(parser->current, parser->end);
     return parser->current < parser->end;
 }
@@ -418,7 +418,7 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
         /* Quick check for whitespace: 0x09-0x0D, 0x1C-0x1F, space, comma, semicolon */
         if (c == ' ' || c == ',' || c == ';' || (c >= 0x09 && c <= 0x0D) ||
             (c >= 0x1C && c <= 0x1F)) {
-            if (!edn_parser_skip_whitespace(parser)) {
+            if (!edn_skip_whitespace(parser)) {
                 parser->error = EDN_ERROR_UNEXPECTED_EOF;
                 parser->error_message = "Unexpected end of input";
                 return NULL;
