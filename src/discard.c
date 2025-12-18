@@ -4,7 +4,7 @@
 
 #include "edn_internal.h"
 
-edn_value_t* edn_parse_discard_value(edn_parser_t* parser) {
+edn_value_t* edn_read_discarded_value(edn_parser_t* parser) {
     parser->current += 2;
 
     /* Enable discard mode to prevent reader invocation */

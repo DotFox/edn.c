@@ -498,7 +498,7 @@ edn_value_t* edn_read_map(edn_parser_t* parser);
 edn_value_t* edn_parse_tagged(edn_parser_t* parser);
 
 /* Discard reader macro parser */
-edn_value_t* edn_parse_discard_value(edn_parser_t* parser);
+edn_value_t* edn_read_discarded_value(edn_parser_t* parser);
 
 /* Internal reader lookup (for non-null-terminated tag strings) */
 edn_reader_fn edn_reader_lookup_internal(const edn_reader_registry_t* registry, const char* tag,
