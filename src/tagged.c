@@ -29,7 +29,7 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
     const char* tag_start = parser->current;
 
-    edn_value_t* tag_value = edn_parse_identifier(parser);
+    edn_value_t* tag_value = edn_read_identifier(parser);
     if (tag_value == NULL) {
         parser->depth--;
         return NULL; /* Error already set */

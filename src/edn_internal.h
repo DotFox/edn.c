@@ -475,7 +475,7 @@ typedef struct {
 } edn_identifier_scan_result_t;
 
 edn_identifier_scan_result_t edn_simd_scan_identifier(const char* ptr, const char* end);
-edn_value_t* edn_parse_identifier(edn_parser_t* parser);
+edn_value_t* edn_read_identifier(edn_parser_t* parser);
 
 /* Symbolic value parsing function */
 edn_value_t* edn_read_symbolic_value(edn_parser_t* parser);
