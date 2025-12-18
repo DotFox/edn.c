@@ -454,7 +454,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             if (parser->current + 1 < parser->end) {
                 char next = parser->current[1];
                 if (next == '{') {
-                    return edn_parse_set(parser);
+                    return edn_read_set(parser);
                 } else if (next == '#') {
                     return edn_parse_symbolic_value(parser);
                 } else if (next == '_') {
