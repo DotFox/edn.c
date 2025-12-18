@@ -507,7 +507,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
 
 #ifdef EDN_ENABLE_METADATA
         case CHAR_TYPE_METADATA:
-            return edn_parse_metadata(parser);
+            return edn_read_metadata(parser);
 #endif
 
         case CHAR_TYPE_IDENTIFIER:

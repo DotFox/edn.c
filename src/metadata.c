@@ -11,7 +11,7 @@
 
 #include "edn_internal.h"
 
-edn_value_t* edn_parse_metadata(edn_parser_t* parser) {
+edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     /* Skip the ^ character */
     parser->current++;
 
