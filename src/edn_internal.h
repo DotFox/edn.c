@@ -429,7 +429,7 @@ static inline bool is_delimiter(unsigned char c) {
     return DELIMITER_TABLE[c];
 }
 
-bool edn_parser_skip_whitespace(edn_parser_t* parser);
+bool edn_skip_whitespace(edn_parser_t* parser);
 edn_value_t* edn_read_value(edn_parser_t* parser);
 
 const char* edn_simd_skip_whitespace(const char* ptr, const char* end);
