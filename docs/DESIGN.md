@@ -122,7 +122,7 @@ edn_value_t* edn_parse_value(edn_parser_t* parser) {
         case '\\': return edn_parse_character(parser);
         case ':': return edn_parse_keyword(parser);
         case '(': return edn_read_list(parser);
-        case '[': return edn_parse_vector(parser);
+        case '[': return edn_read_vector(parser);
         case '{': return edn_parse_map(parser);
         case '#': return edn_parse_dispatch(parser);  // Sets, tags, discard
         default: 
