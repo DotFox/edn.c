@@ -489,7 +489,7 @@ uint64_t edn_value_hash(const edn_value_t* value);
 bool edn_has_duplicates(edn_value_t** elements, size_t count);
 
 /* Collection parsers */
-edn_value_t* edn_parse_list(edn_parser_t* parser);
+edn_value_t* edn_read_list(edn_parser_t* parser);
 edn_value_t* edn_parse_vector(edn_parser_t* parser);
 edn_value_t* edn_parse_set(edn_parser_t* parser);
 edn_value_t* edn_read_map(edn_parser_t* parser);
