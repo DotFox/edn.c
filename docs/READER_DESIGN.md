@@ -220,10 +220,10 @@ struct edn_reader_registry {
 
 ### Parser Integration
 
-Modify `edn_parse_tagged()` in `src/tagged.c`:
+Modify `edn_read_tagged()` in `src/tagged.c`:
 
 ```c
-edn_value_t* edn_parse_tagged(edn_parser_t* parser) {
+edn_value_t* edn_read_tagged(edn_parser_t* parser) {
     /* ... existing tag parsing ... */
     
     /* Check if reader registry is provided */
@@ -493,7 +493,7 @@ Add to `bench/bench_reader.c`:
 - [ ] Add `edn_read_with_options()` declaration to `include/edn.h`
 - [ ] Create `src/reader.c` with registry implementation
 - [ ] Add reader fields to `edn_parser_t` in `src/edn_internal.h`
-- [ ] Modify `edn_parse_tagged()` in `src/tagged.c` to use readers
+- [ ] Modify `edn_read_tagged()` in `src/tagged.c` to use readers
 - [ ] Update `edn_parser_init()` in `src/edn.c` to accept options
 - [ ] Implement `edn_read_with_options()` in `src/edn.c`
 - [ ] Update `Makefile` to include `src/reader.c`

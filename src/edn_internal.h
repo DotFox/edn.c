@@ -495,7 +495,7 @@ edn_value_t* edn_read_set(edn_parser_t* parser);
 edn_value_t* edn_read_map(edn_parser_t* parser);
 
 /* Tagged literal parser */
-edn_value_t* edn_parse_tagged(edn_parser_t* parser);
+edn_value_t* edn_read_tagged(edn_parser_t* parser);
 
 /* Discard reader macro parser */
 edn_value_t* edn_read_discarded_value(edn_parser_t* parser);

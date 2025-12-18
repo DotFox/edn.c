@@ -476,7 +476,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
                 }
 #endif
             }
-            return edn_parse_tagged(parser);
+            return edn_read_tagged(parser);
 
         case CHAR_TYPE_SIGN:
             /* + or - requires lookahead to distinguish number from identifier */
