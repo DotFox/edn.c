@@ -441,7 +441,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             return edn_read_character(parser);
 
         case CHAR_TYPE_LIST_OPEN:
-            return edn_parse_list(parser);
+            return edn_read_list(parser);
 
         case CHAR_TYPE_VECTOR_OPEN:
             return edn_parse_vector(parser);

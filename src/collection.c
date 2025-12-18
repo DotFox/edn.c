@@ -74,7 +74,7 @@ static edn_value_t** edn_collection_builder_finish(edn_collection_builder_t* bui
     return builder->elements;
 }
 
-edn_value_t* edn_parse_list(edn_parser_t* parser) {
+edn_value_t* edn_read_list(edn_parser_t* parser) {
     parser->current++;
     parser->depth++;
 
