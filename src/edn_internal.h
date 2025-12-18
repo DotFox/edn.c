@@ -465,7 +465,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser);
 const char* edn_simd_scan_digits(const char* ptr, const char* end);
 
 /* Character parsing function */
-edn_value_t* edn_parse_character(edn_parser_t* parser);
+edn_value_t* edn_read_character(edn_parser_t* parser);
 
 /* Identifier parsing functions */
 typedef struct {

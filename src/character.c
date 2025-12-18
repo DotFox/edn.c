@@ -78,7 +78,7 @@ static bool match_string(const char* ptr, const char* end, const char* str, size
     return memcmp(ptr, str, len) == 0;
 }
 
-edn_value_t* edn_parse_character(edn_parser_t* parser) {
+edn_value_t* edn_read_character(edn_parser_t* parser) {
     const char* ptr = parser->current;
     const char* end = parser->end;
 
