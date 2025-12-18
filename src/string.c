@@ -5,7 +5,7 @@
  * Escape sequences decoded on-demand via edn_string_get() API.
  * Supports: \", \\, \n, \t, \r, \f, \b, \uXXXX (Unicode BMP, UTF-8 encoded).
  *
- * Text Block Parsing (Experimental Feature, requires EDN_ENABLE_TEXT_BLOCKS):
+ * Text Block Parsing (Experimental Feature, requires EDN_ENABLE_EXPERIMENTAL_EXTENSION):
  *
  * This module also implements Java-style text blocks with automatic indentation stripping,
  * providing a convenient way to embed multi-line string literals in EDN documents.
@@ -53,7 +53,7 @@
 #include "edn_internal.h"
 
 /* Platform-specific SIMD headers for text block parsing */
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 #if defined(__wasm__) && defined(__wasm_simd128__)
 #include <wasm_simd128.h>
 #elif defined(__aarch64__) || defined(_M_ARM64)
@@ -79,7 +79,7 @@ static inline int msvc_ctz(unsigned int mask) {
 #else
 #define CTZ(x) __builtin_ctz(x)
 #endif
-#endif /* EDN_ENABLE_TEXT_BLOCKS */
+#endif /* EDN_ENABLE_EXPERIMENTAL_EXTENSION */
 
 /**
  * Decode single escape sequence from string.
@@ -116,6 +116,7 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
         case 'r':
             *(*out)++ = '\r';
             break;
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         /* This is extension to standard EDN specification
          * probably should be behind feature flag */
         case 'f':
@@ -191,6 +192,7 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
             *(*out)++ = (char) codepoint;
             break;
         }
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
         default:
             return false;
     }
@@ -235,14 +237,14 @@ char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length) {
 /**
  * Read a string value from the parser.
  *
- * Handles both regular strings and text blocks (when EDN_ENABLE_TEXT_BLOCKS is enabled).
+ * Handles both regular strings and text blocks (when EDN_ENABLE_EXPERIMENTAL_EXTENSION is enabled).
  * Uses SIMD-accelerated scanning for quote/backslash detection.
  * Uses lazy decoding - escape sequences are only processed when edn_string_get() is called.
  *
  * Returns: Parsed string value, or NULL on error.
  */
 edn_value_t* edn_read_string(edn_parser_t* parser) {
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Check for text block pattern: """\n */
     if (parser->current + 3 < parser->end && parser->current[0] == '"' &&
         parser->current[1] == '"' && parser->current[2] == '"' && parser->current[3] == '\n') {
@@ -283,11 +285,11 @@ edn_value_t* edn_read_string(edn_parser_t* parser) {
 
 /*
  * =============================================================================
- * Text Block Parsing (EDN_ENABLE_TEXT_BLOCKS)
+ * Text Block Parsing (EDN_ENABLE_EXPERIMENTAL_EXTENSION)
  * =============================================================================
  */
 
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 
 typedef struct {
     const char* line_start;    /* Start of line (including whitespace prefix) */
@@ -745,4 +747,4 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
     return value;
 }
 
-#endif /* EDN_ENABLE_TEXT_BLOCKS */
+#endif /* EDN_ENABLE_EXPERIMENTAL_EXTENSION */

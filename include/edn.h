@@ -23,7 +23,7 @@ typedef enum {
     EDN_TYPE_BIGINT,
     EDN_TYPE_FLOAT,
     EDN_TYPE_BIGDEC,
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     EDN_TYPE_RATIO,
     EDN_TYPE_BIGRATIO,
 #endif
@@ -177,7 +177,7 @@ bool edn_double_get(const edn_value_t* value, double* out);
  */
 const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negative);
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 /**
  * Get numerator and denominator from an EDN ratio.
  *
@@ -779,10 +779,10 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
                                    const edn_parse_options_t* options);
 
 /**
- * Metadata API (optional, requires EDN_ENABLE_METADATA)
+ * Metadata API (optional, requires EDN_ENABLE_CLOJURE_EXTENSION)
  */
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 /**
  * Get metadata attached to a value.
  *

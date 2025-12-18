@@ -85,7 +85,7 @@ TEST(bounds_check_zero_x) {
 
 TEST(bounds_check_zero_digit) {
     edn_result_t result = edn_read("07", 2);
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     assert(result.error == EDN_OK);
     assert(result.value != NULL);
     assert(result.value->type == EDN_TYPE_INT);

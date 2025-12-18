@@ -55,7 +55,7 @@ TEST(is_number_bigdec) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 TEST(is_number_ratio) {
     edn_result_t r = edn_read("22/7", 0);
     assert(r.error == EDN_OK);
@@ -388,7 +388,7 @@ int main(void) {
     RUN_TEST(is_number_bigint);
     RUN_TEST(is_number_float);
     RUN_TEST(is_number_bigdec);
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(is_number_ratio);
 #endif
     RUN_TEST(is_number_false);

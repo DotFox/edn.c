@@ -692,7 +692,7 @@ static int edn_to_js_internal(const edn_value_t* value) {
             }, dec_str, negative);
         }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO: {
             int64_t numerator, denominator;
             edn_ratio_get(value, &numerator, &denominator);

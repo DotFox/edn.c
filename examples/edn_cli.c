@@ -61,7 +61,7 @@ static void print_bool(const edn_value_t* value, const print_options_t* opts) {
     struct edn_value_internal {
         edn_type_t type;
         uint64_t cached_hash;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         edn_value_t* metadata;
 #endif
         union {

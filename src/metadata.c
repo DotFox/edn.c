@@ -2,12 +2,12 @@
  * Metadata parsing for EDN.C
  *
  * Implements Clojure-style metadata syntax: ^{...} form
- * Requires EDN_ENABLE_METADATA compilation flag.
+ * Requires EDN_ENABLE_CLOJURE_EXTENSION compilation flag.
  */
 
 #include <string.h>
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 #include "edn_internal.h"
 
@@ -288,4 +288,4 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     return form;
 }
 
-#endif /* EDN_ENABLE_METADATA */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */

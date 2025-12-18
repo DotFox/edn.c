@@ -127,7 +127,7 @@ typedef enum {
     CHAR_TYPE_SIGN,
     CHAR_TYPE_DIGIT,
     CHAR_TYPE_DELIMITER,
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     CHAR_TYPE_METADATA,
 #endif
 } char_dispatch_type_t;
@@ -238,7 +238,7 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
     ['['] = CHAR_TYPE_VECTOR_OPEN,
     ['\\'] = CHAR_TYPE_CHARACTER,
     [']'] = CHAR_TYPE_DELIMITER,
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     ['^'] = CHAR_TYPE_METADATA,
 #else
     ['^'] = CHAR_TYPE_IDENTIFIER,
@@ -469,7 +469,7 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
                     /* Recursively parse the next value (which may itself be another discard) */
                     return edn_read_value(parser);
                 }
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
                 else if (next == ':') {
                     /* Namespaced map syntax: #:ns{...} */
                     return edn_read_namespaced_map(parser);
@@ -505,7 +505,7 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
             /* Inside collection - let collection parser handle it */
             return NULL;
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case CHAR_TYPE_METADATA:
             return edn_read_metadata(parser);
 #endif
@@ -584,7 +584,7 @@ bool edn_bool_get(const edn_value_t* value, bool* out) {
     return true;
 }
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 /**
  * Clean underscores from BigInt/BigDecimal digit string.
  * Allocates and caches cleaned string in arena.
@@ -653,7 +653,7 @@ const char* edn_bigint_get(const edn_value_t* value, size_t* length, bool* negat
     if (radix)
         *radix = value->as.bigint.radix;
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Clean underscores lazily */
     if (!value->arena) {
         /* No arena - can't allocate cleaned string, return raw */
@@ -710,7 +710,7 @@ const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negat
     if (negative)
         *negative = value->as.bigdec.negative;
 
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Clean underscores lazily */
     if (!value->arena) {
         /* No arena - can't allocate cleaned string, return raw */
@@ -747,7 +747,7 @@ const char* edn_bigdec_get(const edn_value_t* value, size_t* length, bool* negat
 #endif
 }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 bool edn_ratio_get(const edn_value_t* value, int64_t* numerator, int64_t* denominator) {
     if (!value || value->type != EDN_TYPE_RATIO) {
         return false;
@@ -836,7 +836,7 @@ bool edn_number_as_double(const edn_value_t* value, double* out) {
                 return true;
             }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO:
             /* Convert ratio to double */
             if (value->as.ratio.denominator == 0) {
@@ -874,7 +874,7 @@ bool edn_is_number(const edn_value_t* value) {
         case EDN_TYPE_BIGINT:
         case EDN_TYPE_FLOAT:
         case EDN_TYPE_BIGDEC:
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO:
 #endif
             return true;
@@ -1094,7 +1094,7 @@ edn_value_t* edn_map_get_keyword(const edn_value_t* map, const char* keyword) {
     temp_key.as.keyword.name_length = strlen(keyword);
     temp_key.arena = NULL;
     temp_key.cached_hash = 0;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     temp_key.metadata = NULL;
 #endif
 
@@ -1115,7 +1115,7 @@ edn_value_t* edn_map_get_namespaced_keyword(const edn_value_t* map, const char* 
     temp_key.as.keyword.name_length = strlen(name);
     temp_key.arena = NULL;
     temp_key.cached_hash = 0;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     temp_key.metadata = NULL;
 #endif
 
@@ -1136,7 +1136,7 @@ edn_value_t* edn_map_get_string_key(const edn_value_t* map, const char* key) {
     temp_key.as.string.decoded = NULL;
     temp_key.arena = NULL;
     temp_key.cached_hash = 0;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     temp_key.metadata = NULL;
 #endif
 
@@ -1276,7 +1276,7 @@ bool edn_external_is_type(const edn_value_t* value, uint32_t type_id) {
 
 /* Metadata API */
 
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 edn_value_t* edn_value_meta(const edn_value_t* value) {
     if (!value) {
         return NULL;

@@ -79,7 +79,7 @@ TEST(scan_number_scientific) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(scan_number_hex) {
     const char* input = "0x2A";
@@ -105,7 +105,7 @@ TEST(scan_number_binary) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /* Test int64_t parsing */
 TEST(parse_int64_simple) {
@@ -180,7 +180,7 @@ TEST(parse_int64_overflow) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(parse_int64_hex) {
     const char* input = "0x2A";
@@ -260,7 +260,7 @@ TEST(scan_number_octal_edge_09) {
     assert(r.error != EDN_OK);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 TEST(scan_number_zero) {
     const char* input = "0";
@@ -332,7 +332,7 @@ TEST(api_bigint_get) {
     value.as.bigint.negative = false;
     value.as.bigint.radix = 10;
     value.arena = NULL;
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     value.as.bigint.cleaned = NULL;
 #endif
 
@@ -423,7 +423,7 @@ TEST(scan_number_bigint_suffix_negative) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(scan_number_bigint_suffix_hex) {
     /* Hex numbers don't support N suffix - N is a hex digit */
@@ -438,10 +438,10 @@ TEST(scan_number_bigint_suffix_hex) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 TEST(scan_number_bigint_suffix_only_decimal) {
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* N suffix only applies to base-10, not radix notation */
     const char* input = "36rZZ"; /* No N suffix for non-decimal */
     edn_result_t r = edn_read(input, 0);
@@ -452,7 +452,7 @@ TEST(scan_number_bigint_suffix_only_decimal) {
 
     edn_free(r.value);
 #else
-    /* Without EXTENDED_INTEGERS, this should parse as standard decimal */
+    /* Without CLOJURE_EXTENSION, this should parse as standard decimal */
     assert(true); /* Test is N/A without the feature */
 #endif
 }
@@ -615,7 +615,7 @@ TEST(api_bigdec_get) {
     value.as.bigdec.length = 7;
     value.as.bigdec.negative = false;
     value.arena = NULL;
-#ifdef EDN_ENABLE_UNDERSCORE_IN_NUMERIC
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     value.as.bigdec.cleaned = NULL;
 #endif
 
@@ -707,7 +707,7 @@ TEST(edn_parse_decimal_int_large) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 /* Test hexadecimal parsing */
 TEST(edn_parse_hex_lowercase_x) {
@@ -962,9 +962,9 @@ TEST(edn_parse_radix_negative_capital_r) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
-#ifndef EDN_ENABLE_EXTENDED_INTEGERS
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
 /* Test that special integer formats fail when disabled */
 TEST(edn_parse_special_integers_disabled_hex) {
     edn_result_t r = edn_read("0x2A", 0);
@@ -1216,7 +1216,7 @@ TEST(edn_parse_bigdec_integer_with_M) {
     edn_free(r.value);
 }
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 TEST(api_ratio_get) {
     edn_value_t value;
@@ -1615,7 +1615,7 @@ TEST(api_parse_ratio_hex_not_supported) {
     assert(r.value == NULL);
 }
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 TEST(api_parse_ratio_octal_not_supported) {
     edn_result_t r = edn_read("0777/2", 0);
 
@@ -1637,7 +1637,7 @@ TEST(api_parse_ratio_radix_not_supported) {
     assert(r.error == EDN_ERROR_INVALID_NUMBER);
     assert(r.value == NULL);
 }
-#endif /* EDN_ENABLE_EXTENDED_INTEGERS */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 TEST(api_parse_ratio_one) {
     /* 5/5 reduces to 1/1 which becomes integer 1 */
@@ -1705,9 +1705,9 @@ TEST(api_parse_ratio_already_reduced) {
     edn_free(r.value);
 }
 
-#endif /* EDN_ENABLE_RATIO */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
-#ifndef EDN_ENABLE_RATIO
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
 /* Test that ratio syntax fails with clear error when disabled */
 TEST(api_parse_ratio_disabled) {
     /* When ratio support is disabled, "22/7" should fail */
@@ -1739,7 +1739,7 @@ int main(void) {
     run_test_scan_number_negative_int();
     run_test_scan_number_double();
     run_test_scan_number_scientific();
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     run_test_scan_number_hex();
     run_test_scan_number_binary();
 #endif
@@ -1751,7 +1751,7 @@ int main(void) {
     run_test_parse_int64_max();
     run_test_parse_int64_min();
     run_test_parse_int64_overflow();
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     run_test_parse_int64_hex();
     run_test_parse_int64_binary();
     run_test_parse_int64_octal();
@@ -1780,7 +1780,7 @@ int main(void) {
     /* BigInt N suffix tests */
     run_test_scan_number_bigint_suffix_simple();
     run_test_scan_number_bigint_suffix_negative();
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     run_test_scan_number_bigint_suffix_hex();
 #endif
     run_test_scan_number_bigint_suffix_only_decimal();
@@ -1799,7 +1799,7 @@ int main(void) {
     run_test_api_bigdec_get();
     run_test_api_parse_bigdec_suffix_in_collection();
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* Ratio tests */
     run_test_api_ratio_get();
     run_test_api_ratio_get_negative();
@@ -1826,7 +1826,7 @@ int main(void) {
     run_test_api_ratio_as_double_negative();
     run_test_api_ratio_as_double_zero_denominator();
     run_test_api_parse_ratio_hex_not_supported();
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     run_test_api_parse_ratio_octal_not_supported();
     run_test_api_parse_ratio_octal_leading_zero_not_supported();
     run_test_api_parse_ratio_radix_not_supported();
@@ -1847,7 +1847,7 @@ int main(void) {
     run_test_edn_parse_decimal_int_zero();
     run_test_edn_parse_decimal_int_large();
 
-#ifdef EDN_ENABLE_EXTENDED_INTEGERS
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* Hexadecimal */
     run_test_edn_parse_hex_lowercase_x();
     run_test_edn_parse_hex_uppercase_X();

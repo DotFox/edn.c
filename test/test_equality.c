@@ -853,7 +853,7 @@ TEST(not_equal_bigint_vs_int) {
 }
 
 /* Ratio equality */
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 TEST(equal_ratio) {
     edn_value_t* a = parse_helper("22/7");
     edn_value_t* b = parse_helper("22/7");
@@ -968,7 +968,7 @@ TEST(hash_ratio_different_value) {
     edn_free(a);
     edn_free(b);
 }
-#endif /* EDN_ENABLE_RATIO */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 int main(void) {
     printf("Running equality tests...\n");
@@ -1079,7 +1079,7 @@ int main(void) {
     RUN_TEST(not_equal_bigint);
     RUN_TEST(not_equal_bigint_vs_int);
 
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     /* Ratio */
     RUN_TEST(equal_ratio);
     RUN_TEST(not_equal_ratio_different_numerator);

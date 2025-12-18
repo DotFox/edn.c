@@ -511,7 +511,7 @@ edn_value_t* edn_read_map(edn_parser_t* parser) {
     return edn_read_map_internal(parser, NULL, 0);
 }
 
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     parser->current++;
@@ -548,4 +548,4 @@ edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     return edn_read_map_internal(parser, ns_name, ns_length);
 }
 
-#endif /* EDN_ENABLE_MAP_NAMESPACE_SYNTAX */
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */

@@ -203,7 +203,7 @@ typedef struct {
 struct edn_value {
     edn_type_t type;
     uint64_t cached_hash; /* Cached hash value (0 = not computed yet) */
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
     edn_value_t* metadata;
 #endif
     union {
@@ -225,7 +225,7 @@ struct edn_value {
             bool negative; /* Sign bit */
             char* cleaned; /* Lazy-cleaned string without underscores (NULL until needed) */
         } bigdec;
-#ifdef EDN_ENABLE_RATIO
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         struct {
             int64_t numerator;
             int64_t denominator;
@@ -339,7 +339,7 @@ static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
     edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
     if (value) {
         value->cached_hash = 0;
-#ifdef EDN_ENABLE_METADATA
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
         value->metadata = NULL;
 #endif
     }
@@ -508,18 +508,18 @@ edn_reader_fn edn_reader_lookup_internal(const edn_reader_registry_t* registry, 
 edn_external_equal_fn edn_external_lookup_equal(uint32_t type_id);
 edn_external_hash_fn edn_external_lookup_hash(uint32_t type_id);
 
-/* Namespaced map parser (Clojure extension, requires EDN_ENABLE_MAP_NAMESPACE_SYNTAX) */
-#ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
+/* Namespaced map parser (Clojure extension, requires EDN_ENABLE_CLOJURE_EXTENSION) */
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 edn_value_t* edn_read_namespaced_map(edn_parser_t* parser);
 #endif
 
-/* Metadata parser (Clojure extension, requires EDN_ENABLE_METADATA) */
-#ifdef EDN_ENABLE_METADATA
+/* Metadata parser (Clojure extension, requires EDN_ENABLE_CLOJURE_EXTENSION) */
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 edn_value_t* edn_read_metadata(edn_parser_t* parser);
 #endif
 
-/* Text block parser (experimental, requires EDN_ENABLE_TEXT_BLOCKS) */
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+/* Text block parser (experimental, requires EDN_ENABLE_EXPERIMENTAL_EXTENSION) */
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 edn_value_t* edn_parse_text_block(edn_parser_t* parser);
 #endif
 

@@ -2,22 +2,22 @@
  * Example: Extended Character Literals
  * 
  * Demonstrates the extended character literal features available when
- * compiled with EDN_ENABLE_EXTENDED_CHARACTERS flag.
+ * compiled with EDN_ENABLE_CLOJURE_EXTENSION flag.
  * 
  * Build:
- *   make EXTENDED_CHARACTERS=1 examples/example_extended_characters
+ *   make CLOJURE_EXTENSION=1 examples/example_extended_characters
  *   
  * Or with CMake:
- *   cmake -DEDN_ENABLE_EXTENDED_CHARACTERS=ON ..
+ *   cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..
  *   make example_extended_characters
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../include/edn.h"
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
-#ifdef EDN_ENABLE_EXTENDED_CHARACTERS
+#include "../include/edn.h"
 
 static void print_character(const char* description, const char* input) {
     printf("\n%s\n", description);
@@ -87,11 +87,11 @@ int main(void) {
 #else
 
 int main(void) {
-    printf("Error: This example requires EDN_ENABLE_EXTENDED_CHARACTERS flag.\n");
+    printf("Error: This example requires EDN_ENABLE_CLOJURE_EXTENSION flag.\n");
     printf("\nBuild with:\n");
-    printf("  make EXTENDED_CHARACTERS=1 examples/example_extended_characters\n");
+    printf("  make CLOJURE_EXTENSION=1 examples/example_extended_characters\n");
     printf("\nOr with CMake:\n");
-    printf("  cmake -DEDN_ENABLE_EXTENDED_CHARACTERS=ON ..\n");
+    printf("  cmake -DEDN_ENABLE_CLOJURE_EXTENSION=ON ..\n");
     printf("  make example_extended_characters\n");
     return 1;
 }

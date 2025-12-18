@@ -3,7 +3,7 @@
 #include "../include/edn.h"
 #include "test_framework.h"
 
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 
 #include "../src/edn_internal.h"
 
@@ -402,7 +402,7 @@ TEST(text_block_example_closing_own_line) {
 #else
 
 TEST(text_block_disabled) {
-    /* When TEXT_BLOCKS disabled, """<newline> parses as regular string -> ERROR or "" */
+    /* When EXPERIMENTAL_EXTENSION disabled, """<newline> parses as regular string -> ERROR or "" */
     edn_result_t result = edn_read("\"\"\"\nhello\n\"\"\"", 0);
     assert(result.error != EDN_OK || edn_type(result.value) == EDN_TYPE_STRING);
     if (result.value != NULL) {
@@ -413,7 +413,7 @@ TEST(text_block_disabled) {
 #endif
 
 int main(void) {
-#ifdef EDN_ENABLE_TEXT_BLOCKS
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     RUN_TEST(basic_text_block_single_line);
     RUN_TEST(text_block_multiple_lines);
     RUN_TEST(text_block_multiple_lines_no_trailing);
@@ -438,7 +438,7 @@ int main(void) {
     printf("\nAll text block tests passed!\n");
 #else
     RUN_TEST(text_block_disabled);
-    printf("\nText block feature is disabled. Enable with EDN_ENABLE_TEXT_BLOCKS.\n");
+    printf("\nText block feature is disabled. Enable with EDN_ENABLE_EXPERIMENTAL_EXTENSION.\n");
 #endif
 
     return 0;
