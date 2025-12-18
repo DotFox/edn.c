@@ -456,7 +456,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
                 if (next == '{') {
                     return edn_read_set(parser);
                 } else if (next == '#') {
-                    return edn_parse_symbolic_value(parser);
+                    return edn_read_symbolic_value(parser);
                 } else if (next == '_') {
                     /* Discard next form and parse the one after it */
                     edn_value_t* discarded = edn_parse_discard_value(parser);
