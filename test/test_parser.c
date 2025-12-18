@@ -4,7 +4,7 @@
 #include "../src/edn_internal.h"
 #include "test_framework.h"
 
-/* Test parser dispatcher - edn_parser_parse_value */
+/* Test parser dispatcher - edn_read_value */
 
 /* Test parsing nil */
 TEST(parse_nil) {

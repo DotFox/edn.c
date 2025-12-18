@@ -91,7 +91,7 @@ if [ -d "$TRACE_FILE" ]; then
     echo "  3. Look for functions with >5% in '% Self' column"
     echo ""
     echo "You should see symbol names like:"
-    echo "  • edn_parser_parse_value"
+    echo "  • edn_read_value"
     echo "  • edn_parse_map"
     echo "  • edn_arena_alloc"
     echo "  • edn_value_equal_internal"

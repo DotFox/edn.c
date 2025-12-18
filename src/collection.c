@@ -82,7 +82,7 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
     edn_collection_builder_init(&builder, parser->arena, 8);
 
     while (true) {
-        edn_value_t* element = edn_parser_parse_value(parser);
+        edn_value_t* element = edn_read_value(parser);
         if (element == NULL) {
             break;
         }
@@ -143,7 +143,7 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
     edn_collection_builder_init(&builder, parser->arena, 8);
 
     while (true) {
-        edn_value_t* element = edn_parser_parse_value(parser);
+        edn_value_t* element = edn_read_value(parser);
         if (element == NULL) {
             break;
         }
@@ -204,7 +204,7 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
     edn_collection_builder_init(&builder, parser->arena, 8);
 
     while (true) {
-        edn_value_t* element = edn_parser_parse_value(parser);
+        edn_value_t* element = edn_read_value(parser);
         if (element == NULL) {
             break;
         }
@@ -360,7 +360,7 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
     edn_map_builder_init(&builder, parser->arena, 8);
 
     while (true) {
-        edn_value_t* key = edn_parser_parse_value(parser);
+        edn_value_t* key = edn_read_value(parser);
         if (key == NULL) {
             if (parser->error != EDN_OK) {
                 parser->depth--;
@@ -369,7 +369,7 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
             break;
         }
 
-        edn_value_t* value = edn_parser_parse_value(parser);
+        edn_value_t* value = edn_read_value(parser);
         if (value == NULL) {
             parser->depth--;
             if (parser->error == EDN_OK) {
@@ -516,7 +516,7 @@ edn_value_t* edn_read_map(edn_parser_t* parser) {
 edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     parser->current++;
 
-    edn_value_t* ns_keyword = edn_parser_parse_value(parser);
+    edn_value_t* ns_keyword = edn_read_value(parser);
     if (ns_keyword == NULL) {
         /* Parsing failed, error already set */
         return NULL;

@@ -16,7 +16,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     parser->current++;
 
     /* Step 1: Parse the metadata value */
-    edn_value_t* meta_value = edn_parser_parse_value(parser);
+    edn_value_t* meta_value = edn_read_value(parser);
     if (meta_value == NULL || parser->error != EDN_OK) {
         return NULL;
     }
@@ -30,7 +30,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     }
 
     /* Step 2: Parse the value to attach metadata to */
-    edn_value_t* form = edn_parser_parse_value(parser);
+    edn_value_t* form = edn_read_value(parser);
     if (form == NULL || parser->error != EDN_OK) {
         return NULL;
     }
