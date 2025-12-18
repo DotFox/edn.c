@@ -40,7 +40,7 @@ TEST(depth_simple_values) {
     const char* input = "42";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(parser.depth == 0);
 
@@ -53,7 +53,7 @@ TEST(depth_single_level) {
     const char* input = "[1 2 3]";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_VECTOR);
     assert(parser.depth == 0); /* Should return to 0 after complete parse */
@@ -67,7 +67,7 @@ TEST(depth_nested) {
     const char* input = "[1 [2 [3 [4]]]]";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_VECTOR);
     assert(parser.depth == 0); /* Should return to 0 after complete parse */
@@ -81,7 +81,7 @@ TEST(depth_list) {
     const char* input = "(1 2 3)";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_LIST);
     assert(parser.depth == 0);
@@ -95,7 +95,7 @@ TEST(depth_map) {
     const char* input = "{:a 1 :b 2}";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_MAP);
     assert(parser.depth == 0);
@@ -109,7 +109,7 @@ TEST(depth_set) {
     const char* input = "#{1 2 3}";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_SET);
     assert(parser.depth == 0);
@@ -123,7 +123,7 @@ TEST(depth_mixed_nested) {
     const char* input = "{:list (1 2 3) :vector [4 5 6] :set #{7 8 9}}";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_MAP);
     assert(parser.depth == 0);
@@ -137,7 +137,7 @@ TEST(depth_error_restoration) {
     const char* input = "[1 2"; /* Unterminated vector */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(parser.depth == 0); /* Depth should be restored even on error */
@@ -151,7 +151,7 @@ TEST(depth_nested_error_restoration) {
     const char* input = "[[1 [2"; /* Deeply unterminated */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(parser.depth == 0); /* Depth should be restored even on error */
@@ -165,7 +165,7 @@ TEST(depth_map_error_restoration) {
     const char* input = "{:a 1 :b"; /* Map with missing value */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(parser.depth == 0); /* Depth should be restored even on error */
@@ -179,7 +179,7 @@ TEST(depth_tagged) {
     const char* input = "#inst \"2024-01-01\"";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_TAGGED);
     assert(parser.depth == 0);
@@ -193,7 +193,7 @@ TEST(depth_nested_tagged) {
     const char* input = "#outer #inner [1 2 3]";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_TAGGED);
     assert(parser.depth == 0);
@@ -207,7 +207,7 @@ TEST(depth_tagged_with_collection) {
     const char* input = "#myapp/custom {:data [1 2 3]}";
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value != NULL);
     assert(value->type == EDN_TYPE_TAGGED);
     assert(parser.depth == 0);
@@ -221,7 +221,7 @@ TEST(depth_tagged_error_missing_tag) {
     const char* input = "#"; /* Just # without tag */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(parser.depth == 0);
@@ -235,7 +235,7 @@ TEST(depth_tagged_error_missing_value) {
     const char* input = "#inst"; /* Tag without value */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
     assert(parser.depth == 0);
@@ -249,7 +249,7 @@ TEST(depth_tagged_error_invalid_tag) {
     const char* input = "#:keyword \"value\""; /* Keyword instead of symbol */
     INIT_PARSER(parser, input);
 
-    edn_value_t* value = edn_parser_parse_value(&parser);
+    edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
     assert(parser.error == EDN_ERROR_INVALID_SYNTAX);
     assert(parser.depth == 0);

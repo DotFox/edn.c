@@ -430,7 +430,7 @@ static inline bool is_delimiter(unsigned char c) {
 }
 
 bool edn_parser_skip_whitespace(edn_parser_t* parser);
-edn_value_t* edn_parser_parse_value(edn_parser_t* parser);
+edn_value_t* edn_read_value(edn_parser_t* parser);
 
 const char* edn_simd_skip_whitespace(const char* ptr, const char* end);
 const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_backslash);

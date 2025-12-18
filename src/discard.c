@@ -11,7 +11,7 @@ edn_value_t* edn_read_discarded_value(edn_parser_t* parser) {
     bool old_discard_mode = parser->discard_mode;
     parser->discard_mode = true;
 
-    edn_value_t* discarded = edn_parser_parse_value(parser);
+    edn_value_t* discarded = edn_read_value(parser);
 
     /* Restore discard mode */
     parser->discard_mode = old_discard_mode;

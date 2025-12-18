@@ -43,7 +43,7 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
 
     parser.discard_mode = false;
 
-    result.value = edn_parser_parse_value(&parser);
+    result.value = edn_read_value(&parser);
     result.error = parser.error;
     result.error_message = parser.error_message;
 
@@ -412,7 +412,7 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
     [255] = CHAR_TYPE_IDENTIFIER,
 };
 
-edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
+edn_value_t* edn_read_value(edn_parser_t* parser) {
     if (parser->current < parser->end) {
         unsigned char c = (unsigned char) *parser->current;
         /* Quick check for whitespace: 0x09-0x0D, 0x1C-0x1F, space, comma, semicolon */
@@ -467,7 +467,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
                     }
                     (void) discarded; /* Suppress unused variable warning */
                     /* Recursively parse the next value (which may itself be another discard) */
-                    return edn_parser_parse_value(parser);
+                    return edn_read_value(parser);
                 }
 #ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
                 else if (next == ':') {

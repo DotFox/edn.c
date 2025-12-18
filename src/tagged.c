@@ -47,7 +47,7 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
     size_t tag_length = tag_end - tag_start;
     const char* tag_string = tag_start;
 
-    edn_value_t* value = edn_parser_parse_value(parser);
+    edn_value_t* value = edn_read_value(parser);
     if (value == NULL) {
         parser->depth--;
         if (parser->error == EDN_OK) {
