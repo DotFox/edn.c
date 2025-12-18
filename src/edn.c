@@ -447,7 +447,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
             return edn_parse_vector(parser);
 
         case CHAR_TYPE_MAP_OPEN:
-            return edn_parse_map(parser);
+            return edn_read_map(parser);
 
         case CHAR_TYPE_HASH:
             /* Hash requires lookahead: #{ (set), ## (symbolic), #_ (discard), #: (namespaced map), # (tagged) */
@@ -472,7 +472,7 @@ edn_value_t* edn_parser_parse_value(edn_parser_t* parser) {
 #ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
                 else if (next == ':') {
                     /* Namespaced map syntax: #:ns{...} */
-                    return edn_parse_namespaced_map(parser);
+                    return edn_read_namespaced_map(parser);
                 }
 #endif
             }
