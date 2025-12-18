@@ -196,7 +196,7 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
     return value;
 }
 
-edn_value_t* edn_parse_set(edn_parser_t* parser) {
+edn_value_t* edn_read_set(edn_parser_t* parser) {
     parser->current += 2;
     parser->depth++;
 
