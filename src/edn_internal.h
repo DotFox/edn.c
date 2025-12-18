@@ -492,7 +492,7 @@ bool edn_has_duplicates(edn_value_t** elements, size_t count);
 edn_value_t* edn_parse_list(edn_parser_t* parser);
 edn_value_t* edn_parse_vector(edn_parser_t* parser);
 edn_value_t* edn_parse_set(edn_parser_t* parser);
-edn_value_t* edn_parse_map(edn_parser_t* parser);
+edn_value_t* edn_read_map(edn_parser_t* parser);
 
 /* Tagged literal parser */
 edn_value_t* edn_parse_tagged(edn_parser_t* parser);
@@ -510,7 +510,7 @@ edn_external_hash_fn edn_external_lookup_hash(uint32_t type_id);
 
 /* Namespaced map parser (Clojure extension, requires EDN_ENABLE_MAP_NAMESPACE_SYNTAX) */
 #ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
-edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser);
+edn_value_t* edn_read_namespaced_map(edn_parser_t* parser);
 #endif
 
 /* Metadata parser (Clojure extension, requires EDN_ENABLE_METADATA) */

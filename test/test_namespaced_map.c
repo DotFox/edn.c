@@ -418,6 +418,117 @@ TEST(namespaced_map_with_already_namespaced_symbol_keys) {
     edn_free(result.value);
 }
 
+TEST(namespaced_map_underscore_strips_namespace) {
+    /* #:foo{:_/a 1 _/b 2 :c 3 d 4} should be {:a 1 b 2 :foo/c 3 foo/d 4} */
+    /* Keys with "_" namespace should have namespace stripped */
+    /* Keys without namespace should get the map's namespace */
+    edn_result_t result = edn_read("#:foo{:_/a 1 _/b 2 :c 3 d 4}", 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_MAP);
+    assert_uint_eq(edn_map_count(result.value), 4);
+
+    bool found_keyword_a_no_ns = false;  /* :a (was :_/a) */
+    bool found_symbol_b_no_ns = false;   /* b (was _/b) */
+    bool found_keyword_c_foo_ns = false; /* :foo/c (was :c) */
+    bool found_symbol_d_foo_ns = false;  /* foo/d (was d) */
+
+    for (size_t i = 0; i < 4; i++) {
+        edn_value_t* key = edn_map_get_key(result.value, i);
+        edn_value_t* val = edn_map_get_value(result.value, i);
+
+        int64_t num;
+        assert_true(edn_int64_get(val, &num));
+
+        if (edn_type(key) == EDN_TYPE_KEYWORD) {
+            const char* ns;
+            size_t ns_len;
+            const char* name;
+            size_t name_len;
+            assert_true(edn_keyword_get(key, &ns, &ns_len, &name, &name_len));
+
+            if (name_len == 1 && strncmp(name, "a", 1) == 0) {
+                /* :a - should have no namespace (was :_/a) */
+                assert_ptr_eq(ns, NULL);
+                assert_uint_eq(ns_len, 0);
+                assert_int_eq(num, 1);
+                found_keyword_a_no_ns = true;
+            } else if (name_len == 1 && strncmp(name, "c", 1) == 0) {
+                /* :foo/c - should have foo namespace (was :c) */
+                assert(ns != NULL);
+                assert_uint_eq(ns_len, 3);
+                assert(strncmp(ns, "foo", 3) == 0);
+                assert_int_eq(num, 3);
+                found_keyword_c_foo_ns = true;
+            }
+        } else if (edn_type(key) == EDN_TYPE_SYMBOL) {
+            const char* ns;
+            size_t ns_len;
+            const char* name;
+            size_t name_len;
+            assert_true(edn_symbol_get(key, &ns, &ns_len, &name, &name_len));
+
+            if (name_len == 1 && strncmp(name, "b", 1) == 0) {
+                /* b - should have no namespace (was _/b) */
+                assert_ptr_eq(ns, NULL);
+                assert_uint_eq(ns_len, 0);
+                assert_int_eq(num, 2);
+                found_symbol_b_no_ns = true;
+            } else if (name_len == 1 && strncmp(name, "d", 1) == 0) {
+                /* foo/d - should have foo namespace (was d) */
+                assert(ns != NULL);
+                assert_uint_eq(ns_len, 3);
+                assert(strncmp(ns, "foo", 3) == 0);
+                assert_int_eq(num, 4);
+                found_symbol_d_foo_ns = true;
+            }
+        }
+    }
+
+    assert_true(found_keyword_a_no_ns);
+    assert_true(found_symbol_b_no_ns);
+    assert_true(found_keyword_c_foo_ns);
+    assert_true(found_symbol_d_foo_ns);
+
+    edn_free(result.value);
+}
+
+TEST(namespaced_map_underscore_only_single_char) {
+    /* #:foo{:__/a 1 :_x/b 2} should keep namespaces "__" and "_x" */
+    /* Only exactly "_" namespace should be stripped */
+    edn_result_t result = edn_read("#:foo{:__/a 1 :_x/b 2}", 0);
+    assert(result.error == EDN_OK);
+    assert(result.value != NULL);
+    assert(edn_type(result.value) == EDN_TYPE_MAP);
+    assert_uint_eq(edn_map_count(result.value), 2);
+
+    for (size_t i = 0; i < 2; i++) {
+        edn_value_t* key = edn_map_get_key(result.value, i);
+        assert(edn_type(key) == EDN_TYPE_KEYWORD);
+
+        const char* ns;
+        size_t ns_len;
+        const char* name;
+        size_t name_len;
+        assert_true(edn_keyword_get(key, &ns, &ns_len, &name, &name_len));
+
+        /* Both keys should retain their namespace (not stripped) */
+        assert(ns != NULL);
+
+        if (name_len == 1 && strncmp(name, "a", 1) == 0) {
+            /* :__/a - namespace should be "__" */
+            assert_uint_eq(ns_len, 2);
+            assert(strncmp(ns, "__", 2) == 0);
+        } else if (name_len == 1 && strncmp(name, "b", 1) == 0) {
+            /* :_x/b - namespace should be "_x" */
+            assert_uint_eq(ns_len, 2);
+            assert(strncmp(ns, "_x", 2) == 0);
+        }
+    }
+
+    edn_free(result.value);
+}
+
 #else /* EDN_ENABLE_MAP_NAMESPACE_SYNTAX */
 
 /* Test that namespaced map syntax fails when disabled */
@@ -448,6 +559,8 @@ int main(void) {
     RUN_TEST(namespaced_map_with_symbol_keys);
     RUN_TEST(namespaced_map_with_mixed_symbol_keyword_keys);
     RUN_TEST(namespaced_map_with_already_namespaced_symbol_keys);
+    RUN_TEST(namespaced_map_underscore_strips_namespace);
+    RUN_TEST(namespaced_map_underscore_only_single_char);
 
     TEST_SUMMARY("namespaced map");
 #else

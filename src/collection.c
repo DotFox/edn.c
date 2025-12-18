@@ -351,8 +351,8 @@ static void edn_map_builder_finish(edn_map_builder_t* builder, edn_value_t*** ou
     *out_values = builder->values;
 }
 
-static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_name,
-                                           size_t ns_length) {
+static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_name,
+                                          size_t ns_length) {
     parser->current++;
     parser->depth++;
 
@@ -380,38 +380,73 @@ static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_
         }
 
         edn_value_t* final_key = key;
-        if (ns_name != NULL && key->type == EDN_TYPE_KEYWORD && key->as.keyword.namespace == NULL) {
-            final_key = edn_arena_alloc_value(parser->arena);
-            if (final_key == NULL) {
-                parser->depth--;
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory allocating namespaced keyword";
-                return NULL;
-            }
 
-            final_key->type = EDN_TYPE_KEYWORD;
-            final_key->as.keyword.namespace = ns_name;
-            final_key->as.keyword.ns_length = ns_length;
-            final_key->as.keyword.name = key->as.keyword.name;
-            final_key->as.keyword.name_length = key->as.keyword.name_length;
-            final_key->arena = parser->arena;
+        if (ns_name != NULL && key->type == EDN_TYPE_KEYWORD) {
+            if (key->as.keyword.namespace == NULL) {
+                final_key = edn_arena_alloc_value(parser->arena);
+                if (final_key == NULL) {
+                    parser->depth--;
+                    parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                    parser->error_message = "Out of memory allocating namespaced keyword";
+                    return NULL;
+                }
+
+                final_key->type = EDN_TYPE_KEYWORD;
+                final_key->as.keyword.namespace = ns_name;
+                final_key->as.keyword.ns_length = ns_length;
+                final_key->as.keyword.name = key->as.keyword.name;
+                final_key->as.keyword.name_length = key->as.keyword.name_length;
+                final_key->arena = parser->arena;
+            } else if (key->as.keyword.ns_length == 1 && key->as.keyword.namespace[0] == '_') {
+                final_key = edn_arena_alloc_value(parser->arena);
+                if (final_key == NULL) {
+                    parser->depth--;
+                    parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                    parser->error_message = "Out of memory allocating keyword";
+                    return NULL;
+                }
+
+                final_key->type = EDN_TYPE_KEYWORD;
+                final_key->as.keyword.namespace = NULL;
+                final_key->as.keyword.ns_length = 0;
+                final_key->as.keyword.name = key->as.keyword.name;
+                final_key->as.keyword.name_length = key->as.keyword.name_length;
+                final_key->arena = parser->arena;
+            }
         }
 
-        if (ns_name != NULL && key->type == EDN_TYPE_SYMBOL && key->as.symbol.namespace == NULL) {
-            final_key = edn_arena_alloc_value(parser->arena);
-            if (final_key == NULL) {
-                parser->depth--;
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory allocating namespaced keyword";
-                return NULL;
-            }
+        if (ns_name != NULL && key->type == EDN_TYPE_SYMBOL) {
+            if (key->as.symbol.namespace == NULL) {
+                final_key = edn_arena_alloc_value(parser->arena);
+                if (final_key == NULL) {
+                    parser->depth--;
+                    parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                    parser->error_message = "Out of memory allocating namespaced symbol";
+                    return NULL;
+                }
 
-            final_key->type = EDN_TYPE_SYMBOL;
-            final_key->as.symbol.namespace = ns_name;
-            final_key->as.symbol.ns_length = ns_length;
-            final_key->as.symbol.name = key->as.symbol.name;
-            final_key->as.symbol.name_length = key->as.symbol.name_length;
-            final_key->arena = parser->arena;
+                final_key->type = EDN_TYPE_SYMBOL;
+                final_key->as.symbol.namespace = ns_name;
+                final_key->as.symbol.ns_length = ns_length;
+                final_key->as.symbol.name = key->as.symbol.name;
+                final_key->as.symbol.name_length = key->as.symbol.name_length;
+                final_key->arena = parser->arena;
+            } else if (key->as.symbol.ns_length == 1 && key->as.symbol.namespace[0] == '_') {
+                final_key = edn_arena_alloc_value(parser->arena);
+                if (final_key == NULL) {
+                    parser->depth--;
+                    parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                    parser->error_message = "Out of memory allocating symbol";
+                    return NULL;
+                }
+
+                final_key->type = EDN_TYPE_SYMBOL;
+                final_key->as.symbol.namespace = NULL;
+                final_key->as.symbol.ns_length = 0;
+                final_key->as.symbol.name = key->as.symbol.name;
+                final_key->as.symbol.name_length = key->as.symbol.name_length;
+                final_key->arena = parser->arena;
+            }
         }
 
         if (!edn_map_builder_add(&builder, final_key, value)) {
@@ -472,13 +507,13 @@ static edn_value_t* edn_parse_map_internal(edn_parser_t* parser, const char* ns_
     return result;
 }
 
-edn_value_t* edn_parse_map(edn_parser_t* parser) {
-    return edn_parse_map_internal(parser, NULL, 0);
+edn_value_t* edn_read_map(edn_parser_t* parser) {
+    return edn_read_map_internal(parser, NULL, 0);
 }
 
 #ifdef EDN_ENABLE_MAP_NAMESPACE_SYNTAX
 
-edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser) {
+edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     parser->current++;
 
     edn_value_t* ns_keyword = edn_parser_parse_value(parser);
@@ -510,7 +545,7 @@ edn_value_t* edn_parse_namespaced_map(edn_parser_t* parser) {
         return NULL;
     }
 
-    return edn_parse_map_internal(parser, ns_name, ns_length);
+    return edn_read_map_internal(parser, ns_name, ns_length);
 }
 
 #endif /* EDN_ENABLE_MAP_NAMESPACE_SYNTAX */
