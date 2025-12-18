@@ -116,6 +116,8 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
         case 'r':
             *(*out)++ = '\r';
             break;
+        /* This is extension to standard EDN specification
+         * probably should be behind feature flag */
         case 'f':
             *(*out)++ = '\f';
             break;
@@ -158,6 +160,37 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
             }
             break;
         }
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7': {
+            /* Octal escape: \N, \NN, or \NNN (1-3 octal digits, max 0377 = 255) */
+            uint32_t codepoint = c - '0';
+
+            /* Try to read up to 2 more octal digits */
+            for (int i = 0; i < 2 && p < end; i++) {
+                char next = *p;
+                if (next >= '0' && next <= '7') {
+                    uint32_t new_value = (codepoint << 3) | (next - '0');
+                    /* Octal escapes are limited to 0-377 (0-255) */
+                    if (new_value > 255) {
+                        break;
+                    }
+                    codepoint = new_value;
+                    p++;
+                } else {
+                    break;
+                }
+            }
+
+            /* Octal escapes produce a single byte (0-255) */
+            *(*out)++ = (char) codepoint;
+            break;
+        }
         default:
             return false;
     }
@@ -169,8 +202,8 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
 /**
  * Decode escaped string into arena-allocated buffer.
  * 
- * Processes escape sequences: \", \\, \n, \t, \r, \f, \b, \uXXXX.
- * Unicode escapes converted to UTF-8 (output may be shorter than input).
+ * Processes escape sequences: \", \\, \n, \t, \r, \f, \b, \NNN, \uXXXX.
+ * Octal and unicode escapes converted to UTF-8 (output may be shorter than input).
  * 
  * Returns: Null-terminated decoded string, or NULL on invalid escape.
  */
