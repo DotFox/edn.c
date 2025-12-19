@@ -83,6 +83,15 @@ SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.
 OBJS = $(SRCS:.c=.o)
 LIB = libedn.a
 
+# Shared library
+ifeq ($(UNAME_S),Darwin)
+    SHARED_LIB = libedn.dylib
+    SHARED_FLAGS = -dynamiclib -install_name @rpath/$(SHARED_LIB)
+else
+    SHARED_LIB = libedn.so
+    SHARED_FLAGS = -shared -fPIC
+endif
+
 # WebAssembly build objects and outputs
 WASM_SRCS = $(SRCS) bindings/wasm/wasm_edn.c
 WASM_OBJS = $(WASM_SRCS:.c=.wasm.o)
@@ -118,12 +127,24 @@ EXAMPLES_BINS = $(EXAMPLES_SRCS:.c=)
 all: $(LIB)
 	@echo "✓ Build complete: $(LIB)"
 	@echo "  Run 'make test' to run tests"
+	@echo "  Run 'make shared' to build shared library ($(SHARED_LIB))"
 	@echo "  Run 'make info' to see build configuration"
 
-# Build library
+# Build shared library target
+.PHONY: shared
+shared: $(SHARED_LIB)
+	@echo "✓ Shared library build complete: $(SHARED_LIB)"
+	@echo "  Use this for FFI bindings (Java, Python, etc.)"
+
+# Build static library
 $(LIB): $(OBJS)
 	@echo "  AR      $@"
 	$(Q)$(AR) rcs $@ $^
+
+# Build shared library
+$(SHARED_LIB): $(SRCS)
+	@echo "  CC      $@ (shared)"
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $(SHARED_FLAGS) -fPIC $^ -o $@ $(LDLIBS)
 
 # Compile source files
 %.o: %.c
@@ -238,7 +259,7 @@ $(WASM_LIB): $(WASM_OBJS)
 .PHONY: clean
 clean:
 	@echo "  CLEAN"
-	$(Q)rm -f $(OBJS) $(LIB)
+	$(Q)rm -f $(OBJS) $(LIB) $(SHARED_LIB)
 	$(Q)rm -f $(WASM_OBJS) $(WASM_LIB) $(WASM_MODULE) $(WASM_JS) edn.wasm.map
 	$(Q)rm -f $(TEST_BINS)
 	$(Q)rm -f $(BENCH_BINS)
@@ -317,7 +338,8 @@ help:
 	@echo "EDN.C Makefile targets:"
 	@echo ""
 	@echo "Native builds:"
-	@echo "  make                  - Build library ($(LIB))"
+	@echo "  make                  - Build static library ($(LIB))"
+	@echo "  make shared           - Build shared library ($(SHARED_LIB)) for FFI"
 	@echo "  make test             - Build and run all tests"
 	@echo "  make cli              - Build CLI tool (examples/edn_cli)"
 	@echo "  make tui              - Build TUI viewer (examples/edn_tui)"
