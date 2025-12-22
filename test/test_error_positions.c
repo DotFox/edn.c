@@ -21,11 +21,12 @@ TEST(error_position_first_line) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 1);
+    assert_uint_eq(result.error_start.line, 1);
 }
 
 /* ========================================================================
- * TEST: Error positions on second line
+ * TEST: Error positions on second line (map with odd forms)
+ * error_start points to the opening '{' on line 2
  * ======================================================================== */
 
 TEST(error_position_second_line) {
@@ -35,12 +36,15 @@ TEST(error_position_second_line) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    /* Error should be on line 3 where the map closes with odd forms */
-    assert_uint_eq(result.error_line, 3);
+    /* error_start is at the opening '{' on line 2 */
+    assert_uint_eq(result.error_start.line, 2);
+    /* error_end is at the closing '}' on line 3 */
+    assert_uint_eq(result.error_end.line, 3);
 }
 
 /* ========================================================================
  * TEST: Error positions with multiple lines
+ * error_start points to the opening '{' on line 1
  * ======================================================================== */
 
 TEST(error_position_multiple_lines) {
@@ -52,7 +56,10 @@ TEST(error_position_multiple_lines) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 3);
+    /* error_start is at the opening '{' on line 1 */
+    assert_uint_eq(result.error_start.line, 1);
+    /* error_end is at the closing '}' on line 3 */
+    assert_uint_eq(result.error_end.line, 3);
 }
 
 /* ========================================================================
@@ -67,11 +74,12 @@ TEST(error_position_unterminated_string) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 2);
+    assert_uint_eq(result.error_start.line, 2);
 }
 
 /* ========================================================================
  * TEST: Unmatched delimiter error position
+ * error_start points to the opening '[' on line 1
  * ======================================================================== */
 
 TEST(error_position_unmatched_delimiter) {
@@ -83,11 +91,15 @@ TEST(error_position_unmatched_delimiter) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 3);
+    /* error_start is at the opening '[' on line 1 */
+    assert_uint_eq(result.error_start.line, 1);
+    /* error_end is at the wrong '}' on line 3 */
+    assert_uint_eq(result.error_end.line, 3);
 }
 
 /* ========================================================================
  * TEST: Error in nested structure
+ * error_start points to the innermost problematic opening delimiter
  * ======================================================================== */
 
 TEST(error_position_nested) {
@@ -99,7 +111,8 @@ TEST(error_position_nested) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 3);
+    /* error_start is at the innermost '{' on line 3 where the mismatch occurs */
+    assert_uint_eq(result.error_start.line, 3);
 }
 
 /* ========================================================================
@@ -131,7 +144,7 @@ TEST(error_position_crlf_line_endings) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 2);
+    assert_uint_eq(result.error_start.line, 2);
 }
 
 /* ========================================================================
@@ -160,27 +173,32 @@ TEST(error_position_large_document) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    /* Error is on line 101 where map closes */
-    assert_uint_eq(result.error_line, 101);
+    /* error_start is at the opening '{' on line 100 */
+    assert_uint_eq(result.error_start.line, 100);
+    /* error_end is at the closing '}' on line 101 */
+    assert_uint_eq(result.error_end.line, 101);
 
     free(input);
 }
 
 /* ========================================================================
  * TEST: Column position accuracy
+ * error_start points to the opening delimiter
  * ======================================================================== */
 
 TEST(error_column_position_accuracy) {
-    /* Unmatched bracket at a specific position */
+    /* Map with odd forms */
     const char* input = "{:a 1 :b}";
 
     edn_result_t result = edn_read(input, strlen(input));
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 1);
-    /* Error at closing brace position */
-    assert(result.error_column == 9);
+    assert_uint_eq(result.error_start.line, 1);
+    /* error_start is at opening '{' (column 1) */
+    assert_uint_eq(result.error_start.column, 1);
+    /* error_end is at closing '}' (column 9) */
+    assert_uint_eq(result.error_end.column, 9);
 }
 
 /* ========================================================================
@@ -197,7 +215,7 @@ TEST(error_position_after_comment) {
 
     assert(result.value == NULL);
     assert(result.error != EDN_OK);
-    assert_uint_eq(result.error_line, 4);
+    assert_uint_eq(result.error_start.line, 4);
 }
 
 /* ========================================================================

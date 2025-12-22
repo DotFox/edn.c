@@ -79,6 +79,7 @@ static bool match_string(const char* ptr, const char* end, const char* str, size
 }
 
 edn_value_t* edn_read_character(edn_parser_t* parser) {
+    const char* start = parser->current;
     const char* ptr = parser->current;
     const char* end = parser->end;
 
@@ -87,6 +88,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     if (ptr >= end) {
         parser->error = EDN_ERROR_UNEXPECTED_EOF;
         parser->error_message = "Unexpected end of input in character literal";
+        parser->error_start = start;
+        parser->error_end = ptr;
         return NULL;
     }
 
@@ -118,6 +121,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         if (!parse_octal_escape(ptr, end, &codepoint, &next_ptr)) {
             parser->error = EDN_ERROR_INVALID_ESCAPE;
             parser->error_message = "Invalid octal escape sequence in character literal";
+            parser->error_start = start;
+            parser->error_end = ptr;
             return NULL;
         }
         ptr = next_ptr;
@@ -130,6 +135,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         if (!parse_unicode_escape(ptr, end, &codepoint)) {
             parser->error = EDN_ERROR_INVALID_ESCAPE;
             parser->error_message = "Invalid Unicode escape sequence in character literal";
+            parser->error_start = start;
+            parser->error_end = ptr + 4;
             return NULL;
         }
         ptr += 4;
@@ -137,6 +144,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         if (!is_valid_single_char(*ptr)) {
             parser->error = EDN_ERROR_INVALID_SYNTAX;
             parser->error_message = "Invalid character literal";
+            parser->error_start = start;
+            parser->error_end = ptr + 1;
             return NULL;
         }
         codepoint = (uint32_t) (unsigned char) *ptr;
@@ -146,6 +155,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     if (codepoint > 0x10FFFF) {
         parser->error = EDN_ERROR_INVALID_ESCAPE;
         parser->error_message = "Unicode codepoint out of valid range";
+        parser->error_start = start;
+        parser->error_end = ptr;
         return NULL;
     }
 
@@ -153,6 +164,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     if (ptr < end && !is_delimiter((unsigned char) *ptr)) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Invalid character - expected delimiter after character literal";
+        parser->error_start = start;
+        parser->error_end = ptr;
         return NULL;
     }
 
@@ -166,6 +179,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     value->type = EDN_TYPE_CHARACTER;
     value->as.character = codepoint;
     value->arena = parser->arena;
+    value->source_start = start - parser->input;
+    value->source_end = ptr - parser->input;
 
     parser->current = ptr;
 

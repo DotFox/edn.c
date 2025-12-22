@@ -203,6 +203,8 @@ typedef struct {
 struct edn_value {
     edn_type_t type;
     uint64_t cached_hash; /* Cached hash value (0 = not computed yet) */
+    size_t source_start;  /* Byte offset where this value started in input */
+    size_t source_end;    /* Byte offset where this value ended in input */
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
     edn_value_t* metadata;
 #endif
@@ -324,6 +326,8 @@ typedef struct {
     edn_arena_t* arena;
     edn_error_t error;
     const char* error_message;
+    const char* error_start; /* Start of error range (byte offset into input) */
+    const char* error_end;   /* End of error range (byte offset into input) */
     /* Reader configuration (optional) */
     edn_reader_registry_t* reader_registry;
     edn_default_reader_mode_t default_reader_mode;
@@ -339,6 +343,8 @@ static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
     edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
     if (value) {
         value->cached_hash = 0;
+        value->source_start = 0;
+        value->source_end = 0;
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
         value->metadata = NULL;
 #endif

@@ -75,6 +75,8 @@ static edn_value_t** edn_collection_builder_finish(edn_collection_builder_t* bui
 }
 
 edn_value_t* edn_read_list(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     parser->current++;
     parser->depth++;
 
@@ -96,14 +98,15 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
+        /* TODO for now override EOF with UNTERMINATED_COLLECTION error
+         * check other sources of EOF */
+        if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
+            parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+            parser->error_message = "Unterminated list (missing ')')";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
+        }
         parser->depth--;
-        return NULL;
-    }
-
-    if (parser->current >= parser->end) {
-        parser->depth--;
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unterminated list (missing ')')";
         return NULL;
     }
 
@@ -111,6 +114,8 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
         parser->depth--;
         parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
         parser->error_message = "Mismatched closing delimiter in list";
+        parser->error_start = value_start;
+        parser->error_end = parser->current + 1;
         return NULL;
     }
 
@@ -131,11 +136,15 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
     value->as.list.elements = elements;
     value->as.list.count = count;
     value->arena = parser->arena;
+    value->source_start = value_start - parser->input;
+    value->source_end = parser->current - parser->input;
 
     return value;
 }
 
 edn_value_t* edn_read_vector(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     parser->current++;
     parser->depth++;
 
@@ -157,14 +166,14 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
+        /* TODO see list reader */
+        if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
+            parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+            parser->error_message = "Unterminated vector (missing ']')";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
+        }
         parser->depth--;
-        return NULL;
-    }
-
-    if (parser->current >= parser->end) {
-        parser->depth--;
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unterminated vector (missing ']')";
         return NULL;
     }
 
@@ -172,6 +181,8 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
         parser->depth--;
         parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
         parser->error_message = "Mismatched closing delimiter in vector";
+        parser->error_start = value_start;
+        parser->error_end = parser->current + 1;
         return NULL;
     }
 
@@ -192,11 +203,15 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
     value->as.vector.elements = elements;
     value->as.vector.count = count;
     value->arena = parser->arena;
+    value->source_start = value_start - parser->input;
+    value->source_end = parser->current - parser->input;
 
     return value;
 }
 
 edn_value_t* edn_read_set(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     parser->current += 2;
     parser->depth++;
 
@@ -218,14 +233,14 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
+        /* TODO see list reader */
+        if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
+            parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+            parser->error_message = "Unterminated set (missing '}')";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
+        }
         parser->depth--;
-        return NULL;
-    }
-
-    if (parser->current >= parser->end) {
-        parser->depth--;
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unterminated set (missing '}')";
         return NULL;
     }
 
@@ -233,6 +248,8 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
         parser->depth--;
         parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
         parser->error_message = "Mismatched closing delimiter in set";
+        parser->error_start = value_start;
+        parser->error_end = parser->current + 1;
         return NULL;
     }
 
@@ -246,6 +263,8 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
     if (count > 1 && edn_has_duplicates(elements, count)) {
         parser->error = EDN_ERROR_DUPLICATE_ELEMENT;
         parser->error_message = "Set contains duplicate elements";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -260,6 +279,8 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
     value->as.set.elements = elements;
     value->as.set.count = count;
     value->arena = parser->arena;
+    value->source_start = value_start - parser->input;
+    value->source_end = parser->current - parser->input;
 
     return value;
 }
@@ -351,8 +372,8 @@ static void edn_map_builder_finish(edn_map_builder_t* builder, edn_value_t*** ou
     *out_values = builder->values;
 }
 
-static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_name,
-                                          size_t ns_length) {
+static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* value_start,
+                                          const char* ns_name, size_t ns_length) {
     parser->current++;
     parser->depth++;
 
@@ -363,6 +384,15 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
         edn_value_t* key = edn_read_value(parser);
         if (key == NULL) {
             if (parser->error != EDN_OK) {
+                /* TODO see list reader */
+                if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
+                    parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+                    parser->error_message = ns_name != NULL
+                                                ? "Unterminated namespaced map (missing '}')"
+                                                : "Unterminated map (missing '}')";
+                    parser->error_start = value_start;
+                    parser->error_end = parser->current;
+                }
                 parser->depth--;
                 return NULL;
             }
@@ -375,6 +405,16 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
             if (parser->error == EDN_OK) {
                 parser->error = EDN_ERROR_INVALID_SYNTAX;
                 parser->error_message = "Map has odd number of elements (key without value)";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
+            } else if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
+                /* TODO see list reader */
+                parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+                parser->error_message = ns_name != NULL
+                                            ? "Unterminated namespaced map (missing '}')"
+                                            : "Unterminated map (missing '}')";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
             }
             return NULL;
         }
@@ -462,6 +502,8 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
         parser->error = EDN_ERROR_UNEXPECTED_EOF;
         parser->error_message = ns_name != NULL ? "Unterminated namespaced map (missing '}')"
                                                 : "Unterminated map (missing '}')";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -470,6 +512,8 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
         parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
         parser->error_message = ns_name != NULL ? "Mismatched closing delimiter in namespaced map"
                                                 : "Mismatched closing delimiter in map";
+        parser->error_start = value_start;
+        parser->error_end = parser->current + 1;
         return NULL;
     }
 
@@ -487,6 +531,8 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
             parser->error = EDN_ERROR_DUPLICATE_KEY;
             parser->error_message = ns_name != NULL ? "Namespaced map contains duplicate keys"
                                                     : "Map contains duplicate keys";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
             return NULL;
         }
     }
@@ -503,17 +549,22 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* ns_n
     result->as.map.values = values;
     result->as.map.count = count;
     result->arena = parser->arena;
+    result->source_start = value_start - parser->input;
+    result->source_end = parser->current - parser->input;
 
     return result;
 }
 
 edn_value_t* edn_read_map(edn_parser_t* parser) {
-    return edn_read_map_internal(parser, NULL, 0);
+    const char* value_start = parser->current;
+    return edn_read_map_internal(parser, value_start, NULL, 0);
 }
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
 
 edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     parser->current++;
 
     edn_value_t* ns_keyword = edn_read_value(parser);
@@ -525,12 +576,16 @@ edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     if (ns_keyword->type != EDN_TYPE_KEYWORD) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Namespaced map must start with a keyword";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
     if (ns_keyword->as.keyword.namespace != NULL) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Namespaced map keyword cannot have a namespace";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -542,10 +597,12 @@ edn_value_t* edn_read_namespaced_map(edn_parser_t* parser) {
     if (parser->current >= parser->end || *parser->current != '{') {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Namespaced map must be followed by '{'";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
-    return edn_read_map_internal(parser, ns_name, ns_length);
+    return edn_read_map_internal(parser, value_start, ns_name, ns_length);
 }
 
 #endif /* EDN_ENABLE_CLOJURE_EXTENSION */

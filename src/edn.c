@@ -31,6 +31,8 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     parser.arena = edn_arena_create();
     parser.error = EDN_OK;
     parser.error_message = NULL;
+    parser.error_start = NULL;
+    parser.error_end = NULL;
 
     /* Set reader configuration */
     if (options != NULL) {
@@ -47,35 +49,34 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     result.error = parser.error;
     result.error_message = parser.error_message;
 
-    /* This needs refactoring. */
+    /* This needs refactoring? */
+    /* Calculate error positions if there was an error */
     if (result.error != EDN_OK) {
         edn_arena_t* temp_arena = edn_arena_create();
         if (temp_arena) {
             newline_positions_t* positions =
                 newline_find_all_ex(input, length, NEWLINE_MODE_LF, temp_arena);
             if (positions) {
-                /* Calculate current byte offset where error occurred */
-                size_t byte_offset = parser.current - parser.input;
-                document_position_t error_pos;
-                if (newline_get_position(positions, byte_offset, &error_pos)) {
-                    result.error_line = error_pos.line;
-                    result.error_column = error_pos.column;
-                } else {
-                    result.error_line = 0;
-                    result.error_column = 0;
+                const char* start_ptr = parser.error_start ? parser.error_start : parser.current;
+                size_t start_offset = start_ptr - parser.input;
+                document_position_t start_pos;
+                if (newline_get_position(positions, start_offset, &start_pos)) {
+                    result.error_start.offset = start_offset;
+                    result.error_start.line = start_pos.line;
+                    result.error_start.column = start_pos.column;
                 }
-            } else {
-                result.error_line = 0;
-                result.error_column = 0;
+
+                const char* end_ptr = parser.error_end ? parser.error_end : parser.current;
+                size_t end_offset = end_ptr - parser.input;
+                document_position_t end_pos;
+                if (newline_get_position(positions, end_offset, &end_pos)) {
+                    result.error_end.offset = end_offset;
+                    result.error_end.line = end_pos.line;
+                    result.error_end.column = end_pos.column;
+                }
             }
             edn_arena_destroy(temp_arena);
-        } else {
-            result.error_line = 0;
-            result.error_column = 0;
         }
-    } else {
-        result.error_line = 0;
-        result.error_column = 0;
     }
 
     /* Handle EOF error with eof_value option */
@@ -105,6 +106,17 @@ void edn_free(edn_value_t* value) {
 
 edn_type_t edn_type(const edn_value_t* value) {
     return value ? value->type : EDN_TYPE_NIL;
+}
+
+bool edn_source_position(const edn_value_t* value, size_t* start, size_t* end) {
+    if (!value) {
+        return false;
+    }
+    if (start)
+        *start = value->source_start;
+    if (end)
+        *end = value->source_end;
+    return true;
 }
 
 bool edn_skip_whitespace(edn_parser_t* parser) {

@@ -1657,8 +1657,8 @@ int main(int argc, char** argv) {
     edn_result_t result = edn_read(input_data, input_size);
 
     if (result.error != EDN_OK) {
-        fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_line,
-                result.error_column);
+        fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_start.line,
+                result.error_start.column);
         fprintf(stderr, "  %s\n", result.error_message);
         free(input_data);
         return 1;

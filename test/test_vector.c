@@ -162,7 +162,7 @@ TEST(parse_vector_with_newlines) {
 TEST(error_unterminated_vector) {
     edn_result_t result = edn_read("[1 2 3", 0);
 
-    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(result.value == NULL);
     assert(result.error_message != NULL);
 }

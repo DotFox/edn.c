@@ -4,6 +4,7 @@
 #include "edn_internal.h"
 
 edn_value_t* edn_read_symbolic_value(edn_parser_t* parser) {
+    const char* value_start = parser->current;
     const char* ptr = parser->current;
 
     ptr += 2;
@@ -23,6 +24,8 @@ edn_value_t* edn_read_symbolic_value(edn_parser_t* parser) {
     } else {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Invalid symbolic value (expected ##Inf, ##-Inf, or ##NaN)";
+        parser->error_start = value_start;
+        parser->error_end = parser->end;
         return NULL;
     }
 
@@ -36,6 +39,8 @@ edn_value_t* edn_read_symbolic_value(edn_parser_t* parser) {
     result->type = EDN_TYPE_FLOAT;
     result->as.floating = value;
     result->arena = parser->arena;
+    result->source_start = value_start - parser->input;
+    result->source_end = ptr - parser->input;
 
     parser->current = ptr;
 

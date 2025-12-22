@@ -192,7 +192,7 @@ TEST(error_single_key_no_value) {
 TEST(error_unterminated_map) {
     edn_result_t result = edn_read("{:a 1", 0);
 
-    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(result.value == NULL);
 }
 
@@ -200,7 +200,7 @@ TEST(error_unterminated_map) {
 TEST(error_key_without_value_eof) {
     edn_result_t result = edn_read("{:a 1 :b", 0);
 
-    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(result.value == NULL);
 }
 

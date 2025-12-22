@@ -182,7 +182,8 @@ static edn_value_t* create_bool_value(edn_parser_t* parser, bool val) {
  * Create symbol value with optional namespace.
  */
 static edn_value_t* create_symbol_value(edn_parser_t* parser, const char* namespace,
-                                        size_t ns_length, const char* name, size_t name_length) {
+                                        size_t ns_length, const char* name, size_t name_length,
+                                        size_t source_start, size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
         parser->error = EDN_ERROR_OUT_OF_MEMORY;
@@ -196,6 +197,8 @@ static edn_value_t* create_symbol_value(edn_parser_t* parser, const char* namesp
     value->as.symbol.name = name;
     value->as.symbol.name_length = name_length;
     value->arena = parser->arena;
+    value->source_start = source_start;
+    value->source_end = source_end;
     return value;
 }
 
@@ -203,7 +206,8 @@ static edn_value_t* create_symbol_value(edn_parser_t* parser, const char* namesp
  * Create keyword value with optional namespace.
  */
 static edn_value_t* create_keyword_value(edn_parser_t* parser, const char* namespace,
-                                         size_t ns_length, const char* name, size_t name_length) {
+                                         size_t ns_length, const char* name, size_t name_length,
+                                         size_t source_start, size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
         parser->error = EDN_ERROR_OUT_OF_MEMORY;
@@ -217,6 +221,8 @@ static edn_value_t* create_keyword_value(edn_parser_t* parser, const char* names
     value->as.keyword.name = name;
     value->as.keyword.name_length = name_length;
     value->arena = parser->arena;
+    value->source_start = source_start;
+    value->source_end = source_end;
     return value;
 }
 
@@ -234,15 +240,20 @@ static edn_value_t* create_keyword_value(edn_parser_t* parser, const char* names
  * Validates namespace/name syntax and colon placement.
  */
 edn_value_t* edn_read_identifier(edn_parser_t* parser) {
+    const char* value_start = parser->current;
     edn_identifier_scan_t scan = scan_identifier(parser->current, parser->end);
 
     if (!scan.valid) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Invalid identifier";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
     parser->current = scan.start + scan.length;
+    size_t source_start = value_start - parser->input;
+    size_t source_end = parser->current - parser->input;
 
     if (!scan.namespace) {
         if (*scan.name == ':') {
@@ -252,16 +263,20 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
             if (kw_len == 0) {
                 parser->error = EDN_ERROR_INVALID_SYNTAX;
                 parser->error_message = "Empty keyword name";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
                 return NULL;
             }
 
             if (*kw_name == ':') {
                 parser->error = EDN_ERROR_INVALID_SYNTAX;
                 parser->error_message = "Keyword name cannot start with ':'";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
                 return NULL;
             }
 
-            return create_keyword_value(parser, NULL, 0, kw_name, kw_len);
+            return create_keyword_value(parser, NULL, 0, kw_name, kw_len, source_start, source_end);
         }
 
         const char* sym_name = scan.name;
@@ -285,7 +300,7 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
                 break;
         }
 
-        return create_symbol_value(parser, NULL, 0, sym_name, sym_len);
+        return create_symbol_value(parser, NULL, 0, sym_name, sym_len, source_start, source_end);
     }
 
     if (*scan.namespace == ':') {
@@ -297,17 +312,23 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
         if (kw_ns_len == 0) {
             parser->error = EDN_ERROR_INVALID_SYNTAX;
             parser->error_message = "Empty namespace in keyword";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
             return NULL;
         }
 
         if (*kw_ns == ':') {
             parser->error = EDN_ERROR_INVALID_SYNTAX;
             parser->error_message = "Keyword namespace cannot start with ':'";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
             return NULL;
         }
 
-        return create_keyword_value(parser, kw_ns, kw_ns_len, kw_name, kw_name_len);
+        return create_keyword_value(parser, kw_ns, kw_ns_len, kw_name, kw_name_len, source_start,
+                                    source_end);
     }
 
-    return create_symbol_value(parser, scan.namespace, scan.ns_length, scan.name, scan.name_length);
+    return create_symbol_value(parser, scan.namespace, scan.ns_length, scan.name, scan.name_length,
+                               source_start, source_end);
 }

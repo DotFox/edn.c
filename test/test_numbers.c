@@ -464,8 +464,11 @@ TEST(scan_number_bigint_suffix_on_float_invalid) {
 
     /* Floats cannot have N suffix - should fail */
     assert(r.error != EDN_OK);
-    assert_int_eq(r.error_line, 1);
-    assert_int_eq(r.error_column, 5);
+    assert_int_eq(r.error_start.line, 1);
+    /* error_start is at beginning of the number */
+    assert_int_eq(r.error_start.column, 1);
+    /* error_end is at the position after N */
+    assert_int_eq(r.error_end.column, 5);
 }
 
 TEST(scan_number_bigint_suffix_on_exponent_invalid) {

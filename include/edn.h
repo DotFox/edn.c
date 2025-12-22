@@ -47,6 +47,7 @@ typedef enum {
     EDN_OK = 0,
     EDN_ERROR_INVALID_SYNTAX,
     EDN_ERROR_UNEXPECTED_EOF,
+    EDN_ERROR_UNTERMINATED_COLLECTION,
     EDN_ERROR_OUT_OF_MEMORY,
     EDN_ERROR_INVALID_UTF8,
     EDN_ERROR_INVALID_NUMBER,
@@ -58,13 +59,19 @@ typedef enum {
     EDN_ERROR_DUPLICATE_ELEMENT
 } edn_error_t;
 
+typedef struct {
+    size_t offset; /* Byte offset from start of input */
+    size_t line;   /* Line number (1-indexed) */
+    size_t column; /* Column number (1-indexed) */
+} edn_error_position_t;
+
 /* Parse result */
 typedef struct {
-    edn_value_t* value;        /* Parsed value (NULL on error) */
-    edn_error_t error;         /* Error code (EDN_OK on success) */
-    size_t error_line;         /* Line number where error occurred (1-indexed) */
-    size_t error_column;       /* Column number where error occurred (1-indexed) */
-    const char* error_message; /* Human-readable error description */
+    edn_value_t* value;               /* Parsed value (NULL on error) */
+    edn_error_t error;                /* Error code (EDN_OK on success) */
+    edn_error_position_t error_start; /* Start of error range */
+    edn_error_position_t error_end;   /* End of error range */
+    const char* error_message;        /* Human-readable error description */
 } edn_result_t;
 
 /**
@@ -92,6 +99,25 @@ void edn_free(edn_value_t* value);
  * @return Type of the value
  */
 edn_type_t edn_type(const edn_value_t* value);
+
+/**
+ * Get the source position range of an EDN value.
+ *
+ * Returns the byte offsets in the original input where this value
+ * started and ended.
+ *
+ * @param value EDN value
+ * @param start Optional output for start byte offset (may be NULL)
+ * @param end Optional output for end byte offset (may be NULL)
+ * @return true if value is not NULL, false otherwise
+ *
+ * Example:
+ *   size_t start, end;
+ *   if (edn_source_position(value, &start, &end)) {
+ *       printf("Value spans bytes %zu to %zu\n", start, end);
+ *   }
+ */
+bool edn_source_position(const edn_value_t* value, size_t* start, size_t* end);
 
 /**
  * Get the C string value from an EDN string.

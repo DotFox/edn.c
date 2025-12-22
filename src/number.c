@@ -134,12 +134,14 @@ static inline void advance_char(edn_parser_t* parser) {
 /**
  * Set parser error.
  */
-static inline void set_error(edn_parser_t* parser, const char* message) {
+static inline void set_number_error(edn_parser_t* parser, const char* start, const char* message) {
     parser->error = EDN_ERROR_INVALID_NUMBER;
     parser->error_message = message;
+    parser->error_start = start;
+    parser->error_end = parser->current;
 }
 
-static inline bool validate_number_delimiter(edn_parser_t* parser) {
+static inline bool validate_number_delimiter(edn_parser_t* parser, const char* start) {
     if (parser->current >= parser->end) {
         return true; /* EOF is valid */
     }
@@ -158,7 +160,7 @@ static inline bool validate_number_delimiter(edn_parser_t* parser) {
         return true;
     }
 
-    set_error(parser, "Number must be followed by whitespace or delimiter");
+    set_number_error(parser, start, "Number must be followed by whitespace or delimiter");
     return false;
 }
 
@@ -665,7 +667,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
                 c = peek_char(parser);
                 goto parse_radix_digits;
             } else {
-                set_error(parser, "Radix must be between 2 and 36");
+                set_number_error(parser, start, "Radix must be between 2 and 36");
                 return NULL;
             }
         }
@@ -701,13 +703,13 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 
         if (c == '8' || c == '9') {
             /* Invalid: 08 or 09 */
-            set_error(parser, "Invalid octal digit");
+            set_number_error(parser, start, "Invalid octal digit");
             return NULL;
         }
 #else
         /* Standard EDN: reject leading zeros before digits */
         if (c >= '0' && c <= '9') {
-            set_error(parser, "Leading zeros not allowed");
+            set_number_error(parser, start, "Leading zeros not allowed");
             return NULL;
         }
 #endif
@@ -761,7 +763,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             c = peek_char(parser);
             /* Next must be digit or underscore */
             if (c != '_' && (c < '0' || c > '9')) {
-                set_error(parser, "Invalid underscore position");
+                set_number_error(parser, start, "Invalid underscore position");
                 return NULL;
             }
         }
@@ -781,7 +783,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 #ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         /* Underscore immediately after decimal point is invalid */
         if (c == '_') {
-            set_error(parser, "Underscore cannot be adjacent to decimal point");
+            set_number_error(parser, start, "Underscore cannot be adjacent to decimal point");
             return NULL;
         }
 #endif
@@ -802,7 +804,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 #ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         /* Check if previous character was underscore */
         if (parser->current > digits_start && *(parser->current - 1) == '_') {
-            set_error(parser, "Underscore cannot be adjacent to exponent");
+            set_number_error(parser, start, "Underscore cannot be adjacent to exponent");
             return NULL;
         }
 #endif
@@ -819,7 +821,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 
         /* Exponent digits */
         if (c < '0' || c > '9') {
-            set_error(parser, "Expected exponent digits");
+            set_number_error(parser, start, "Expected exponent digits");
             return NULL;
         }
 
@@ -847,7 +849,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     /* Check if previous character was underscore before suffix */
     if (c == 'N' || c == 'M' || c == '/') {
         if (parser->current > digits_start && *(parser->current - 1) == '_') {
-            set_error(parser, "Underscore cannot be adjacent to suffix");
+            set_number_error(parser, start, "Underscore cannot be adjacent to suffix");
             return NULL;
         }
     }
@@ -870,7 +872,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
 
         /* Must have at least one digit */
         if (parser->current >= parser->end || c < '0' || c > '9') {
-            set_error(parser, "Expected digit after '/' in ratio");
+            set_number_error(parser, start, "Expected digit after '/' in ratio");
             return NULL;
         }
 
@@ -879,16 +881,16 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             advance_char(parser);
             c = peek_char(parser);
             if (parser->current >= parser->end || is_delimiter((unsigned char) c)) {
-                set_error(parser, "Divide by zero");
+                set_number_error(parser, start, "Divide by zero");
                 return NULL;
             }
 
             if (c >= '0' && c <= '9') {
-                set_error(parser, "Leading zeros not allowed in ratio denominator");
+                set_number_error(parser, start, "Leading zeros not allowed in ratio denominator");
                 return NULL;
             }
 
-            set_error(parser, "Invalid character in ratio denominator");
+            set_number_error(parser, start, "Invalid character in ratio denominator");
             return NULL;
         }
 
@@ -901,12 +903,12 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         denom_end = parser->current;
 
         if (c == 'N' || c == 'M' || c == '/') {
-            set_error(parser, "Suffix not allowed on ratio denominator");
+            set_number_error(parser, start, "Suffix not allowed on ratio denominator");
             return NULL;
         }
 
         if (parser->current < parser->end && !is_delimiter((unsigned char) c)) {
-            set_error(parser, "Invalid character after ratio denominator");
+            set_number_error(parser, start, "Invalid character after ratio denominator");
             return NULL;
         }
     }
@@ -915,7 +917,7 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
     /* Create value based on type */
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
@@ -953,6 +955,8 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             if (numerator == 0) {
                 value->type = EDN_TYPE_INT;
                 value->as.integer = 0;
+                value->source_start = start - parser->input;
+                value->source_end = parser->current - parser->input;
                 return value;
             }
 
@@ -960,6 +964,8 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
             if (denominator == 1) {
                 value->type = EDN_TYPE_INT;
                 value->as.integer = numerator;
+                value->source_start = start - parser->input;
+                value->source_end = parser->current - parser->input;
                 return value;
             }
 
@@ -991,9 +997,11 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         }
     }
 
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
@@ -1005,7 +1013,7 @@ parse_radix_digits:
 
     /* Must have at least one digit */
     if (!is_digit_in_radix(c, radix)) {
-        set_error(parser, "Expected digit after radix specifier");
+        set_number_error(parser, start, "Expected digit after radix specifier");
         return NULL;
     }
 
@@ -1020,7 +1028,7 @@ parse_radix_digits:
             c = peek_char(parser);
             /* Next must be digit or underscore */
             if (!is_digit_in_radix(c, radix) && c != '_') {
-                set_error(parser, "Invalid underscore position");
+                set_number_error(parser, start, "Invalid underscore position");
                 return NULL;
             }
         }
@@ -1041,13 +1049,13 @@ parse_radix_digits:
 
     /* Reject ratio notation with non-decimal radix */
     if (c == '/') {
-        set_error(parser, "Ratio notation not allowed with radix integers");
+        set_number_error(parser, start, "Ratio notation not allowed with radix integers");
         return NULL;
     }
 
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
@@ -1064,9 +1072,11 @@ parse_radix_digits:
         }
     }
 
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
     /* Hexadecimal parsing */
@@ -1077,7 +1087,7 @@ parse_hex_digits:
 
     /* Must have at least one hex digit */
     if (!is_digit_in_radix(c, 16)) {
-        set_error(parser, "Expected hex digit after 0x");
+        set_number_error(parser, start, "Expected hex digit after 0x");
         return NULL;
     }
 
@@ -1113,13 +1123,13 @@ parse_hex_digits:
 
     /* Reject ratio notation with hexadecimal */
     if (c == '/') {
-        set_error(parser, "Ratio notation not allowed with hexadecimal integers");
+        set_number_error(parser, start, "Ratio notation not allowed with hexadecimal integers");
         return NULL;
     }
 
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
@@ -1139,9 +1149,11 @@ parse_hex_digits:
         }
     }
 
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
     /* Octal parsing */
@@ -1152,7 +1164,7 @@ parse_octal_digits:
 
     /* Must have at least one octal digit */
     if (!is_digit_in_radix(c, 8)) {
-        set_error(parser, "Expected octal digit");
+        set_number_error(parser, start, "Expected octal digit");
         return NULL;
     }
 
@@ -1188,13 +1200,13 @@ parse_octal_digits:
 
     /* Reject ratio notation with octal */
     if (c == '/') {
-        set_error(parser, "Ratio notation not allowed with octal integers");
+        set_number_error(parser, start, "Ratio notation not allowed with octal integers");
         return NULL;
     }
 
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
@@ -1214,9 +1226,11 @@ parse_octal_digits:
         }
     }
 
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 #endif
 
@@ -1224,41 +1238,47 @@ parse_octal_digits:
 create_integer_zero:
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
     value->type = EDN_TYPE_INT;
     value->as.integer = 0;
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
 create_bigint_zero:
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
     set_bigint(value, "0", 1, negative, 10);
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
 create_bigdec_zero:
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
     set_bigdec(value, "0", 1, negative);
-    if (!validate_number_delimiter(parser)) {
+    if (!validate_number_delimiter(parser, start)) {
         return NULL;
     }
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
@@ -1270,7 +1290,7 @@ create_ratio_zero:
 
     /* Must have at least one digit */
     if (parser->current >= parser->end || c < '0' || c > '9') {
-        set_error(parser, "Expected digit after '/' in ratio");
+        set_number_error(parser, start, "Expected digit after '/' in ratio");
         return NULL;
     }
 
@@ -1280,16 +1300,16 @@ create_ratio_zero:
         c = peek_char(parser);
         /* Single zero is divide by zero error */
         if (parser->current >= parser->end || is_delimiter((unsigned char) c)) {
-            set_error(parser, "Divide by zero");
+            set_number_error(parser, start, "Divide by zero");
             return NULL;
         }
         /* Leading zero followed by more digits is invalid */
         if (c >= '0' && c <= '9') {
-            set_error(parser, "Leading zeros not allowed in ratio denominator");
+            set_number_error(parser, start, "Leading zeros not allowed in ratio denominator");
             return NULL;
         }
         /* Any other character after 0 is invalid for denominator */
-        set_error(parser, "Invalid character in ratio denominator");
+        set_number_error(parser, start, "Invalid character in ratio denominator");
         return NULL;
     }
 
@@ -1301,25 +1321,27 @@ create_ratio_zero:
 
     /* No suffixes allowed on denominator */
     if (c == 'N' || c == 'M' || c == '/') {
-        set_error(parser, "Suffix not allowed on ratio denominator");
+        set_number_error(parser, start, "Suffix not allowed on ratio denominator");
         return NULL;
     }
 
     /* Must be followed by EOF, whitespace or delimiter */
     if (parser->current < parser->end && !is_delimiter((unsigned char) c)) {
-        set_error(parser, "Invalid character after ratio denominator");
+        set_number_error(parser, start, "Invalid character after ratio denominator");
         return NULL;
     }
 
     /* 0/N returns integer 0 (Clojure behavior) */
     value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        set_error(parser, "Out of memory");
+        set_number_error(parser, start, "Out of memory");
         return NULL;
     }
     value->arena = parser->arena;
     value->type = EDN_TYPE_INT;
     value->as.integer = 0;
+    value->source_start = start - parser->input;
+    value->source_end = parser->current - parser->input;
     return value;
 #endif
 }
