@@ -7,6 +7,8 @@
 #include "edn_internal.h"
 
 edn_value_t* edn_read_tagged(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     /* Skip '#' and increment depth */
     parser->current++;
     parser->depth++;
@@ -15,6 +17,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
         parser->depth--;
         parser->error = EDN_ERROR_UNEXPECTED_EOF;
         parser->error_message = "Unexpected end of input after '#' (expected tag)";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -24,6 +28,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message =
             "Tagged literal tag must immediately follow '#' (no whitespace allowed)";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -39,6 +45,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
         parser->depth--;
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Tagged literal must be a symbol";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -53,6 +61,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
         if (parser->error == EDN_OK) {
             parser->error = EDN_ERROR_UNEXPECTED_EOF;
             parser->error_message = "Tagged literal missing value";
+            parser->error_start = value_start;
+            parser->error_end = parser->current;
         }
         return NULL;
     }
@@ -71,8 +81,14 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
                 parser->depth--;
                 parser->error = EDN_ERROR_INVALID_SYNTAX;
                 parser->error_message = error_msg ? error_msg : "Reader function failed";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
                 return NULL;
             }
+
+            /* Set source position on reader result */
+            result->source_start = value_start - parser->input;
+            result->source_end = parser->current - parser->input;
 
             parser->depth--;
             return result;
@@ -88,6 +104,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
                 parser->depth--;
                 parser->error = EDN_ERROR_UNKNOWN_TAG;
                 parser->error_message = "No reader registered for tag";
+                parser->error_start = value_start;
+                parser->error_end = parser->current;
                 return NULL;
 
             case EDN_DEFAULT_READER_PASSTHROUGH:
@@ -111,6 +129,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
     tagged->as.tagged.tag_length = tag_length;
     tagged->as.tagged.value = value;
     tagged->arena = parser->arena;
+    tagged->source_start = value_start - parser->input;
+    tagged->source_end = parser->current - parser->input;
 
     return tagged;
 }

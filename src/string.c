@@ -244,6 +244,8 @@ char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length) {
  * Returns: Parsed string value, or NULL on error.
  */
 edn_value_t* edn_read_string(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
 #ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     /* Check for text block pattern: """\n */
     if (parser->current + 3 < parser->end && parser->current[0] == '"' &&
@@ -261,6 +263,8 @@ edn_value_t* edn_read_string(edn_parser_t* parser) {
     if (!closing_quote) {
         parser->error = EDN_ERROR_INVALID_STRING;
         parser->error_message = "Unterminated string";
+        parser->error_start = value_start;
+        parser->error_end = parser->end;
         return NULL;
     }
 
@@ -277,6 +281,8 @@ edn_value_t* edn_read_string(edn_parser_t* parser) {
     edn_string_set_has_escapes(value, has_escapes);
     value->as.string.decoded = NULL;
     value->arena = parser->arena;
+    value->source_start = value_start - parser->input;
+    value->source_end = (closing_quote + 1) - parser->input;
 
     parser->current = closing_quote + 1;
 

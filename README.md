@@ -136,7 +136,7 @@ int main(void) {
     
     if (result.error != EDN_OK) {
         fprintf(stderr, "Parse error at line %zu, column %zu: %s\n",
-                result.error_line, result.error_column, result.error_message);
+                result.error_start.line, result.error_start.column, result.error_message);
         return 1;
     }
     
@@ -252,7 +252,8 @@ edn_result_t edn_read(const char *input, size_t length);
 **Returns:** `edn_result_t` containing:
 - `value`: Parsed EDN value (NULL on error)
 - `error`: Error code (`EDN_OK` on success)
-- `error_line`, `error_column`: Error location (1-indexed)
+- `error_start`: Start of error range (`edn_error_position_t` with `offset`, `line`, `column`)
+- `error_end`: End of error range (`edn_error_position_t` with `offset`, `line`, `column`)
 - `error_message`: Human-readable error description
 
 **Important:** The returned value must be freed with `edn_free()`.
@@ -1713,7 +1714,7 @@ int main(void) {
     
     if (result.error != EDN_OK) {
         fprintf(stderr, "Error at %zu:%zu - %s\n",
-                result.error_line, result.error_column, result.error_message);
+                result.error_start.line, result.error_start.column, result.error_message);
         return 1;
     }
     

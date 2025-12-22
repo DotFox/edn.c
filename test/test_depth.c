@@ -139,7 +139,7 @@ TEST(depth_error_restoration) {
 
     edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
-    assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(parser.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(parser.depth == 0); /* Depth should be restored even on error */
 
     edn_arena_destroy(parser.arena);
@@ -153,7 +153,7 @@ TEST(depth_nested_error_restoration) {
 
     edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
-    assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(parser.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(parser.depth == 0); /* Depth should be restored even on error */
 
     edn_arena_destroy(parser.arena);
@@ -167,7 +167,7 @@ TEST(depth_map_error_restoration) {
 
     edn_value_t* value = edn_read_value(&parser);
     assert(value == NULL); /* Should fail */
-    assert(parser.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(parser.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(parser.depth == 0); /* Depth should be restored even on error */
 
     edn_arena_destroy(parser.arena);

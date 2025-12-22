@@ -12,6 +12,8 @@
 #include "edn_internal.h"
 
 edn_value_t* edn_read_metadata(edn_parser_t* parser) {
+    const char* value_start = parser->current;
+
     /* Skip the ^ character */
     parser->current++;
 
@@ -26,6 +28,8 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         meta_value->type != EDN_TYPE_VECTOR) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Metadata must be a map, keyword, string, symbol, or vector";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -42,6 +46,8 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message =
             "Metadata can only be attached to collections, tagged literals, and symbols";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -284,6 +290,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
 
         form->metadata = meta_map;
     }
+
+    /* Update form's source_start to include the ^ prefix and metadata */
+    form->source_start = value_start - parser->input;
 
     return form;
 }

@@ -157,7 +157,7 @@ TEST(parse_set_with_whitespace) {
 TEST(error_unterminated_set) {
     edn_result_t result = edn_read("#{1 2 3", 0);
 
-    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(result.value == NULL);
 }
 

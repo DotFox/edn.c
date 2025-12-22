@@ -52,7 +52,7 @@ TEST(bounds_check_hash_hash) {
 TEST(bounds_check_hash_brace) {
     edn_result_t result = edn_read("#{", 2);
     /* Should error (unterminated set), but not crash */
-    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
     assert(result.value == NULL);
 }
 

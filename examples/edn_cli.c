@@ -621,17 +621,17 @@ int main(int argc, char** argv) {
     edn_result_t result = edn_read(input_data, input_size);
 
     if (result.error != EDN_OK) {
-        fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_line,
-                result.error_column);
+        fprintf(stderr, "Parse error at line %zu, column %zu:\n", result.error_start.line,
+                result.error_start.column);
         fprintf(stderr, "  %s\n", result.error_message);
 
         /* Show error context */
-        if (result.error_line > 0 && result.error_line <= input_size) {
+        if (result.error_start.line > 0 && result.error_start.line <= input_size) {
             const char* line_start = input_data;
             size_t current_line = 1;
 
             /* Find the error line */
-            while (current_line < result.error_line && *line_start != '\0') {
+            while (current_line < result.error_start.line && *line_start != '\0') {
                 if (*line_start == '\n') {
                     current_line++;
                 }
@@ -645,10 +645,10 @@ int main(int argc, char** argv) {
             }
 
             /* Print line with error marker */
-            fprintf(stderr, "\n%zu | %.*s\n", result.error_line, (int) (line_end - line_start),
-                    line_start);
+            fprintf(stderr, "\n%zu | %.*s\n", result.error_start.line,
+                    (int) (line_end - line_start), line_start);
             fprintf(stderr, "    ");
-            for (size_t i = 1; i < result.error_column; i++) {
+            for (size_t i = 1; i < result.error_start.column; i++) {
                 fprintf(stderr, " ");
             }
             fprintf(stderr, "^\n");
