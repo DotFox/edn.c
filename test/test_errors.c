@@ -555,6 +555,129 @@ TEST(character_octal_in_map_key_invalid) {
 #endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /* ========================================================================
+ * Discard Reader Errors
+ * ======================================================================== */
+
+TEST(discard_missing_value_eof) {
+    /* Input: "#_" - discard at end of input with no value to discard */
+    edn_result_t result = edn_read("#_", 0);
+    assert(result.value == NULL);
+    /* At top level, this results in unexpected EOF */
+    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+}
+
+TEST(discard_missing_value_in_vector) {
+    /* Input: "[1 #_]" - discard at end of vector with no value */
+    edn_result_t result = edn_read("[1 #_]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 3);
+    assert_uint_eq(result.error_end.offset, 5);
+}
+
+TEST(discard_missing_value_in_list) {
+    /* Input: "(1 #_)" - discard at end of list with no value */
+    edn_result_t result = edn_read("(1 #_)", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 3);
+    assert_uint_eq(result.error_end.offset, 5);
+}
+
+TEST(discard_missing_value_in_map) {
+    /* Input: "{:a #_}" - discard at end of map with no value */
+    edn_result_t result = edn_read("{:a #_}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 4);
+    assert_uint_eq(result.error_end.offset, 6);
+}
+
+TEST(discard_missing_value_in_set) {
+    /* Input: "#{1 #_}" - discard at end of set with no value */
+    edn_result_t result = edn_read("#{1 #_}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 4);
+    assert_uint_eq(result.error_end.offset, 6);
+}
+
+TEST(discard_with_only_whitespace) {
+    /* Input: "#_   " - discard followed by only whitespace */
+    edn_result_t result = edn_read("#_   ", 0);
+    assert(result.value == NULL);
+    /* At top level with only whitespace, this results in unexpected EOF */
+    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+}
+
+TEST(discard_with_comment_only) {
+    /* Input: "#_ ; comment\n" - discard followed by only comment */
+    edn_result_t result = edn_read("#_ ; comment\n", 0);
+    assert(result.value == NULL);
+    /* At top level with only comment, this results in unexpected EOF */
+    assert(result.error == EDN_ERROR_UNEXPECTED_EOF);
+}
+
+TEST(discard_propagates_nested_error) {
+    /* Input: "#_[1 2" - discard with unterminated vector */
+    edn_result_t result = edn_read("#_[1 2", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_UNTERMINATED_COLLECTION);
+    assert_str_eq(result.error_message, "Unterminated vector (missing ']')");
+}
+
+TEST(discard_propagates_string_error) {
+    /* Input: "#_\"unterminated" - discard with unterminated string */
+    edn_result_t result = edn_read("#_\"unterminated", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_STRING);
+}
+
+TEST(discard_nested_missing_value) {
+    /* Input: "[1 #_#_]" - nested discard with no values */
+    /* Error should point to the last (inner) #_ at offset 5-7 */
+    edn_result_t result = edn_read("[1 #_#_]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 5);
+    assert_uint_eq(result.error_end.offset, 7);
+}
+
+TEST(discard_nested_partial_missing_value) {
+    /* Input: "[1 #_#_2]" - nested discard, outer discard missing value */
+    /* Error should point to the first (outer) #_ at offset 3-5 */
+    edn_result_t result = edn_read("[1 #_#_2]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.offset, 3);
+    assert_uint_eq(result.error_end.offset, 5);
+}
+
+TEST(discard_creates_odd_map_elements) {
+    /* Input: "{:a 1 :b #_2}" - discarding last value leaves :a 1 :b = odd elements */
+    edn_result_t result = edn_read("{:a 1 :b #_2}", 0);
+    assert(result.value == NULL);
+    /* Map with odd number of elements results in invalid syntax error */
+    assert(result.error == EDN_ERROR_INVALID_SYNTAX);
+    assert_str_eq(result.error_message, "Map has odd number of elements (key without value)");
+}
+
+TEST(discard_multiline_error_position) {
+    /* Input: "[\n#_\n]" - discard on line 2 with no value */
+    edn_result_t result = edn_read("[\n#_\n]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_DISCARD);
+    assert_str_eq(result.error_message, "Discard macro missing value");
+    assert_uint_eq(result.error_start.line, 2);
+}
+
+/* ========================================================================
  * Multi-line Error Positions
  * ======================================================================== */
 
@@ -659,6 +782,21 @@ int main(void) {
     RUN_TEST(character_octal_in_vector_invalid);
     RUN_TEST(character_octal_in_map_key_invalid);
 #endif
+
+    /* Discard Reader Errors */
+    RUN_TEST(discard_missing_value_eof);
+    RUN_TEST(discard_missing_value_in_vector);
+    RUN_TEST(discard_missing_value_in_list);
+    RUN_TEST(discard_missing_value_in_map);
+    RUN_TEST(discard_missing_value_in_set);
+    RUN_TEST(discard_with_only_whitespace);
+    RUN_TEST(discard_with_comment_only);
+    RUN_TEST(discard_propagates_nested_error);
+    RUN_TEST(discard_propagates_string_error);
+    RUN_TEST(discard_nested_missing_value);
+    RUN_TEST(discard_nested_partial_missing_value);
+    RUN_TEST(discard_creates_odd_map_elements);
+    RUN_TEST(discard_multiline_error_position);
 
     /* Multi-line Error Positions */
     RUN_TEST(mismatched_multiline);
