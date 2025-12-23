@@ -3,6 +3,43 @@
 
 #include "edn_internal.h"
 
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+static bool parse_unicode_escape(const char* ptr, const char* end, uint32_t* codepoint,
+                                 int* digits_consumed) {
+    if (ptr + 4 > end) {
+        return false;
+    }
+
+    uint32_t result = 0;
+    int i = 0;
+
+    /* Parse up to 6 hex digits, minimum 4 required */
+    for (; i < 6 && ptr + i < end; i++) {
+        char h = ptr[i];
+        uint32_t digit;
+
+        if (h >= '0' && h <= '9') {
+            digit = h - '0';
+        } else if (h >= 'a' && h <= 'f') {
+            digit = 10 + (h - 'a');
+        } else if (h >= 'A' && h <= 'F') {
+            digit = 10 + (h - 'A');
+        } else {
+            break;
+        }
+
+        result = (result << 4) | digit;
+    }
+
+    if (i < 4) {
+        return false;
+    }
+
+    *codepoint = result;
+    *digits_consumed = i;
+    return true;
+}
+#else
 static bool parse_unicode_escape(const char* ptr, const char* end, uint32_t* codepoint) {
     if (ptr + 4 > end) {
         return false;
@@ -29,6 +66,7 @@ static bool parse_unicode_escape(const char* ptr, const char* end, uint32_t* cod
     *codepoint = result;
     return true;
 }
+#endif
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
 static bool parse_octal_escape(const char* ptr, const char* end, uint32_t* codepoint,
@@ -65,7 +103,11 @@ static bool parse_octal_escape(const char* ptr, const char* end, uint32_t* codep
 #endif
 
 static bool is_valid_single_char(char c) {
-    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r'
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+        || c == '\f' || c == '\b'
+#endif
+        ) {
         return false;
     }
     return true;
@@ -86,7 +128,7 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     ptr++;
 
     if (ptr >= end) {
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
+        parser->error = EDN_ERROR_INVALID_CHARACTER;
         parser->error_message = "Unexpected end of input in character literal";
         parser->error_start = start;
         parser->error_end = ptr;
@@ -119,8 +161,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         ptr++;
         const char* next_ptr;
         if (!parse_octal_escape(ptr, end, &codepoint, &next_ptr)) {
-            parser->error = EDN_ERROR_INVALID_ESCAPE;
-            parser->error_message = "Invalid octal escape sequence in character literal";
+            parser->error = EDN_ERROR_INVALID_CHARACTER;
+            parser->error_message = "Invalid Octal escape sequence in character literal";
             parser->error_start = start;
             parser->error_end = ptr;
             return NULL;
@@ -132,18 +174,30 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
              ((ptr[1] >= '0' && ptr[1] <= '9') || (ptr[1] >= 'a' && ptr[1] <= 'f') ||
               (ptr[1] >= 'A' && ptr[1] <= 'F'))) {
         ptr++;
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+        int digits_consumed;
+        if (!parse_unicode_escape(ptr, end, &codepoint, &digits_consumed)) {
+            parser->error = EDN_ERROR_INVALID_CHARACTER;
+            parser->error_message = "Invalid Unicode escape sequence in character literal";
+            parser->error_start = start;
+            parser->error_end = ptr + 4;
+            return NULL;
+        }
+        ptr += digits_consumed;
+#else
         if (!parse_unicode_escape(ptr, end, &codepoint)) {
-            parser->error = EDN_ERROR_INVALID_ESCAPE;
+            parser->error = EDN_ERROR_INVALID_CHARACTER;
             parser->error_message = "Invalid Unicode escape sequence in character literal";
             parser->error_start = start;
             parser->error_end = ptr + 4;
             return NULL;
         }
         ptr += 4;
+#endif
     } else {
         if (!is_valid_single_char(*ptr)) {
-            parser->error = EDN_ERROR_INVALID_SYNTAX;
-            parser->error_message = "Invalid character literal";
+            parser->error = EDN_ERROR_INVALID_CHARACTER;
+            parser->error_message = "Unsupported character literal";
             parser->error_start = start;
             parser->error_end = ptr + 1;
             return NULL;
@@ -153,7 +207,7 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     }
 
     if (codepoint > 0x10FFFF) {
-        parser->error = EDN_ERROR_INVALID_ESCAPE;
+        parser->error = EDN_ERROR_INVALID_CHARACTER;
         parser->error_message = "Unicode codepoint out of valid range";
         parser->error_start = start;
         parser->error_end = ptr;
@@ -162,8 +216,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
 
     /* After parsing a character, we must be at end of input or at a delimiter */
     if (ptr < end && !is_delimiter((unsigned char) *ptr)) {
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Invalid character - expected delimiter after character literal";
+        parser->error = EDN_ERROR_INVALID_CHARACTER;
+        parser->error_message = "Unsupported character - expected delimiter after character literal";
         parser->error_start = start;
         parser->error_end = ptr;
         return NULL;
