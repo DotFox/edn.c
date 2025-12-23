@@ -356,6 +356,205 @@ TEST(mismatched_nested_outer) {
 }
 
 /* ========================================================================
+ * Character Literal Errors
+ * ======================================================================== */
+
+TEST(character_unexpected_eof) {
+    /* Input: "\" - just backslash, unexpected end of input */
+    edn_result_t result = edn_read("\\", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unexpected end of input in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 1);
+}
+
+TEST(character_invalid_unicode_too_short) {
+    /* Input: "\u12" - only 2 hex digits, need at least 4 */
+    edn_result_t result = edn_read("\\u12", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Unicode escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_invalid_unicode_bad_hex) {
+    /* Input: "\u12GH" - invalid hex digits */
+    edn_result_t result = edn_read("\\u12GH", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Unicode escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_invalid_unicode_out_of_range) {
+    /* Input: "\uFFFFFF" - codepoint > 0x10FFFF (only with experimental extension) */
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+    edn_result_t result = edn_read("\\uFFFFFF", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unicode codepoint out of valid range");
+    assert_uint_eq(result.error_start.offset, 0);
+#endif
+}
+
+TEST(character_unsupported_whitespace_space) {
+    /* Input: "\ " - space is not a valid single character literal */
+    edn_result_t result = edn_read("\\ ", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_unsupported_whitespace_tab) {
+    /* Input: "\<tab>" - tab is not a valid single character literal */
+    edn_result_t result = edn_read("\\\t", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_unsupported_whitespace_newline) {
+    /* Input: "\<newline>" - newline is not a valid single character literal */
+    edn_result_t result = edn_read("\\\n", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_unsupported_whitespace_return) {
+    /* Input: "\<return>" - carriage return is not a valid single character literal */
+    edn_result_t result = edn_read("\\\r", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_missing_delimiter_after) {
+    /* Input: "\abc" - character literal must be followed by delimiter */
+    edn_result_t result = edn_read("\\abc", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message,
+                  "Unsupported character - expected delimiter after character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_invalid_named_partial) {
+    /* Input: "\new" - partial match of "newline", not valid */
+    edn_result_t result = edn_read("\\new", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message,
+                  "Unsupported character - expected delimiter after character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_in_vector_invalid) {
+    /* Input: "[\u12]" - invalid unicode in vector context */
+    edn_result_t result = edn_read("[\\u12]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Unicode escape sequence in character literal");
+}
+
+TEST(character_in_map_key_invalid) {
+    /* Input: "{\u12 :val}" - invalid unicode as map key */
+    edn_result_t result = edn_read("{\\u12 :val}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Unicode escape sequence in character literal");
+}
+
+/* ========================================================================
+ * Character Literal Errors - Clojure Extension
+ * ======================================================================== */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+
+TEST(character_octal_invalid_digit_8) {
+    /* Input: "\o8" - 8 is not a valid octal digit */
+    edn_result_t result = edn_read("\\o8", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_octal_invalid_digit_9) {
+    /* Input: "\o9" - 9 is not a valid octal digit */
+    edn_result_t result = edn_read("\\o9", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_octal_overflow) {
+    /* Input: "\o400" - octal 400 = 256 decimal, exceeds 0377 (255) */
+    edn_result_t result = edn_read("\\o400", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_octal_trailing_invalid_digit) {
+    /* Input: "\o128" - starts valid but has 8 following valid octal digits */
+    edn_result_t result = edn_read("\\o128", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(character_unsupported_whitespace_formfeed) {
+    /* Input: "\<formfeed>" - formfeed byte is not a valid single character literal */
+    edn_result_t result = edn_read("\\\f", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_unsupported_whitespace_backspace) {
+    /* Input: "\<backspace>" - backspace byte is not a valid single character literal */
+    edn_result_t result = edn_read("\\\b", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Unsupported character literal");
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_end.offset, 2);
+}
+
+TEST(character_octal_in_vector_invalid) {
+    /* Input: "[\o8]" - invalid octal in vector context */
+    edn_result_t result = edn_read("[\\o8]", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+}
+
+TEST(character_octal_in_map_key_invalid) {
+    /* Input: "{\o400 :val}" - invalid octal overflow as map key */
+    edn_result_t result = edn_read("{\\o400 :val}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_CHARACTER);
+    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+}
+
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
+/* ========================================================================
  * Multi-line Error Positions
  * ======================================================================== */
 
@@ -434,6 +633,32 @@ int main(void) {
     RUN_TEST(mismatched_vector_with_paren);
     RUN_TEST(mismatched_nested_inner);
     RUN_TEST(mismatched_nested_outer);
+
+    /* Character Literal Errors */
+    RUN_TEST(character_unexpected_eof);
+    RUN_TEST(character_invalid_unicode_too_short);
+    RUN_TEST(character_invalid_unicode_bad_hex);
+    RUN_TEST(character_invalid_unicode_out_of_range);
+    RUN_TEST(character_unsupported_whitespace_space);
+    RUN_TEST(character_unsupported_whitespace_tab);
+    RUN_TEST(character_unsupported_whitespace_newline);
+    RUN_TEST(character_unsupported_whitespace_return);
+    RUN_TEST(character_missing_delimiter_after);
+    RUN_TEST(character_invalid_named_partial);
+    RUN_TEST(character_in_vector_invalid);
+    RUN_TEST(character_in_map_key_invalid);
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    /* Character Literal Errors - Clojure Extension */
+    RUN_TEST(character_octal_invalid_digit_8);
+    RUN_TEST(character_octal_invalid_digit_9);
+    RUN_TEST(character_octal_overflow);
+    RUN_TEST(character_octal_trailing_invalid_digit);
+    RUN_TEST(character_unsupported_whitespace_formfeed);
+    RUN_TEST(character_unsupported_whitespace_backspace);
+    RUN_TEST(character_octal_in_vector_invalid);
+    RUN_TEST(character_octal_in_map_key_invalid);
+#endif
 
     /* Multi-line Error Positions */
     RUN_TEST(mismatched_multiline);
