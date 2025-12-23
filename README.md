@@ -303,18 +303,19 @@ edn_type_t edn_type(const edn_value_t *value);
 
 ```c
 typedef enum {
-    EDN_OK = 0,                    // Success
-    EDN_ERROR_INVALID_SYNTAX,      // Syntax error
-    EDN_ERROR_UNEXPECTED_EOF,      // Unexpected end of input
-    EDN_ERROR_OUT_OF_MEMORY,       // Allocation failure
-    EDN_ERROR_INVALID_UTF8,        // Invalid UTF-8 sequence
-    EDN_ERROR_INVALID_NUMBER,      // Malformed number
-    EDN_ERROR_INVALID_STRING,      // Malformed string
-    EDN_ERROR_INVALID_ESCAPE,      // Invalid escape sequence
-    EDN_ERROR_UNMATCHED_DELIMITER, // Mismatched brackets
-    EDN_ERROR_UNKNOWN_TAG,         // Unregistered tag (with ERROR mode)
-    EDN_ERROR_DUPLICATE_KEY,       // Map has duplicate keys
-    EDN_ERROR_DUPLICATE_ELEMENT    // Set has duplicate elements
+    EDN_OK = 0,                        // Success
+    EDN_ERROR_INVALID_SYNTAX,          // Syntax error
+    EDN_ERROR_UNEXPECTED_EOF,          // Unexpected end of input
+    EDN_ERROR_UNTERMINATED_COLLECTION, // Missing closing delimiter
+    EDN_ERROR_OUT_OF_MEMORY,           // Allocation failure
+    EDN_ERROR_INVALID_NUMBER,          // Malformed number
+    EDN_ERROR_INVALID_STRING,          // Malformed string
+    EDN_ERROR_INVALID_CHARACTER,       // Malformed character
+    EDN_ERROR_INVALID_DISCARD,         // Discard without value
+    EDN_ERROR_UNMATCHED_DELIMITER,     // Mismatched brackets
+    EDN_ERROR_UNKNOWN_TAG,             // Unregistered tag (with ERROR mode)
+    EDN_ERROR_DUPLICATE_KEY,           // Map has duplicate keys
+    EDN_ERROR_DUPLICATE_ELEMENT        // Set has duplicate elements
 } edn_error_t;
 ```
 
