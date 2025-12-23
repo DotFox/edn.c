@@ -142,40 +142,36 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
     return result;
 }
 
-/**
- * Singleton EDN values for nil, true, and false.
- */
-static edn_value_t edn_singleton_nil = {.type = EDN_TYPE_NIL,
-                                        .cached_hash = 0,
-#ifdef EDN_ENABLE_CLOJURE_EXTENSION
-                                        .metadata = NULL,
-#endif
-                                        .arena = NULL};
+static edn_value_t* create_nil_value(edn_parser_t* parser, size_t source_start, size_t source_end) {
+    edn_value_t* value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        parser->error = EDN_ERROR_OUT_OF_MEMORY;
+        parser->error_message = "Out of memory";
+        return NULL;
+    }
 
-static edn_value_t edn_singleton_true = {.type = EDN_TYPE_BOOL,
-                                         .cached_hash = 0,
-#ifdef EDN_ENABLE_CLOJURE_EXTENSION
-                                         .metadata = NULL,
-#endif
-                                         .as.boolean = true,
-                                         .arena = NULL};
-
-static edn_value_t edn_singleton_false = {.type = EDN_TYPE_BOOL,
-                                          .cached_hash = 0,
-#ifdef EDN_ENABLE_CLOJURE_EXTENSION
-                                          .metadata = NULL,
-#endif
-                                          .as.boolean = false,
-                                          .arena = NULL};
-
-static edn_value_t* create_nil_value(edn_parser_t* parser) {
-    (void) parser;
-    return &edn_singleton_nil;
+    value->type = EDN_TYPE_NIL;
+    value->arena = parser->arena;
+    value->source_start = source_start;
+    value->source_end = source_end;
+    return value;
 }
 
-static edn_value_t* create_bool_value(edn_parser_t* parser, bool val) {
-    (void) parser;
-    return val ? &edn_singleton_true : &edn_singleton_false;
+static edn_value_t* create_bool_value(edn_parser_t* parser, bool val, size_t source_start,
+                                      size_t source_end) {
+    edn_value_t* value = edn_arena_alloc_value(parser->arena);
+    if (!value) {
+        parser->error = EDN_ERROR_OUT_OF_MEMORY;
+        parser->error_message = "Out of memory";
+        return NULL;
+    }
+
+    value->type = EDN_TYPE_BOOL;
+    value->as.boolean = val;
+    value->arena = parser->arena;
+    value->source_start = source_start;
+    value->source_end = source_end;
+    return value;
 }
 
 /**
@@ -285,17 +281,17 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
         switch (sym_len) {
             case 3:
                 if (memcmp(sym_name, "nil", 3) == 0) {
-                    return create_nil_value(parser);
+                    return create_nil_value(parser, source_start, source_end);
                 }
                 break;
             case 4:
                 if (memcmp(sym_name, "true", 4) == 0) {
-                    return create_bool_value(parser, true);
+                    return create_bool_value(parser, true, source_start, source_end);
                 }
                 break;
             case 5:
                 if (memcmp(sym_name, "false", 5) == 0) {
-                    return create_bool_value(parser, false);
+                    return create_bool_value(parser, false, source_start, source_end);
                 }
                 break;
         }
