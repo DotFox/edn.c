@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDN - Extensible Data Notation</title>
+    <meta name="description" content="EDN (Extensible Data Notation) is a data format similar to JSON, but richer and more extensible. A superset of EDN is used by Clojure.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="canonical" href="https://edn-format.dev">
+    <style>
+      :root {
+          --bg-color: #0B58A8;
+          --text-color: #ffffff;
+          --accent-color: #90caf9;
+          --code-bg: rgba(255, 255, 255, 0.1);
+          --border-color: rgba(255, 255, 255, 0.3);
+          --link-color: #90caf9;
+          --header-bg: #073d75;
+      }
+
+      * {
+          box-sizing: border-box;
+      }
+
+      body {
+          font-family: Georgia, "Times New Roman", Times, serif;
+          font-size: 18px;
+          line-height: 1.6;
+          color: var(--text-color);
+          background-color: var(--bg-color);
+          margin: 0;
+          padding: 0;
+      }
+
+      header {
+          background-color: var(--header-bg);
+          color: white;
+          padding: 2rem 1rem;
+          text-align: center;
+      }
+
+      header h1 {
+          font-size: 3rem;
+          margin: 0 0 0.5rem 0;
+          font-weight: normal;
+          letter-spacing: 0.1em;
+      }
+
+      header .tagline {
+          font-size: 1.2rem;
+          font-style: italic;
+          opacity: 0.9;
+      }
+
+      .container {
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 2rem 1.5rem;
+      }
+
+      h2 {
+          font-size: 1.8rem;
+          font-weight: normal;
+          color: #ffffff;
+          margin-top: 2.5rem;
+          margin-bottom: 1rem;
+          border-bottom: 2px solid var(--accent-color);
+          padding-bottom: 0.3rem;
+      }
+
+      h3 {
+          font-size: 1.3rem;
+          font-weight: bold;
+          margin-top: 2rem;
+          margin-bottom: 0.5rem;
+      }
+
+      h4 {
+          font-size: 1.1rem;
+          font-weight: bold;
+          margin-top: 1.5rem;
+          margin-bottom: 0.3rem;
+          color: var(--accent-color);
+      }
+
+      p {
+          margin-bottom: 1rem;
+      }
+
+      a {
+          color: var(--link-color);
+          text-decoration: none;
+      }
+
+      a:hover {
+          text-decoration: underline;
+      }
+
+      code {
+          font-family: "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+          font-size: 0.9em;
+          background-color: var(--code-bg);
+          padding: 0.15em 0.4em;
+          border-radius: 3px;
+          color: #ffffff;
+      }
+
+      pre {
+          font-family: "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+          font-size: 0.85em;
+          background-color: var(--code-bg);
+          padding: 1rem 1.25rem;
+          border-radius: 4px;
+          overflow-x: auto;
+          line-height: 1.5;
+          border: 1px solid var(--border-color);
+      }
+
+      pre code {
+          background: none;
+          padding: 0;
+      }
+
+      .grammar-diagram {
+          margin: 1.5rem 0;
+          text-align: center;
+      }
+
+      .grammar-diagram img {
+          max-width: 100%;
+          height: auto;
+      }
+
+      table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1.5rem 0;
+      }
+
+      table th,
+      table td {
+          border: 1px solid var(--border-color);
+          padding: 0.6rem 0.8rem;
+          text-align: left;
+      }
+
+      table th {
+          background-color: var(--code-bg);
+          font-weight: bold;
+      }
+
+      table tr:nth-child(even) {
+          background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .nav-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          justify-content: center;
+          margin-top: 1rem;
+      }
+
+      .nav-links a {
+          color: white;
+          background-color: rgba(255, 255, 255, 0.15);
+          padding: 0.4rem 1rem;
+          border-radius: 4px;
+          transition: background-color 0.2s;
+      }
+
+      .nav-links a:hover {
+          background-color: rgba(255, 255, 255, 0.25);
+          text-decoration: none;
+      }
+
+      footer {
+          text-align: center;
+          padding: 2rem 1rem;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.9rem;
+          border-top: 1px solid var(--border-color);
+          margin-top: 3rem;
+      }
+
+      footer a {
+          color: var(--link-color);
+      }
+
+      .toc {
+          background-color: var(--code-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          padding: 1.5rem;
+          margin: 2rem 0;
+      }
+
+      .toc h3 {
+          margin-top: 0;
+          font-size: 1.1rem;
+      }
+
+      .toc ul {
+          margin: 0;
+          padding-left: 1.5rem;
+      }
+
+      .toc li {
+          margin: 0.3rem 0;
+      }
+    </style>
+  </head>
+  <body>
+
+    <header>
+      <h1>EDN</h1>
+      <p class="tagline">Extensible Data Notation</p>
+      <nav class="nav-links">
+        <a href="#types">Data Types</a>
+        <a href="#grammar">Grammar</a>
+        <a href="#extensions">Extensions</a>
+        <a href="https://github.com/edn-format/edn">Specification</a>
+        <a href="https://github.com/DotFox/edn.c">edn.c Library</a>
+      </nav>
+    </header>
+
+    <div class="container">
+
+      <section id="types">
+        <h2>Data Types</h2>
+
+        <nav class="toc">
+          <h3>Elements</h3>
+          <ul>
+            <li><a href="#nil">Nil</a></li>
+            <li><a href="#booleans">Booleans</a></li>
+            <li><a href="#integers">Integers</a></li>
+            <li><a href="#floats">Floating Point Numbers</a></li>
+            <li><a href="#characters">Characters</a></li>
+            <li><a href="#strings">Strings</a></li>
+            <li><a href="#symbols">Symbols</a></li>
+            <li><a href="#keywords">Keywords</a></li>
+            <li><a href="#lists">Lists</a></li>
+            <li><a href="#vectors">Vectors</a></li>
+            <li><a href="#maps">Maps</a></li>
+            <li><a href="#sets">Sets</a></li>
+            <li><a href="#tagged">Tagged Elements</a></li>
+          </ul>
+        </nav>
+
+        <h3 id="nil">Nil</h3>
+        <p>Represents nil, null, or nothing. Written as <code>nil</code>.</p>
+        <pre>nil</pre>
+
+        <h3 id="booleans">Booleans</h3>
+        <p>The boolean values <code>true</code> and <code>false</code>.</p>
+        <pre>true
+false</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_boolean.svg" alt="Boolean grammar diagram">
+        </div>
+
+        <h3 id="integers">Integers</h3>
+        <p>64-bit signed integers. An integer can have the suffix <code>N</code> to indicate arbitrary precision is desired.</p>
+        <pre>42
+-17
++5
+0
+9999999999999999999N</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_integer.svg" alt="Integer grammar diagram">
+        </div>
+
+        <h3 id="floats">Floating Point Numbers</h3>
+        <p>64-bit (double) precision floating point numbers. The suffix <code>M</code> indicates exact precision decimal (BigDecimal).</p>
+        <pre>3.14159
+-2.5e10
+6.022E23
+3.14159265358979323846M</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_float.svg" alt="Float grammar diagram">
+        </div>
+
+        <h3 id="characters">Characters</h3>
+        <p>Characters are preceded by a backslash. Special named characters and Unicode escapes are supported.</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Character</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>\c</code></td><td>The character 'c'</td></tr>
+            <tr><td><code>\newline</code></td><td>Line feed (U+000A)</td></tr>
+            <tr><td><code>\return</code></td><td>Carriage return (U+000D)</td></tr>
+            <tr><td><code>\space</code></td><td>Space (U+0020)</td></tr>
+            <tr><td><code>\tab</code></td><td>Tab (U+0009)</td></tr>
+            <tr><td><code>\uNNNN</code></td><td>Unicode codepoint (4 hex digits)</td></tr>
+          </tbody>
+        </table>
+
+        <pre>\a
+\newline
+\u03B1   ; Greek letter alpha (α)</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_character.svg" alt="Character grammar diagram">
+        </div>
+
+        <h3 id="strings">Strings</h3>
+        <p>Strings are enclosed in double quotes. Standard escape sequences are supported.</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Escape</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>\\</code></td><td>Backslash</td></tr>
+            <tr><td><code>\"</code></td><td>Double quote</td></tr>
+            <tr><td><code>\n</code></td><td>Newline</td></tr>
+            <tr><td><code>\r</code></td><td>Carriage return</td></tr>
+            <tr><td><code>\t</code></td><td>Tab</td></tr>
+          </tbody>
+        </table>
+
+        <pre>"Hello, World!"
+"Line 1\nLine 2"
+"She said \"Hi!\""</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_string.svg" alt="String grammar diagram">
+        </div>
+
+        <h3 id="symbols">Symbols</h3>
+        <p>Symbols represent identifiers. They can optionally be namespaced with a <code>/</code> separator.</p>
+
+        <pre>foo
+my-function
+clojure.core/map
+user/config</pre>
+
+        <p>Symbol names may contain alphanumeric characters and <code>. * + ! - _ ? $ % &amp; = &lt; &gt;</code>. They must begin with a non-numeric character (and cannot start with <code>:</code> or <code>#</code>).</p>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_symbol.svg" alt="Symbol grammar diagram">
+        </div>
+
+        <h3 id="keywords">Keywords</h3>
+        <p>Keywords are like symbols but begin with a colon <code>:</code>. They typically designate themselves and are semantically akin to enumeration values.</p>
+
+        <pre>:name
+:user/email
+:status</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_keyword.svg" alt="Keyword grammar diagram">
+        </div>
+
+        <h3 id="lists">Lists</h3>
+        <p>A list is an ordered sequence of values enclosed in parentheses.</p>
+
+        <pre>(1 2 3)
+(println "hello")
+(:a :b :c)</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_list.svg" alt="List grammar diagram">
+        </div>
+
+        <h3 id="vectors">Vectors</h3>
+        <p>A vector is an ordered sequence of values enclosed in square brackets. Vectors support efficient random access.</p>
+
+        <pre>[1 2 3]
+["a" "b" "c"]
+[:mixed 42 true nil]</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_vector.svg" alt="Vector grammar diagram">
+        </div>
+
+        <h3 id="maps">Maps</h3>
+        <p>A map is a collection of key-value pairs enclosed in curly braces. Keys can be any EDN value (not just strings). Each key should appear at most once.</p>
+
+        <pre>{:name "Alice" :age 30}
+{"string-key" 123}
+{[1 2] "composite key"}</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_map.svg" alt="Map grammar diagram">
+        </div>
+
+        <h3 id="sets">Sets</h3>
+        <p>A set is a collection of unique values, written as <code>#{...}</code>.</p>
+
+        <pre>#{1 2 3}
+#{:a :b :c}
+#{"apple" "banana" "cherry"}</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_set.svg" alt="Set grammar diagram">
+        </div>
+
+        <h3 id="tagged">Tagged Elements</h3>
+        <p>EDN is extensible through tagged literals. A tag is a symbol prefixed with <code>#</code> that indicates the semantic interpretation of the following element.</p>
+
+        <pre>#inst "2024-01-15T10:30:00.000Z"
+#uuid "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+#myapp/person {:name "Bob" :age 25}</pre>
+
+        <h4>Built-in Tagged Elements</h4>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Description</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>#inst</code></td>
+              <td>An instant in time (<a href="https://www.ietf.org/rfc/rfc3339.txt">RFC-3339</a> format)</td>
+              <td><code>#inst "2024-01-15T10:30:00Z"</code></td>
+            </tr>
+            <tr>
+              <td><code>#uuid</code></td>
+              <td>A <a href="https://en.wikipedia.org/wiki/Universally_unique_identifier">UUID</a></td>
+              <td><code>#uuid "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>User-defined tags must contain a namespace prefix (e.g., <code>#myapp/type</code>). Tags without a prefix are reserved for built-in extensions.</p>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_tagged.svg" alt="Tagged element grammar diagram">
+        </div>
+      </section>
+
+      <section id="grammar">
+        <h2>Grammar</h2>
+
+        <h3>Whitespace</h3>
+        <p>Whitespace characters separate elements. Commas are considered whitespace—they're optional and have no semantic meaning.</p>
+
+        <pre>; These are equivalent:
+[1 2 3]
+[1, 2, 3]
+[1,2,3]</pre>
+
+        <p>Valid whitespace characters: space, tab (<code>\t</code>), newline (<code>\n</code>), carriage return (<code>\r</code>), and comma (<code>,</code>).</p>
+
+        <h3>Comments</h3>
+        <p>Comments start with a semicolon and continue to the end of the line.</p>
+
+        <pre>; This is a comment
+{:name "Alice"  ; inline comment
+ :age 30}</pre>
+
+        <h3>Discard</h3>
+        <p>The <code>#_</code> form causes the next element to be read and discarded. Useful for commenting out data.</p>
+
+        <pre>[1 #_2 3]         ; => [1 3]
+{:a 1 #_:b #_2}   ; => {:a 1}</pre>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_discard.svg" alt="Discard grammar diagram">
+        </div>
+
+        <h3>Document Structure</h3>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_document.svg" alt="Document grammar diagram">
+        </div>
+
+        <h3>All Elements</h3>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_elements.svg" alt="Elements grammar diagram">
+        </div>
+
+        <h3>Complete EBNF Grammar</h3>
+        <p>The complete formal grammar in EBNF notation is available in the <a href="https://github.com/edn-format/edn">official specification</a>.</p>
+
+        <div class="grammar-diagram">
+          <img src="grammar/edn_ebnf.svg" alt="Complete EDN EBNF grammar diagram">
+        </div>
+      </section>
+
+      <section id="extensions">
+        <h2>Clojure Extensions</h2>
+
+        <p>While the base EDN specification covers the core data types, Clojure and some EDN parsers support additional extensions:</p>
+
+        <h3>Ratio Numbers</h3>
+        <p>Exact rational numbers represented as numerator/denominator pairs.</p>
+        <pre>22/7
+-3/4
+1/2</pre>
+
+        <h3>Map Namespace Syntax</h3>
+        <p>A shorthand for namespacing all keyword keys in a map.</p>
+        <pre>#:person{:name "Alice" :age 30}
+; Equivalent to:
+{:person/name "Alice" :person/age 30}</pre>
+
+        <h3>Metadata</h3>
+        <p>Attach metadata to values using the <code>^</code> prefix.</p>
+        <pre>^:private my-var
+^{:doc "A function"} my-fn</pre>
+
+        <h3>Extended Integer Formats</h3>
+        <p>Hexadecimal, octal, binary, and arbitrary radix numbers.</p>
+        <pre>0xFF      ; hexadecimal (255)
+0777      ; octal (511)
+2r1010    ; binary (10)
+36rZZ     ; base-36 (1295)</pre>
+
+        <p><em>Note: These extensions are not part of the core EDN specification. Check your parser's documentation for support.</em></p>
+      </section>
+
+      <section id="equality">
+        <h2>Equality</h2>
+
+        <p>EDN defines equality semantics for comparing values:</p>
+
+        <ul>
+          <li><strong>Nil, booleans, strings, characters, symbols</strong>: Equal if of the same type with the same representation</li>
+          <li><strong>Numbers</strong>: Equal only if of the same magnitude, type, and precision</li>
+          <li><strong>Sequences (lists, vectors)</strong>: Equal if they have the same count and each corresponding element is equal</li>
+          <li><strong>Sets</strong>: Equal if they have the same count and for every element in one set, an equal element is in the other</li>
+          <li><strong>Maps</strong>: Equal if they have the same number of entries and for every key/value pair in one map, an equal key is present and mapped to an equal value in the other</li>
+          <li><strong>Tagged elements</strong>: Define their own equality semantics</li>
+        </ul>
+      </section>
+
+      <section id="implementations">
+        <h2>Implementations</h2>
+
+        <h3>Recommended Implementations</h3>
+
+        <h4>Clojure</h4>
+        <ul>
+          <li><a href="https://clojure.github.io/clojure/clojure.edn-api.html">clojure.edn</a> — Built-in EDN reader</li>
+          <li><a href="https://github.com/fogus/ring-edn">fogus/ring-edn</a> — Ring middleware for EDN</li>
+          <li><a href="https://github.com/clojure/tools.reader">clojure/tools.reader</a> — Clojure reader in Clojure</li>
+        </ul>
+
+        <h4>Ruby</h4>
+        <ul>
+          <li><a href="https://github.com/relevance/edn-ruby">relevance/edn-ruby</a> — EDN reader/writer for Ruby</li>
+          <li><a href="https://github.com/edporras/edn_turbo">edporras/edn_turbo</a> — Optimized Ragel-based parser for edn-ruby</li>
+        </ul>
+
+        <h4>Go</h4>
+        <ul>
+          <li><a href="https://github.com/go-edn/edn">go-edn/edn</a> — EDN reader for Go</li>
+        </ul>
+
+        <h4>C++</h4>
+        <ul>
+          <li><a href="https://github.com/shaunxcode/edn-cpp">shaunxcode/edn-cpp</a> — EDN parser for C++</li>
+        </ul>
+
+        <h4>JavaScript</h4>
+        <ul>
+          <li><a href="https://github.com/shaunxcode/jsedn">shaunxcode/jsedn</a> — EDN encoder/decoder for JavaScript</li>
+        </ul>
+
+        <h4>Java</h4>
+        <ul>
+          <li><a href="https://github.com/bpsm/edn-java">bpsm/edn-java</a> — EDN reader/writer for Java</li>
+        </ul>
+
+        <h4>CLR / .NET</h4>
+        <ul>
+          <li><a href="https://github.com/edn-format/edn-dot-net">edn-format/edn-dot-net</a> — EDN for .NET</li>
+        </ul>
+
+        <h4>Objective-C</h4>
+        <ul>
+          <li><a href="https://github.com/scramjet/mpedn">scramjet/mpedn</a></li>
+          <li><a href="https://github.com/benmosher/edn-objc">benmosher/edn-objc</a></li>
+        </ul>
+
+        <h4>Python</h4>
+        <ul>
+          <li><a href="https://github.com/swaroopch/edn_format">swaroopch/edn_format</a> — EDN reader/writer for Python</li>
+        </ul>
+
+        <h3>Other Implementations</h3>
+
+        <h4>C</h4>
+        <ul>
+          <li><a href="https://github.com/DotFox/edn.c">DotFox/edn.c</a> — Fast, zero-copy EDN reader with SIMD acceleration</li>
+          <li><a href="https://github.com/brandonbloom/libclj">brandonbloom/libclj</a></li>
+        </ul>
+
+        <h4>Ruby</h4>
+        <ul>
+          <li><a href="https://github.com/meh/ruby-clj">meh/ruby-clj</a></li>
+        </ul>
+
+        <h4>Python</h4>
+        <ul>
+          <li><a href="https://github.com/sunng87/pyclj">sunng87/pyclj</a> — Python 2 only</li>
+          <li><a href="https://github.com/gns24/pydatomic">gns24/pydatomic</a></li>
+        </ul>
+
+        <h4>JavaScript / TypeScript</h4>
+        <ul>
+          <li><a href="https://github.com/jorinvo/edn-data">jorinvo/edn-data</a> — TypeScript EDN library</li>
+        </ul>
+
+        <h4>Scheme</h4>
+        <ul>
+          <li><a href="https://gitea.lyrion.ch/zilti/edn">zilti/edn</a> — Chicken Scheme</li>
+          <li><a href="https://github.com/edw/scheme-edn">edw/scheme-edn</a> — Chibi Scheme (reader only)</li>
+        </ul>
+
+        <h4>Erlang</h4>
+        <ul>
+          <li><a href="https://github.com/marianoguerra/erldn">marianoguerra/erldn</a></li>
+          <li><a href="https://github.com/seancribbs/edn-erlang">seancribbs/edn-erlang</a></li>
+        </ul>
+
+        <h4>Haskell</h4>
+        <ul>
+          <li><a href="http://hackage.haskell.org/package/hedn">hedn</a> — Haskell EDN library</li>
+        </ul>
+
+        <h4>PHP</h4>
+        <ul>
+          <li><a href="https://github.com/igorw/edn">igorw/edn</a></li>
+        </ul>
+
+        <h4>Scala</h4>
+        <ul>
+          <li><a href="https://github.com/martintrojer/edn-scala">edn-scala</a></li>
+          <li><a href="https://github.com/mandubian/scaledn">scaledn</a> — Parser, validator &amp; serializer with macros</li>
+        </ul>
+
+        <h4>Rust</h4>
+        <ul>
+          <li><a href="https://github.com/utkarshkukreti/edn.rs">utkarshkukreti/edn.rs</a></li>
+          <li><a href="https://github.com/naomijub/edn-rs">naomijub/edn-rs</a></li>
+        </ul>
+
+        <h4>Elm</h4>
+        <ul>
+          <li><a href="https://github.com/robx/elm-edn">robx/elm-edn</a></li>
+        </ul>
+
+        <h4>Common Lisp</h4>
+        <ul>
+          <li><a href="https://github.com/fiddlerwoaroof/cl-edn">fiddlerwoaroof/cl-edn</a> — Read-only</li>
+        </ul>
+
+        <h4>Emacs Lisp</h4>
+        <ul>
+          <li><a href="https://github.com/expez/edn.el">expez/edn.el</a></li>
+        </ul>
+      </section>
+
+      <section id="resources">
+        <h2>Resources</h2>
+
+        <ul>
+          <li><a href="https://github.com/edn-format/edn">Official EDN Specification</a></li>
+          <li><a href="https://clojure.org/reference/reader#_edn">Clojure Reader Reference</a></li>
+          <li><a href="https://github.com/DotFox/edn.c">edn.c — High-performance C library</a></li>
+        </ul>
+      </section>
+
+    </div>
+
+    <footer>
+      <p>
+        EDN specification © <a href="https://github.com/richhickey">Rich Hickey</a> and contributors.
+        <br>
+        This page is part of the <a href="https://github.com/DotFox/edn.c">edn.c</a> project.
+      </p>
+    </footer>
+
+  </body>
+</html>
