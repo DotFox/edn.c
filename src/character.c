@@ -107,7 +107,7 @@ static bool is_valid_single_char(char c) {
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
         || c == '\f' || c == '\b'
 #endif
-        ) {
+    ) {
         return false;
     }
     return true;
@@ -217,7 +217,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     /* After parsing a character, we must be at end of input or at a delimiter */
     if (ptr < end && !is_delimiter((unsigned char) *ptr)) {
         parser->error = EDN_ERROR_INVALID_CHARACTER;
-        parser->error_message = "Unsupported character - expected delimiter after character literal";
+        parser->error_message =
+            "Unsupported character - expected delimiter after character literal";
         parser->error_start = start;
         parser->error_end = ptr;
         return NULL;
