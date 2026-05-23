@@ -100,8 +100,6 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
-        /* TODO for now override EOF with UNTERMINATED_COLLECTION error
-         * check other sources of EOF */
         if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
             parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
             parser->error_message = "Unterminated list (missing ')')";
@@ -109,6 +107,15 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
             parser->error_end = parser->current;
         }
         edn_leave_depth(parser);
+        return NULL;
+    }
+
+    if (parser->current >= parser->end) {
+        edn_leave_depth(parser);
+        parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+        parser->error_message = "Unterminated list (missing ')')";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -170,7 +177,6 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
-        /* TODO see list reader */
         if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
             parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
             parser->error_message = "Unterminated vector (missing ']')";
@@ -178,6 +184,15 @@ edn_value_t* edn_read_vector(edn_parser_t* parser) {
             parser->error_end = parser->current;
         }
         edn_leave_depth(parser);
+        return NULL;
+    }
+
+    if (parser->current >= parser->end) {
+        edn_leave_depth(parser);
+        parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+        parser->error_message = "Unterminated vector (missing ']')";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -239,7 +254,6 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
     }
 
     if (parser->error != EDN_OK) {
-        /* TODO see list reader */
         if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
             parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
             parser->error_message = "Unterminated set (missing '}')";
@@ -247,6 +261,15 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
             parser->error_end = parser->current;
         }
         edn_leave_depth(parser);
+        return NULL;
+    }
+
+    if (parser->current >= parser->end) {
+        edn_leave_depth(parser);
+        parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
+        parser->error_message = "Unterminated set (missing '}')";
+        parser->error_start = value_start;
+        parser->error_end = parser->current;
         return NULL;
     }
 
@@ -392,7 +415,6 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* valu
         edn_value_t* key = edn_read_value(parser);
         if (key == NULL) {
             if (parser->error != EDN_OK) {
-                /* TODO see list reader */
                 if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
                     parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
                     parser->error_message = ns_name != NULL
@@ -416,7 +438,6 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* valu
                 parser->error_start = value_start;
                 parser->error_end = parser->current;
             } else if (parser->error == EDN_ERROR_UNEXPECTED_EOF) {
-                /* TODO see list reader */
                 parser->error = EDN_ERROR_UNTERMINATED_COLLECTION;
                 parser->error_message = ns_name != NULL
                                             ? "Unterminated namespaced map (missing '}')"
