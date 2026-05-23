@@ -1,6 +1,6 @@
 /**
  * EDN.C - Value equality and comparison
- * 
+ *
  * Deep structural equality, comparison, and hashing for all EDN types.
  */
 
@@ -112,6 +112,8 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             if (isnan(a->as.floating) && isnan(b->as.floating)) {
                 return true;
             }
+            /* IEEE 754 already treats +0.0 == -0.0 — consistent with hashing
+             * which normalizes zero (see edn_value_hash_internal). */
             return a->as.floating == b->as.floating;
 
         case EDN_TYPE_BIGDEC: {
@@ -478,6 +480,10 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
 
             if (isnan(val.d)) {
                 val.u = 0x7FF8000000000000ULL;
+            } else if (val.d == 0.0) {
+                /* Normalize +0.0 and -0.0 to the same bit pattern so that
+                 * equal values (per IEEE 754 ==) always hash identically. */
+                val.u = 0;
             }
 
             for (size_t i = 0; i < sizeof(uint64_t); i++) {
