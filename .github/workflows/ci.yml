@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Build library (${{ matrix.compiler }})
       run: |
@@ -45,7 +45,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Install LLVM via Homebrew
       run: |
@@ -81,10 +81,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Setup MSYS2
-      uses: msys2/setup-msys2@v2
+      uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c # v2.31.1
       with:
         msystem: MINGW64
         update: true
@@ -110,10 +110,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Setup MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Configure CMake
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -139,16 +139,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Prepare java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
       with:
         distribution: 'temurin'
         java-version: '21'
 
     - name: Install Clojure CLI
-      uses: DeLaGuardo/setup-clojure@13.4
+      uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
       with:
         cli: latest
 
@@ -161,16 +161,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Prepare java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
       with:
         distribution: 'temurin'
         java-version: '21'
 
     - name: Install Clojure CLI
-      uses: DeLaGuardo/setup-clojure@13.4
+      uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
       with:
         cli: latest
 
@@ -186,10 +186,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Setup MSYS2
-      uses: msys2/setup-msys2@v2
+      uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c # v2.31.1
       with:
         msystem: MINGW64
         update: true
@@ -199,13 +199,13 @@ jobs:
           make
 
     - name: Prepare java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
       with:
         distribution: 'temurin'
         java-version: '21'
 
     - name: Install Clojure CLI
-      uses: DeLaGuardo/setup-clojure@13.4
+      uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
       with:
         cli: latest
 
@@ -221,21 +221,21 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Prepare java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
       with:
         distribution: 'temurin'
         java-version: '21'
 
     - name: Install Clojure CLI
-      uses: DeLaGuardo/setup-clojure@13.4
+      uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
       with:
         cli: latest
 
     - name: Setup MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Configure and build
       run: |
@@ -254,7 +254,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Install clang-format
       run: |
