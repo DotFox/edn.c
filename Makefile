@@ -39,9 +39,9 @@ endif
 
 # Platform-specific libraries
 ifeq ($(UNAME_S),Linux)
-    LDLIBS = -lm
+    LDLIBS = -lm -lpthread
 else
-    LDLIBS =
+    LDLIBS = -lpthread
 endif
 
 # Debug build

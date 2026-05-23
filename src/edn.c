@@ -5,6 +5,30 @@
 
 #include "edn_internal.h"
 
+/* Optional mutex for thread-safe access to the process-global external-type registry.
+ * On POSIX we use pthread; on Windows we use a SRWLOCK. If neither is available the
+ * registry remains unsynchronized (callers must serialize externally). */
+#if defined(_WIN32)
+#include <windows.h>
+static SRWLOCK g_external_registry_lock = SRWLOCK_INIT;
+#define EDN_EXT_LOCK_WRITE() AcquireSRWLockExclusive(&g_external_registry_lock)
+#define EDN_EXT_UNLOCK_WRITE() ReleaseSRWLockExclusive(&g_external_registry_lock)
+#define EDN_EXT_LOCK_READ() AcquireSRWLockShared(&g_external_registry_lock)
+#define EDN_EXT_UNLOCK_READ() ReleaseSRWLockShared(&g_external_registry_lock)
+#elif defined(__unix__) || defined(__APPLE__)
+#include <pthread.h>
+static pthread_mutex_t g_external_registry_lock = PTHREAD_MUTEX_INITIALIZER;
+#define EDN_EXT_LOCK_WRITE() pthread_mutex_lock(&g_external_registry_lock)
+#define EDN_EXT_UNLOCK_WRITE() pthread_mutex_unlock(&g_external_registry_lock)
+#define EDN_EXT_LOCK_READ() pthread_mutex_lock(&g_external_registry_lock)
+#define EDN_EXT_UNLOCK_READ() pthread_mutex_unlock(&g_external_registry_lock)
+#else
+#define EDN_EXT_LOCK_WRITE() ((void) 0)
+#define EDN_EXT_UNLOCK_WRITE() ((void) 0)
+#define EDN_EXT_LOCK_READ() ((void) 0)
+#define EDN_EXT_UNLOCK_READ() ((void) 0)
+#endif
+
 edn_result_t edn_read(const char* input, size_t length) {
     return edn_read_with_options(input, length, NULL);
 }
@@ -1189,11 +1213,14 @@ bool edn_external_register_type(uint32_t type_id, edn_external_equal_fn equal_fn
         return false;
     }
 
+    EDN_EXT_LOCK_WRITE();
+
     edn_external_type_entry_t* entry = g_external_type_registry;
     while (entry) {
         if (entry->type_id == type_id) {
             entry->equal_fn = equal_fn;
             entry->hash_fn = hash_fn;
+            EDN_EXT_UNLOCK_WRITE();
             return true;
         }
         entry = entry->next;
@@ -1201,6 +1228,7 @@ bool edn_external_register_type(uint32_t type_id, edn_external_equal_fn equal_fn
 
     entry = malloc(sizeof(edn_external_type_entry_t));
     if (!entry) {
+        EDN_EXT_UNLOCK_WRITE();
         return false;
     }
 
@@ -1210,41 +1238,53 @@ bool edn_external_register_type(uint32_t type_id, edn_external_equal_fn equal_fn
     entry->next = g_external_type_registry;
     g_external_type_registry = entry;
 
+    EDN_EXT_UNLOCK_WRITE();
     return true;
 }
 
 void edn_external_unregister_type(uint32_t type_id) {
+    EDN_EXT_LOCK_WRITE();
     edn_external_type_entry_t** ptr = &g_external_type_registry;
     while (*ptr) {
         if ((*ptr)->type_id == type_id) {
             edn_external_type_entry_t* to_free = *ptr;
             *ptr = (*ptr)->next;
             free(to_free);
+            EDN_EXT_UNLOCK_WRITE();
             return;
         }
         ptr = &(*ptr)->next;
     }
+    EDN_EXT_UNLOCK_WRITE();
 }
 
 edn_external_equal_fn edn_external_lookup_equal(uint32_t type_id) {
+    EDN_EXT_LOCK_READ();
     edn_external_type_entry_t* entry = g_external_type_registry;
     while (entry) {
         if (entry->type_id == type_id) {
-            return entry->equal_fn;
+            edn_external_equal_fn fn = entry->equal_fn;
+            EDN_EXT_UNLOCK_READ();
+            return fn;
         }
         entry = entry->next;
     }
+    EDN_EXT_UNLOCK_READ();
     return NULL;
 }
 
 edn_external_hash_fn edn_external_lookup_hash(uint32_t type_id) {
+    EDN_EXT_LOCK_READ();
     edn_external_type_entry_t* entry = g_external_type_registry;
     while (entry) {
         if (entry->type_id == type_id) {
-            return entry->hash_fn;
+            edn_external_hash_fn fn = entry->hash_fn;
+            EDN_EXT_UNLOCK_READ();
+            return fn;
         }
         entry = entry->next;
     }
+    EDN_EXT_UNLOCK_READ();
     return NULL;
 }
 

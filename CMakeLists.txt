@@ -104,6 +104,13 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(edn PUBLIC m)
 endif()
 
+# Thread support for the global external-type registry mutex.
+if(UNIX)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(edn PUBLIC Threads::Threads)
+endif()
+
 # Test executables
 file(GLOB TEST_SOURCES "test/*.c")
 foreach(TEST_SOURCE ${TEST_SOURCES})
