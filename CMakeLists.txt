@@ -41,11 +41,13 @@ if(MSVC)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         add_compile_options(/arch:AVX)
     endif()
-    # Disable specific MSVC warnings that are too strict
-    add_compile_options(/wd4100)  # unreferenced formal parameter
 else()
     # GCC/Clang flags
     add_compile_options(-Wall -Wextra -Wpedantic)
+    # Hidden default visibility — public API is exported via EDN_API only.
+    # Reduces ABI surface for shared library consumers and protects against
+    # accidental leakage of internal symbols.
+    add_compile_options(-fvisibility=hidden)
     # Debug vs Release
     if(EDN_ENABLE_DEBUG)
         add_compile_options(-g -O0)
@@ -86,8 +88,16 @@ set(SOURCES
     src/newline_finder.c
 )
 
-# Library target
-add_library(edn STATIC ${SOURCES})
+# Library target. Default is STATIC; pass -DEDN_BUILD_SHARED=ON for a shared library.
+option(EDN_BUILD_SHARED "Build edn as a shared library (default: STATIC)" OFF)
+if(EDN_BUILD_SHARED)
+    add_library(edn SHARED ${SOURCES})
+    target_compile_definitions(edn PRIVATE EDN_BUILDING_SHARED)
+    target_compile_definitions(edn INTERFACE EDN_USING_SHARED)
+    set_target_properties(edn PROPERTIES C_VISIBILITY_PRESET hidden)
+else()
+    add_library(edn STATIC ${SOURCES})
+endif()
 
 # Platform-specific libraries
 if(UNIX AND NOT APPLE)

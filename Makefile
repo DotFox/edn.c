@@ -10,7 +10,7 @@ AR ?= ar
 EMCC ?= emcc
 EMAR ?= emar
 
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -fvisibility=hidden
 INCLUDES = -Iinclude -Isrc
 LDFLAGS =
 
@@ -149,7 +149,7 @@ $(LIB): $(OBJS)
 # Build shared library
 $(SHARED_LIB): $(SRCS)
 	@echo "  CC      $@ (shared)"
-	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) $(SHARED_FLAGS) -fPIC $^ -o $@ $(LDLIBS)
+	$(Q)$(CC) $(CFLAGS) $(ARCH_FLAGS) $(INCLUDES) -DEDN_BUILDING_SHARED $(SHARED_FLAGS) -fPIC $^ -o $@ $(LDLIBS)
 
 # Compile source files
 %.o: %.c
