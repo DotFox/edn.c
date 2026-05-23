@@ -407,7 +407,18 @@ static bool parse_int64_from_buffer(const char* start, const char* end, int64_t*
         }
     }
 
-    *out = negative ? -(int64_t) value : (int64_t) value;
+    /* Convert magnitude (in `value`) to signed int64 without invoking signed
+     * overflow on INT64_MIN. The cutoff/cutlim checks above guarantee
+     * value <= (uint64_t)INT64_MAX + (negative ? 1 : 0). */
+    if (negative) {
+        if (value == (uint64_t) INT64_MAX + 1u) {
+            *out = INT64_MIN;
+        } else {
+            *out = -(int64_t) value;
+        }
+    } else {
+        *out = (int64_t) value;
+    }
     return true;
 }
 
@@ -485,8 +496,10 @@ static double parse_double_from_buffer(const char* start, const char* end) {
         ptr++;
     }
 
-    /* Parse integer and fractional parts into mantissa */
-    int64_t mantissa = 0;
+    /* Parse integer and fractional parts into mantissa. Accumulate as uint64_t
+     * (well-defined wraparound) — any overflow trips digit_count > 15 below
+     * and forces the strtod fallback, so the bogus mantissa is never used. */
+    uint64_t mantissa_u = 0;
     size_t digit_count = 0;
 
     /* Integer part */
@@ -501,7 +514,7 @@ static double parse_double_from_buffer(const char* start, const char* end) {
             continue;
         }
 #endif
-        mantissa = mantissa * 10 + (*ptr - '0');
+        mantissa_u = mantissa_u * 10u + (uint64_t) (*ptr - '0');
         digit_count++;
         ptr++;
     }
@@ -522,7 +535,7 @@ static double parse_double_from_buffer(const char* start, const char* end) {
                 continue;
             }
 #endif
-            mantissa = mantissa * 10 + (*ptr - '0');
+            mantissa_u = mantissa_u * 10u + (uint64_t) (*ptr - '0');
             frac_digits++;
             ptr++;
         }
@@ -539,7 +552,7 @@ static double parse_double_from_buffer(const char* start, const char* end) {
             ptr++;
         }
 
-        int64_t exp_value = 0;
+        uint64_t exp_value_u = 0;
         while (ptr < end && ((*ptr >= '0' && *ptr <= '9')
 #ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
                              || *ptr == '_'
@@ -551,20 +564,21 @@ static double parse_double_from_buffer(const char* start, const char* end) {
                 continue;
             }
 #endif
-            exp_value = exp_value * 10 + (*ptr - '0');
-            if (exp_value > 1000) {
-                exp_value = 1000;
+            exp_value_u = exp_value_u * 10u + (uint64_t) (*ptr - '0');
+            if (exp_value_u > 1000u) {
+                exp_value_u = 1000u;
                 break;
             }
             ptr++;
         }
 
-        exponent += exp_negative ? -exp_value : exp_value;
+        exponent += exp_negative ? -(int64_t) exp_value_u : (int64_t) exp_value_u;
     }
 
-    /* Try Clinger fast path (90% of cases) */
+    /* Try Clinger fast path (90% of cases). Pass mantissa as int64_t — safe
+     * because digit_count <= 15 guarantees the value fits. */
     double result;
-    if (digit_count <= 15 && parse_double_fast(mantissa, exponent, negative, &result)) {
+    if (digit_count <= 15 && parse_double_fast((int64_t) mantissa_u, exponent, negative, &result)) {
         return result;
     }
 
