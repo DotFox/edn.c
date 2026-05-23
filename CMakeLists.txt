@@ -130,6 +130,18 @@ foreach(EXAMPLE_SOURCE ${EXAMPLE_SOURCES})
     target_link_libraries(${EXAMPLE_NAME} edn)
 endforeach()
 
+# libFuzzer harness (clang only; requires -fsanitize=fuzzer)
+option(EDN_BUILD_FUZZER "Build libFuzzer harness (requires clang + -fsanitize=fuzzer)" OFF)
+if(EDN_BUILD_FUZZER)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "EDN_BUILD_FUZZER requires Clang for -fsanitize=fuzzer")
+    endif()
+    add_executable(edn_fuzz fuzz/fuzz_edn.c ${SOURCES})
+    target_compile_options(edn_fuzz PRIVATE -g -O1 -fsanitize=fuzzer,address,undefined)
+    target_link_options(edn_fuzz PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_include_directories(edn_fuzz PRIVATE include src)
+endif()
+
 # Install targets
 install(TARGETS edn DESTINATION lib)
 install(FILES include/edn.h DESTINATION include)

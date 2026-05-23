@@ -48,8 +48,13 @@ endif
 DEBUG ?= 0
 ifeq ($(DEBUG),1)
     CFLAGS += -g -O0 -DDEBUG
-    # Note: Sanitizers added only to LDFLAGS to avoid static library linking issues
-    LDFLAGS += -fsanitize=address,leak,undefined
+    # Sanitizers added only to LDFLAGS to avoid static library linking issues.
+    # leak sanitizer is bundled with asan on Linux but unavailable on macOS arm64.
+    SANITIZERS = address,undefined
+    ifeq ($(UNAME_S),Linux)
+        SANITIZERS := $(SANITIZERS),leak
+    endif
+    LDFLAGS += -fsanitize=$(SANITIZERS)
 else
     CFLAGS += -DNDEBUG
 endif
@@ -223,6 +228,17 @@ tui: examples/edn_tui
 .PHONY: debug
 debug:
 	$(MAKE) DEBUG=1
+
+# libFuzzer harness (requires clang)
+.PHONY: fuzz
+fuzz:
+	@echo "  CC      fuzz_edn (clang + libFuzzer)"
+	$(Q)clang -std=c11 -g -O1 -fsanitize=fuzzer,address,undefined \
+		-DEDN_ENABLE_CLOJURE_EXTENSION -DEDN_ENABLE_EXPERIMENTAL_EXTENSION \
+		$(ARCH_FLAGS) $(INCLUDES) \
+		fuzz/fuzz_edn.c $(SRCS) -o fuzz_edn -lpthread $(if $(filter Linux,$(UNAME_S)),-lm)
+	@echo "✓ Fuzzer built: ./fuzz_edn"
+	@echo "  Run: ./fuzz_edn -max_len=65536 corpus/"
 
 # WebAssembly targets
 .PHONY: wasm
