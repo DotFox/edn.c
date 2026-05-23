@@ -10,6 +10,10 @@
 /* Initial number of hash table buckets */
 #define INITIAL_BUCKET_COUNT 16
 
+/* Resize when entry_count exceeds this fraction of bucket_count (load factor 0.75). */
+#define RESIZE_LOAD_NUM 3
+#define RESIZE_LOAD_DEN 4
+
 /* Reader registry entry */
 typedef struct edn_reader_entry {
     char* tag;                     /* Owned copy of tag name */
@@ -73,6 +77,35 @@ void edn_reader_registry_destroy(edn_reader_registry_t* registry) {
     free(registry);
 }
 
+/* Grow bucket array (2x) when load factor exceeds 0.75. Failure to resize
+ * leaves the registry usable (just slower). */
+static void maybe_resize(edn_reader_registry_t* registry) {
+    if ((registry->entry_count + 1) * RESIZE_LOAD_DEN <= registry->bucket_count * RESIZE_LOAD_NUM) {
+        return;
+    }
+    size_t new_count = registry->bucket_count * 2;
+    if (new_count <= registry->bucket_count || new_count > SIZE_MAX / sizeof(edn_reader_entry_t*)) {
+        return;
+    }
+    edn_reader_entry_t** new_buckets = calloc(new_count, sizeof(edn_reader_entry_t*));
+    if (!new_buckets) {
+        return;
+    }
+    for (size_t i = 0; i < registry->bucket_count; i++) {
+        edn_reader_entry_t* entry = registry->buckets[i];
+        while (entry) {
+            edn_reader_entry_t* next = entry->next;
+            size_t idx = hash_tag(entry->tag, entry->tag_length) % new_count;
+            entry->next = new_buckets[idx];
+            new_buckets[idx] = entry;
+            entry = next;
+        }
+    }
+    free(registry->buckets);
+    registry->buckets = new_buckets;
+    registry->bucket_count = new_count;
+}
+
 bool edn_reader_register(edn_reader_registry_t* registry, const char* tag, edn_reader_fn reader) {
     if (registry == NULL || tag == NULL || reader == NULL) {
         return false;
@@ -94,6 +127,10 @@ bool edn_reader_register(edn_reader_registry_t* registry, const char* tag, edn_r
         }
         entry = entry->next;
     }
+
+    /* Grow table before insertion if load factor would exceed target */
+    maybe_resize(registry);
+    bucket_idx = hash % registry->bucket_count;
 
     /* Create new entry */
     edn_reader_entry_t* new_entry = malloc(sizeof(edn_reader_entry_t));
