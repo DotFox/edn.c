@@ -18,6 +18,9 @@
 #define ARENA_MEDIUM_SIZE (64 * 1024)  /* 64KB blocks */
 #define ARENA_LARGE_SIZE (256 * 1024)  /* 256KB for large documents */
 
+/* Built-in default max nesting depth used when caller passes 0/NULL options. */
+#define EDN_DEFAULT_MAX_DEPTH 1024u
+
 /* Arena block structure - exposed for inline allocation */
 typedef struct arena_block {
     struct arena_block* next;
@@ -322,7 +325,8 @@ typedef struct {
     const char* input;
     const char* current;
     const char* end;
-    size_t depth; /* Current nesting depth for collections */
+    size_t depth;     /* Current nesting depth for collections */
+    size_t max_depth; /* Maximum allowed depth */
     edn_arena_t* arena;
     edn_error_t error;
     const char* error_message;
@@ -334,6 +338,31 @@ typedef struct {
     /* Discard mode - when true, readers are not invoked */
     bool discard_mode;
 } edn_parser_t;
+
+/**
+ * Enter one nesting level. Returns false if the depth cap would be exceeded.
+ * On failure, sets parser->error to EDN_ERROR_MAX_DEPTH_EXCEEDED.
+ *
+ * Every recursive descent in the parser (collections, tagged, metadata,
+ * discard, namespaced map) MUST gate on this before recursing.
+ */
+static inline bool edn_enter_depth(edn_parser_t* parser) {
+    if (parser->depth >= parser->max_depth) {
+        parser->error = EDN_ERROR_MAX_DEPTH_EXCEEDED;
+        parser->error_message = "Maximum nesting depth exceeded";
+        parser->error_start = parser->current;
+        parser->error_end = parser->current;
+        return false;
+    }
+    parser->depth++;
+    return true;
+}
+
+static inline void edn_leave_depth(edn_parser_t* parser) {
+    if (parser->depth > 0) {
+        parser->depth--;
+    }
+}
 
 edn_arena_t* edn_arena_create(void);
 void edn_arena_destroy(edn_arena_t* arena);

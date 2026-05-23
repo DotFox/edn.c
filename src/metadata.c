@@ -17,15 +17,22 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     /* Skip the ^ character */
     parser->current++;
 
+    /* Gate depth: chained ^^^...x would otherwise blow the C stack. */
+    if (!edn_enter_depth(parser)) {
+        return NULL;
+    }
+
     /* Step 1: Parse the metadata value */
     edn_value_t* meta_value = edn_read_value(parser);
     if (meta_value == NULL || parser->error != EDN_OK) {
+        edn_leave_depth(parser);
         return NULL;
     }
 
     if (meta_value->type != EDN_TYPE_MAP && meta_value->type != EDN_TYPE_KEYWORD &&
         meta_value->type != EDN_TYPE_STRING && meta_value->type != EDN_TYPE_SYMBOL &&
         meta_value->type != EDN_TYPE_VECTOR) {
+        edn_leave_depth(parser);
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message = "Metadata must be a map, keyword, string, symbol, or vector";
         parser->error_start = value_start;
@@ -36,6 +43,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     /* Step 2: Parse the value to attach metadata to */
     edn_value_t* form = edn_read_value(parser);
     if (form == NULL || parser->error != EDN_OK) {
+        edn_leave_depth(parser);
         return NULL;
     }
 
@@ -43,6 +51,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     if (form->type != EDN_TYPE_LIST && form->type != EDN_TYPE_VECTOR &&
         form->type != EDN_TYPE_MAP && form->type != EDN_TYPE_SET && form->type != EDN_TYPE_TAGGED &&
         form->type != EDN_TYPE_SYMBOL) {
+        edn_leave_depth(parser);
         parser->error = EDN_ERROR_INVALID_SYNTAX;
         parser->error_message =
             "Metadata can only be attached to collections, tagged literals, and symbols";
@@ -294,6 +303,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
     /* Update form's source_start to include the ^ prefix and metadata */
     form->source_start = value_start - parser->input;
 
+    edn_leave_depth(parser);
     return form;
 }
 

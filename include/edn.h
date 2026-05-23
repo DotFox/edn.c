@@ -72,7 +72,8 @@ typedef enum {
     EDN_ERROR_UNMATCHED_DELIMITER,
     EDN_ERROR_UNKNOWN_TAG,
     EDN_ERROR_DUPLICATE_KEY,
-    EDN_ERROR_DUPLICATE_ELEMENT
+    EDN_ERROR_DUPLICATE_ELEMENT,
+    EDN_ERROR_MAX_DEPTH_EXCEEDED
 } edn_error_t;
 
 typedef struct {
@@ -749,8 +750,23 @@ typedef enum {
 
 /**
  * Parse options for configuring parser behavior.
+ *
+ * ABI note: `struct_size` MUST be initialized to `sizeof(edn_parse_options_t)` by
+ * the caller. New fields are appended in future versions; the parser uses
+ * struct_size to know which fields are present. The recommended idiom is:
+ *
+ *   edn_parse_options_t opts = {0};
+ *   opts.struct_size = sizeof(opts);
+ *   opts.reader_registry = ...;
  */
 typedef struct {
+    /**
+     * Size of this struct as known to the caller. MUST be set to
+     * sizeof(edn_parse_options_t) before passing to edn_read_with_options().
+     * A value of 0 is treated as "use defaults for all fields".
+     */
+    size_t struct_size;
+
     /**
      * Optional reader registry for tagged literals.
      * If NULL, all tags use default fallback.
@@ -766,6 +782,13 @@ typedef struct {
      * Default behavior for tags without registered readers.
      */
     edn_default_reader_mode_t default_reader_mode;
+
+    /**
+     * Maximum nesting depth for collections/tagged/metadata/discard chains.
+     * 0 means use a sane built-in default (currently 1024). The parser fails
+     * with EDN_ERROR_MAX_DEPTH_EXCEEDED if this limit is exceeded.
+     */
+    size_t max_depth;
 } edn_parse_options_t;
 
 /**

@@ -52,19 +52,35 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     parser.current = input;
     parser.end = input + length;
     parser.depth = 0;
+    parser.max_depth = EDN_DEFAULT_MAX_DEPTH;
     parser.arena = edn_arena_create();
     parser.error = EDN_OK;
     parser.error_message = NULL;
     parser.error_start = NULL;
     parser.error_end = NULL;
 
-    /* Set reader configuration */
+    /* Defaults */
+    parser.reader_registry = NULL;
+    parser.default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH;
+
+    /* Honor caller-provided fields. struct_size lets us add fields later
+     * without breaking older callers: we only read fields the caller's struct
+     * is large enough to contain. A struct_size of 0 is treated as the full
+     * current size (zero-init via `{0}` is the canonical idiom). */
     if (options != NULL) {
-        parser.reader_registry = options->reader_registry;
-        parser.default_reader_mode = options->default_reader_mode;
-    } else {
-        parser.reader_registry = NULL;
-        parser.default_reader_mode = EDN_DEFAULT_READER_PASSTHROUGH;
+        size_t sz = options->struct_size == 0 ? sizeof(edn_parse_options_t) : options->struct_size;
+        if (sz >=
+            offsetof(edn_parse_options_t, reader_registry) + sizeof(options->reader_registry)) {
+            parser.reader_registry = options->reader_registry;
+        }
+        if (sz >= offsetof(edn_parse_options_t, default_reader_mode) +
+                      sizeof(options->default_reader_mode)) {
+            parser.default_reader_mode = options->default_reader_mode;
+        }
+        if (sz >= offsetof(edn_parse_options_t, max_depth) + sizeof(options->max_depth) &&
+            options->max_depth > 0) {
+            parser.max_depth = options->max_depth;
+        }
     }
 
     parser.discard_mode = false;
@@ -104,7 +120,14 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     }
 
     /* Handle EOF error with eof_value option */
-    if (result.error == EDN_ERROR_UNEXPECTED_EOF && options != NULL && options->eof_value != NULL) {
+    size_t opts_size = (options == NULL) ? 0
+                                         : (options->struct_size == 0 ? sizeof(edn_parse_options_t)
+                                                                      : options->struct_size);
+    bool eof_value_available =
+        options != NULL &&
+        opts_size >= offsetof(edn_parse_options_t, eof_value) + sizeof(options->eof_value) &&
+        options->eof_value != NULL;
+    if (result.error == EDN_ERROR_UNEXPECTED_EOF && eof_value_available) {
         if (parser.arena != NULL) {
             edn_arena_destroy(parser.arena);
         }
@@ -494,16 +517,23 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
                 } else if (next == '#') {
                     return edn_read_symbolic_value(parser);
                 } else if (next == '_') {
-                    /* Discard next form and parse the one after it */
+                    /* Discard next form and parse the one after it.
+                     * Gate on depth: each chained #_ adds a C stack frame. */
+                    if (!edn_enter_depth(parser)) {
+                        return NULL;
+                    }
                     edn_value_t* discarded = edn_read_discarded_value(parser);
                     /* edn_read_discarded_value returns NULL on success (value was discarded) */
                     /* If there was an error, it's set in parser->error */
                     if (parser->error != EDN_OK) {
+                        edn_leave_depth(parser);
                         return NULL; /* Error during discard */
                     }
                     (void) discarded; /* Suppress unused variable warning */
                     /* Recursively parse the next value (which may itself be another discard) */
-                    return edn_read_value(parser);
+                    edn_value_t* next_value = edn_read_value(parser);
+                    edn_leave_depth(parser);
+                    return next_value;
                 }
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
                 else if (next == ':') {

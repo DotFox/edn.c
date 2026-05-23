@@ -2,6 +2,7 @@
  * Test parser depth tracking
  */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "../include/edn.h"
@@ -15,6 +16,7 @@
         (parser).current = (input_str);                                \
         (parser).end = (input_str) + strlen(input_str);                \
         (parser).depth = 0;                                            \
+        (parser).max_depth = EDN_DEFAULT_MAX_DEPTH;                    \
         (parser).arena = edn_arena_create();                           \
         (parser).error = EDN_OK;                                       \
         (parser).error_message = NULL;                                 \
@@ -257,6 +259,44 @@ TEST(depth_tagged_error_invalid_tag) {
     edn_arena_destroy(parser.arena);
 }
 
+/* Test: deeply nested input is rejected with EDN_ERROR_MAX_DEPTH_EXCEEDED
+ * instead of overflowing the C stack. */
+TEST(depth_cap_enforced) {
+    enum { N = 2000 };
+    char* input = malloc(2 * N + 2);
+    assert(input != NULL);
+    for (int i = 0; i < N; i++) {
+        input[i] = '[';
+    }
+    for (int i = 0; i < N; i++) {
+        input[N + i] = ']';
+    }
+    input[2 * N] = '\0';
+
+    edn_result_t result = edn_read(input, 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_MAX_DEPTH_EXCEEDED);
+    free(input);
+}
+
+/* Test: chained discard cannot blow the stack. */
+TEST(depth_cap_discard) {
+    enum { N = 4000 };
+    char* input = malloc(2 * N + 2);
+    assert(input != NULL);
+    for (int i = 0; i < N; i++) {
+        input[2 * i] = '#';
+        input[2 * i + 1] = '_';
+    }
+    input[2 * N] = '1';
+    input[2 * N + 1] = '\0';
+
+    edn_result_t result = edn_read(input, 0);
+    /* Should fail with depth-exceeded error (or in-flight error), never crash. */
+    assert(result.error == EDN_ERROR_MAX_DEPTH_EXCEEDED);
+    free(input);
+}
+
 int main(void) {
     printf("Running parser depth tracking tests...\n");
 
@@ -277,6 +317,8 @@ int main(void) {
     RUN_TEST(depth_tagged_error_missing_tag);
     RUN_TEST(depth_tagged_error_missing_value);
     RUN_TEST(depth_tagged_error_invalid_tag);
+    RUN_TEST(depth_cap_enforced);
+    RUN_TEST(depth_cap_discard);
 
     TEST_SUMMARY("parser depth tracking");
 }
