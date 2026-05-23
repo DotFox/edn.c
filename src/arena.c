@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -83,7 +84,17 @@ void* edn_arena_alloc(edn_arena_t* arena, size_t size) {
         return NULL;
     }
 
-    size = (size + 7) & ~7;
+    /* Round up to 8-byte alignment, guarding against size_t overflow. */
+    if (size > SIZE_MAX - 7) {
+        return NULL;
+    }
+    size = (size + 7) & ~(size_t) 7;
+
+    /* Refuse single allocations larger than the largest planned block, to
+     * defend against unchecked size arithmetic propagating into malloc. */
+    if (size > SIZE_MAX - sizeof(arena_block_t)) {
+        return NULL;
+    }
 
     arena_block_t* block = arena->current;
 

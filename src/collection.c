@@ -2,9 +2,15 @@
  * EDN.C - Collection parsers
  */
 
+#include <stdint.h>
 #include <string.h>
 
 #include "edn_internal.h"
+
+/* Guard capacity multiplications against size_t overflow. */
+static inline bool capacity_too_large(size_t count) {
+    return count > (SIZE_MAX / sizeof(edn_value_t*));
+}
 
 typedef struct {
     edn_value_t** elements;
@@ -38,6 +44,9 @@ static bool edn_collection_builder_add(edn_collection_builder_t* builder, edn_va
         size_t new_capacity = builder->capacity + (builder->capacity >> 1);
         if (new_capacity <= builder->capacity) {
             new_capacity = builder->capacity + 8;
+        }
+        if (capacity_too_large(new_capacity)) {
+            return false;
         }
 
         edn_value_t** new_elements =
@@ -351,6 +360,9 @@ static bool edn_map_builder_add(edn_map_builder_t* builder, edn_value_t* key, ed
         size_t new_capacity = builder->capacity + (builder->capacity >> 1);
         if (new_capacity <= builder->capacity) {
             new_capacity = builder->capacity + 8;
+        }
+        if (capacity_too_large(new_capacity)) {
+            return false;
         }
 
         edn_value_t** new_keys =

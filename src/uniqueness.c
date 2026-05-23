@@ -2,6 +2,7 @@
  * EDN.C - Uniqueness checking
  */
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,6 +23,9 @@ static bool edn_has_duplicates_linear(edn_value_t** elements, size_t count) {
 }
 
 static bool edn_has_duplicates_sorted(edn_value_t** elements, size_t count) {
+    if (count > SIZE_MAX / sizeof(edn_value_t*)) {
+        return edn_has_duplicates_linear(elements, count);
+    }
     edn_value_t** temp = malloc(count * sizeof(edn_value_t*));
     if (temp == NULL) {
         return edn_has_duplicates_linear(elements, count);
