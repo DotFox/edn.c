@@ -1193,20 +1193,25 @@ edn_value_t* edn_map_get_string_key(const edn_value_t* map, const char* key) {
         return NULL;
     }
 
-    /* Create temporary string value for lookup */
-    edn_value_t temp_key;
-    temp_key.type = EDN_TYPE_STRING;
-    temp_key.as.string.data = key;
+    /* Compare against the decoded byte sequence of each string key, so a caller
+     * supplying "a\nb" matches a parsed key written as "a\nb" (escape form). */
     size_t key_len = strlen(key);
-    temp_key.as.string.length_and_flags = key_len; /* No escapes, not decoded */
-    temp_key.as.string.decoded = NULL;
-    temp_key.arena = NULL;
-    temp_key.cached_hash = 0;
-#ifdef EDN_ENABLE_CLOJURE_EXTENSION
-    temp_key.metadata = NULL;
-#endif
 
-    return edn_map_lookup(map, &temp_key);
+    for (size_t i = 0; i < map->as.map.count; i++) {
+        edn_value_t* candidate = map->as.map.keys[i];
+        if (!candidate || candidate->type != EDN_TYPE_STRING) {
+            continue;
+        }
+        size_t cand_len = 0;
+        const char* cand_str = edn_string_get(candidate, &cand_len);
+        if (!cand_str) {
+            continue;
+        }
+        if (cand_len == key_len && memcmp(cand_str, key, key_len) == 0) {
+            return map->as.map.values[i];
+        }
+    }
+    return NULL;
 }
 
 /* Tagged Literal API */

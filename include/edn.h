@@ -523,15 +523,13 @@ EDN_API edn_value_t* edn_map_get_namespaced_keyword(const edn_value_t* map, cons
  * Look up value by string key in a map.
  *
  * Convenience wrapper that creates a string key internally and performs lookup.
- * Equivalent to creating "\"key\"" and calling edn_map_lookup().
+ * The supplied key is interpreted as the already-decoded UTF-8 byte sequence,
+ * so this lookup correctly matches keys that were parsed with escape sequences
+ * (e.g., a map key written as "a\nb" will match key "a\nb" passed here).
  *
  * @param map EDN map value
  * @param key String key value
  * @return Value associated with key, or NULL if not found or not a map
- *
- * Example:
- *   edn_value_t* val = edn_map_get_string_key(map, "mykey");
- *   // Equivalent to: edn_map_lookup(map, parse("\"mykey\""))
  */
 EDN_API edn_value_t* edn_map_get_string_key(const edn_value_t* map, const char* key);
 
