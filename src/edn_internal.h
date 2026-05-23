@@ -21,6 +21,9 @@
 /* Built-in default max nesting depth used when caller passes 0/NULL options. */
 #define EDN_DEFAULT_MAX_DEPTH 1024u
 
+/* Hard cap on text-block lines: prevents O(N) heap exhaustion from attacker input. */
+#define EDN_TEXT_BLOCK_MAX_LINES (1u << 20)
+
 /* Arena block structure - exposed for inline allocation */
 typedef struct arena_block {
     struct arena_block* next;

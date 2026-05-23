@@ -550,9 +550,32 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
     size_t lwp = 0; /* Minimum indentation: Longest common Whitespace Prefix */
 
     while (parser->current < parser->end) {
+        /* Hard cap on line count: prevents heap exhaustion from attacker input
+         * that supplies a multi-megabyte text block of empty lines. */
+        if (line_count >= EDN_TEXT_BLOCK_MAX_LINES) {
+            for (size_t j = 0; j < line_count; j++) {
+                free(lines[j]);
+            }
+            free(lines);
+            parser->error = EDN_ERROR_INVALID_STRING;
+            parser->error_message = "Text block exceeds maximum line count";
+            return NULL;
+        }
+
         /* Grow line buffer if we've reached capacity (double the size) */
         if (line_count >= lines_capacity) {
             size_t new_capacity = lines_capacity * 2;
+            /* Guard against capacity overflow */
+            if (new_capacity < lines_capacity ||
+                new_capacity > SIZE_MAX / sizeof(text_block_line_t*)) {
+                for (size_t j = 0; j < line_count; j++) {
+                    free(lines[j]);
+                }
+                free(lines);
+                parser->error = EDN_ERROR_OUT_OF_MEMORY;
+                parser->error_message = "Text block line capacity overflow";
+                return NULL;
+            }
             text_block_line_t** new_lines =
                 realloc(lines, new_capacity * sizeof(text_block_line_t*));
             if (!new_lines) {
