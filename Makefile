@@ -316,17 +316,20 @@ info-wasm:
 	@echo "  EXPERIMENTAL_EXTENSION:   $(EXPERIMENTAL_EXTENSION)"
 
 # Help
+# Vendored third-party trees that must NOT be reformatted (keep upstream style).
+FORMAT_EXCLUDES = -not -path 'src/ryu/*'
+
 # Format all source files with clang-format
 .PHONY: format
 format:
 	@echo "  FORMAT  all C files"
-	$(Q)find src include test bench examples bindings -name '*.[ch]' -exec clang-format -i {} +
+	$(Q)find src include test bench examples bindings -name '*.[ch]' $(FORMAT_EXCLUDES) -exec clang-format -i {} +
 
 # Check formatting without modifying files
 .PHONY: format-check
 format-check:
 	@echo "  FORMAT-CHECK"
-	$(Q)find src include test bench examples bindings -name '*.[ch]' -exec clang-format --dry-run -Werror {} +
+	$(Q)find src include test bench examples bindings -name '*.[ch]' $(FORMAT_EXCLUDES) -exec clang-format --dry-run -Werror {} +
 
 # Generate compile_commands.json and .clangd for LSP
 .PHONY: compile-commands

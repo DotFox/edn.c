@@ -25,7 +25,8 @@ static char* write_roundtrip(const char* input) {
  * original. */
 static bool roundtrip_equal(const char* input) {
     edn_result_t a = edn_read(input, 0);
-    if (a.error != EDN_OK) return false;
+    if (a.error != EDN_OK)
+        return false;
     char* serialized = edn_write(a.value);
     if (!serialized) {
         edn_free(a.value);
@@ -86,11 +87,17 @@ TEST(write_int_zero) {
     free(s);
 }
 
-TEST(write_float_basic) { assert_true(roundtrip_equal("3.14")); }
+TEST(write_float_basic) {
+    assert_true(roundtrip_equal("3.14"));
+}
 
-TEST(write_float_negative) { assert_true(roundtrip_equal("-0.5")); }
+TEST(write_float_negative) {
+    assert_true(roundtrip_equal("-0.5"));
+}
 
-TEST(write_float_scientific) { assert_true(roundtrip_equal("1.5e10")); }
+TEST(write_float_scientific) {
+    assert_true(roundtrip_equal("1.5e10"));
+}
 
 /* Shortest round-trip output formatted per ECMA-262, plus an
  * EDN-specific ".0" suffix on integer-valued floats. */
@@ -301,11 +308,17 @@ TEST(write_vector_basic) {
     free(s);
 }
 
-TEST(write_set_basic) { assert_true(roundtrip_equal("#{1 2 3}")); }
+TEST(write_set_basic) {
+    assert_true(roundtrip_equal("#{1 2 3}"));
+}
 
-TEST(write_map_basic) { assert_true(roundtrip_equal("{:a 1 :b 2}")); }
+TEST(write_map_basic) {
+    assert_true(roundtrip_equal("{:a 1 :b 2}"));
+}
 
-TEST(write_map_nested) { assert_true(roundtrip_equal("{:a [1 2] :b {:c 3}}")); }
+TEST(write_map_nested) {
+    assert_true(roundtrip_equal("{:a [1 2] :b {:c 3}}"));
+}
 
 TEST(write_tagged) {
     char* s = write_roundtrip("#inst \"2024-01-01\"");
@@ -374,7 +387,8 @@ typedef struct {
 } capture_ctx_t;
 static int capture_cb(const char* data, size_t n, void* ctx) {
     capture_ctx_t* c = ctx;
-    if (c->len + n + 1 > sizeof(c->buf)) return -1;
+    if (c->len + n + 1 > sizeof(c->buf))
+        return -1;
     memcpy(c->buf + c->len, data, n);
     c->len += n;
     c->buf[c->len] = '\0';

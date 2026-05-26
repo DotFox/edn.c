@@ -856,11 +856,11 @@ typedef struct edn_writer_registry edn_writer_registry_t;
  */
 typedef struct {
     size_t struct_size;
-    size_t indent;        /* 0 = compact; >0 reserved for future pretty-print */
-    bool sort_keys;       /* reserved */
-    bool emit_metadata;   /* reserved (requires EDN_ENABLE_CLOJURE_EXTENSION) */
-    bool escape_unicode;  /* reserved (non-ASCII bytes -> \uXXXX) */
-    bool newline_at_end;  /* emit trailing '\n' after value */
+    size_t indent;                          /* 0 = compact; >0 reserved for future pretty-print */
+    bool sort_keys;                         /* reserved */
+    bool emit_metadata;                     /* reserved (requires EDN_ENABLE_CLOJURE_EXTENSION) */
+    bool escape_unicode;                    /* reserved (non-ASCII bytes -> \uXXXX) */
+    bool newline_at_end;                    /* emit trailing '\n' after value */
     edn_writer_registry_t* writer_registry; /* reserved */
 } edn_write_options_t;
 
@@ -897,8 +897,7 @@ EDN_API size_t edn_write_buffer(const edn_value_t* value, char* buf, size_t cap,
  *
  * @return 0 on success, negative on error.
  */
-EDN_API int edn_write_file(const edn_value_t* value, FILE* fp,
-                           const edn_write_options_t* options);
+EDN_API int edn_write_file(const edn_value_t* value, FILE* fp, const edn_write_options_t* options);
 
 /**
  * Convenience: compact, default options, freshly malloc'd string.
@@ -908,7 +907,7 @@ EDN_API char* edn_write(const edn_value_t* value);
 
 /* Writer extension registry (scaffold; not yet honored by edn_write_*). */
 EDN_API edn_writer_registry_t* edn_writer_registry_create(void);
-EDN_API void                   edn_writer_registry_destroy(edn_writer_registry_t* registry);
+EDN_API void edn_writer_registry_destroy(edn_writer_registry_t* registry);
 
 #ifdef __cplusplus
 }
