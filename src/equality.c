@@ -96,6 +96,7 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
                 return false;
             }
 
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             size_t len_a, len_b;
             uint8_t radix_a, radix_b;
             bool neg_a, neg_b;
@@ -106,6 +107,12 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
                 return false;
             }
             return memcmp(digits_a, digits_b, len_a) == 0;
+#else
+            if (a->as.bigint.length != b->as.bigint.length) {
+                return false;
+            }
+            return memcmp(a->as.bigint.digits, b->as.bigint.digits, a->as.bigint.length) == 0;
+#endif
         }
 
         case EDN_TYPE_FLOAT:
@@ -121,6 +128,7 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
                 return false;
             }
 
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             size_t len_a, len_b;
             bool neg_a, neg_b;
             const char* decimal_a = edn_bigdec_get(a, &len_a, &neg_a);
@@ -130,6 +138,12 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
                 return false;
             }
             return memcmp(decimal_a, decimal_b, len_a) == 0;
+#else
+            if (a->as.bigdec.length != b->as.bigdec.length) {
+                return false;
+            }
+            return memcmp(a->as.bigdec.decimal, b->as.bigdec.decimal, a->as.bigdec.length) == 0;
+#endif
         }
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
@@ -335,10 +349,47 @@ int edn_value_compare(const void* a_ptr, const void* b_ptr) {
             if (a->as.bigint.negative != b->as.bigint.negative) {
                 return a->as.bigint.negative ? -1 : 1;
             }
+
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+            size_t len_a, len_b;
+            bool neg_a, neg_b;
+            uint8_t radix_a, radix_b;
+            const char* digits_a = edn_bigint_get(a, &len_a, &neg_a, &radix_a);
+            const char* digits_b = edn_bigint_get(b, &len_b, &neg_b, &radix_b);
+
+            if (len_a != len_b) {
+                return (int) (len_a - len_b);
+            }
+            return memcmp(digits_a, digits_b, len_a);
+#else
             if (a->as.bigint.length != b->as.bigint.length) {
                 return (int) (a->as.bigint.length - b->as.bigint.length);
             }
             return memcmp(a->as.bigint.digits, b->as.bigint.digits, a->as.bigint.length);
+#endif
+        }
+
+        case EDN_TYPE_BIGDEC: {
+            if (a->as.bigdec.negative != b->as.bigdec.negative) {
+                return a->as.bigdec.negative ? -1 : 1;
+            }
+
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+            size_t len_a, len_b;
+            bool neg_a, neg_b;
+            const char* decimal_a = edn_bigdec_get(a, &len_a, &neg_a);
+            const char* decimal_b = edn_bigdec_get(b, &len_b, &neg_b);
+
+            if (len_a != len_b) {
+                return (int) (len_a - len_b);
+            }
+            return memcmp(decimal_a, decimal_b, len_a);
+#else
+            if (a->as.bigdec.length != b->as.bigdec.length) {
+                return (int) (a->as.bigdec.length - b->as.bigdec.length);
+            }
+            return memcmp(a->as.bigdec.decimal, b->as.bigdec.decimal, a->as.bigdec.length);
+#endif
         }
 
         case EDN_TYPE_FLOAT:
@@ -454,11 +505,18 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
         }
 
         case EDN_TYPE_BIGINT: {
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             /* Use cleaned digits for hashing */
             size_t len;
             bool neg;
             uint8_t radix;
             const char* digits = edn_bigint_get(value, &len, &neg, &radix);
+#else
+            size_t len = value->as.bigint.length;
+            bool neg = value->as.bigint.negative;
+            uint8_t radix = value->as.bigint.radix;
+            const char* digits = value->as.bigint.digits;
+#endif
 
             hash ^= radix;
             hash *= FNV_PRIME;
@@ -494,10 +552,16 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
         }
 
         case EDN_TYPE_BIGDEC: {
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
             /* Use cleaned decimal for hashing */
             size_t len;
             bool neg;
             const char* decimal = edn_bigdec_get(value, &len, &neg);
+#else
+            size_t len = value->as.bigdec.length;
+            bool neg = value->as.bigdec.negative;
+            const char* decimal = value->as.bigdec.decimal;
+#endif
 
             hash ^= neg ? 1 : 0;
             hash *= FNV_PRIME;

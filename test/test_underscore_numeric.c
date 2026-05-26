@@ -429,6 +429,90 @@ TEST(underscore_in_map) {
     edn_free(r.value);
 }
 
+/* BigInts that differ only by underscore placement must compare equal. */
+TEST(underscore_bigint_equality) {
+    edn_result_t a = edn_read("1_000_000N", 0);
+    edn_result_t b = edn_read("1000000N", 0);
+    edn_result_t c = edn_read("10_00_000N", 0);
+
+    assert(a.error == EDN_OK && b.error == EDN_OK && c.error == EDN_OK);
+    assert(edn_value_equal(a.value, b.value));
+    assert(edn_value_equal(a.value, c.value));
+    assert(edn_value_equal(b.value, c.value));
+
+    assert(edn_value_hash(a.value) == edn_value_hash(b.value));
+    assert(edn_value_hash(a.value) == edn_value_hash(c.value));
+
+    const edn_value_t* arr_ab[2] = {a.value, b.value};
+    const edn_value_t* arr_ac[2] = {a.value, c.value};
+    assert(edn_value_compare(&arr_ab[0], &arr_ab[1]) == 0);
+    assert(edn_value_compare(&arr_ac[0], &arr_ac[1]) == 0);
+
+    edn_free(a.value);
+    edn_free(b.value);
+    edn_free(c.value);
+}
+
+/* BigDecimals that differ only by underscore placement must compare equal. */
+TEST(underscore_bigdec_equality) {
+    edn_result_t a = edn_read("1_000.5M", 0);
+    edn_result_t b = edn_read("1000.5M", 0);
+    edn_result_t c = edn_read("10_00.5M", 0);
+
+    assert(a.error == EDN_OK && b.error == EDN_OK && c.error == EDN_OK);
+    assert(edn_value_equal(a.value, b.value));
+    assert(edn_value_equal(a.value, c.value));
+    assert(edn_value_equal(b.value, c.value));
+
+    assert(edn_value_hash(a.value) == edn_value_hash(b.value));
+    assert(edn_value_hash(a.value) == edn_value_hash(c.value));
+
+    const edn_value_t* arr_ab[2] = {a.value, b.value};
+    const edn_value_t* arr_ac[2] = {a.value, c.value};
+    assert(edn_value_compare(&arr_ab[0], &arr_ab[1]) == 0);
+    assert(edn_value_compare(&arr_ac[0], &arr_ac[1]) == 0);
+
+    edn_free(a.value);
+    edn_free(b.value);
+    edn_free(c.value);
+}
+
+/* Set duplicate detection (linear path, <=16 elements) must catch underscore variants. */
+TEST(underscore_set_duplicate_linear) {
+    /* BigInts */
+    edn_result_t r = edn_read("#{1_000_000N 1000000N}", 0);
+    assert(r.error == EDN_ERROR_DUPLICATE_ELEMENT);
+
+    /* BigDecimals */
+    edn_result_t r2 = edn_read("#{1_000.5M 1000.5M}", 0);
+    assert(r2.error == EDN_ERROR_DUPLICATE_ELEMENT);
+}
+
+/* Set duplicate detection (sorted path, >16 elements) exercises edn_value_compare. */
+TEST(underscore_set_duplicate_sorted) {
+    /* 17 unique padding BigInts + duplicate pair (underscore variants) */
+    const char* input =
+        "#{1N 2N 3N 4N 5N 6N 7N 8N 9N 10N 11N 12N 13N 14N 15N 16N 17N "
+        "1_000_000N 1000000N}";
+    edn_result_t r = edn_read(input, 0);
+    assert(r.error == EDN_ERROR_DUPLICATE_ELEMENT);
+
+    const char* input2 =
+        "#{1M 2M 3M 4M 5M 6M 7M 8M 9M 10M 11M 12M 13M 14M 15M 16M 17M "
+        "1_000.5M 1000.5M}";
+    edn_result_t r2 = edn_read(input2, 0);
+    assert(r2.error == EDN_ERROR_DUPLICATE_ELEMENT);
+}
+
+/* Map duplicate-key detection must catch underscore variants. */
+TEST(underscore_map_duplicate_key) {
+    edn_result_t r = edn_read("{1_000_000N :a 1000000N :b}", 0);
+    assert(r.error == EDN_ERROR_DUPLICATE_KEY);
+
+    edn_result_t r2 = edn_read("{1_000.5M :a 1000.5M :b}", 0);
+    assert(r2.error == EDN_ERROR_DUPLICATE_KEY);
+}
+
 #else /* EDN_ENABLE_EXPERIMENTAL_EXTENSION not defined */
 
 /* Test that underscores fail when feature is disabled */
@@ -496,6 +580,13 @@ int main(void) {
     /* Collection tests */
     run_test_underscore_in_vector();
     run_test_underscore_in_map();
+
+    /* Equality / compare / uniqueness sanitization tests */
+    run_test_underscore_bigint_equality();
+    run_test_underscore_bigdec_equality();
+    run_test_underscore_set_duplicate_linear();
+    run_test_underscore_set_duplicate_sorted();
+    run_test_underscore_map_duplicate_key();
 
 #else
     /* Feature disabled test */
