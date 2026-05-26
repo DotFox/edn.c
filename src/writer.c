@@ -31,7 +31,9 @@ static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     return e->err;
 }
 
-static int emit_cstr(emit_ctx_t* e, const char* s) { return emit(e, s, strlen(s)); }
+static int emit_cstr(emit_ctx_t* e, const char* s) {
+    return emit(e, s, strlen(s));
+}
 
 static int emit_value(emit_ctx_t* e, const edn_value_t* v);
 
@@ -87,13 +89,15 @@ static int emit_float(emit_ctx_t* e, double d) {
 
     char out[48];
     char* o = out;
-    if (negative) *o++ = '-';
+    if (negative)
+        *o++ = '-';
 
     if (n >= 1 && n <= 21) {
         if (k <= n) {
             memcpy(o, digits, (size_t) k);
             o += k;
-            for (int i = 0; i < n - k; i++) *o++ = '0';
+            for (int i = 0; i < n - k; i++)
+                *o++ = '0';
             *o++ = '.';
             *o++ = '0';
         } else {
@@ -106,7 +110,8 @@ static int emit_float(emit_ctx_t* e, double d) {
     } else if (n > -6 && n <= 0) {
         *o++ = '0';
         *o++ = '.';
-        for (int i = 0; i < -n; i++) *o++ = '0';
+        for (int i = 0; i < -n; i++)
+            *o++ = '0';
         memcpy(o, digits, (size_t) k);
         o += k;
     } else {
@@ -141,30 +146,36 @@ static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
     }
 
     if (neg) {
-        if (emit(e, "-", 1) != 0) return e->err;
+        if (emit(e, "-", 1) != 0)
+            return e->err;
     }
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (radix != 10) {
         char prefix[16];
         if (radix == 16) {
-            if (emit(e, "0x", 2) != 0) return e->err;
+            if (emit(e, "0x", 2) != 0)
+                return e->err;
         } else if (radix == 8) {
-            if (emit(e, "0", 1) != 0) return e->err;
+            if (emit(e, "0", 1) != 0)
+                return e->err;
         } else if (radix == 2) {
             /* 2rNN form is unambiguous for binary. */
             int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
-            if (emit(e, prefix, (size_t) pl) != 0) return e->err;
+            if (emit(e, prefix, (size_t) pl) != 0)
+                return e->err;
         } else {
             int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
-            if (emit(e, prefix, (size_t) pl) != 0) return e->err;
+            if (emit(e, prefix, (size_t) pl) != 0)
+                return e->err;
         }
     }
 #else
     (void) radix;
 #endif
 
-    if (emit(e, digits, len) != 0) return e->err;
+    if (emit(e, digits, len) != 0)
+        return e->err;
     return emit(e, "N", 1);
 }
 
@@ -177,9 +188,11 @@ static int emit_bigdec(emit_ctx_t* e, const edn_value_t* v) {
         return e->err;
     }
     if (neg) {
-        if (emit(e, "-", 1) != 0) return e->err;
+        if (emit(e, "-", 1) != 0)
+            return e->err;
     }
-    if (emit(e, dec, len) != 0) return e->err;
+    if (emit(e, dec, len) != 0)
+        return e->err;
     return emit(e, "M", 1);
 }
 
@@ -197,7 +210,8 @@ static int emit_ratio(emit_ctx_t* e, const edn_value_t* v) {
 #endif
 
 static int emit_character(emit_ctx_t* e, uint32_t cp) {
-    if (emit(e, "\\", 1) != 0) return e->err;
+    if (emit(e, "\\", 1) != 0)
+        return e->err;
 
     switch (cp) {
         case 0x0A:
@@ -236,75 +250,97 @@ static int emit_string(emit_ctx_t* e, const edn_value_t* v) {
     /* Strings store raw source bytes between the quote characters. The source
      * is already valid EDN (any required escapes are present in the bytes),
      * so verbatim emission between quotes round-trips. */
-    if (emit(e, "\"", 1) != 0) return e->err;
+    if (emit(e, "\"", 1) != 0)
+        return e->err;
     size_t len = edn_string_get_length(v);
-    if (emit(e, v->as.string.data, len) != 0) return e->err;
+    if (emit(e, v->as.string.data, len) != 0)
+        return e->err;
     return emit(e, "\"", 1);
 }
 
 static int emit_symbol(emit_ctx_t* e, const edn_value_t* v) {
     if (v->as.symbol.ns_length > 0) {
-        if (emit(e, v->as.symbol.namespace, v->as.symbol.ns_length) != 0) return e->err;
-        if (emit(e, "/", 1) != 0) return e->err;
+        if (emit(e, v->as.symbol.namespace, v->as.symbol.ns_length) != 0)
+            return e->err;
+        if (emit(e, "/", 1) != 0)
+            return e->err;
     }
     return emit(e, v->as.symbol.name, v->as.symbol.name_length);
 }
 
 static int emit_keyword(emit_ctx_t* e, const edn_value_t* v) {
-    if (emit(e, ":", 1) != 0) return e->err;
+    if (emit(e, ":", 1) != 0)
+        return e->err;
     if (v->as.keyword.ns_length > 0) {
-        if (emit(e, v->as.keyword.namespace, v->as.keyword.ns_length) != 0) return e->err;
-        if (emit(e, "/", 1) != 0) return e->err;
+        if (emit(e, v->as.keyword.namespace, v->as.keyword.ns_length) != 0)
+            return e->err;
+        if (emit(e, "/", 1) != 0)
+            return e->err;
     }
     return emit(e, v->as.keyword.name, v->as.keyword.name_length);
 }
 
 static int emit_sequence(emit_ctx_t* e, edn_value_t* const* elements, size_t count, char open,
                          char close) {
-    if (emit(e, &open, 1) != 0) return e->err;
+    if (emit(e, &open, 1) != 0)
+        return e->err;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, " ", 1) != 0) return e->err;
+            if (emit(e, " ", 1) != 0)
+                return e->err;
         }
-        if (emit_value(e, elements[i]) != 0) return e->err;
+        if (emit_value(e, elements[i]) != 0)
+            return e->err;
     }
     return emit(e, &close, 1);
 }
 
 static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
-    if (emit(e, "#{", 2) != 0) return e->err;
+    if (emit(e, "#{", 2) != 0)
+        return e->err;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, " ", 1) != 0) return e->err;
+            if (emit(e, " ", 1) != 0)
+                return e->err;
         }
-        if (emit_value(e, elements[i]) != 0) return e->err;
+        if (emit_value(e, elements[i]) != 0)
+            return e->err;
     }
     return emit(e, "}", 1);
 }
 
 static int emit_map(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const* values,
                     size_t count) {
-    if (emit(e, "{", 1) != 0) return e->err;
+    if (emit(e, "{", 1) != 0)
+        return e->err;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, ", ", 2) != 0) return e->err;
+            if (emit(e, ", ", 2) != 0)
+                return e->err;
         }
-        if (emit_value(e, keys[i]) != 0) return e->err;
-        if (emit(e, " ", 1) != 0) return e->err;
-        if (emit_value(e, values[i]) != 0) return e->err;
+        if (emit_value(e, keys[i]) != 0)
+            return e->err;
+        if (emit(e, " ", 1) != 0)
+            return e->err;
+        if (emit_value(e, values[i]) != 0)
+            return e->err;
     }
     return emit(e, "}", 1);
 }
 
 static int emit_tagged(emit_ctx_t* e, const edn_value_t* v) {
-    if (emit(e, "#", 1) != 0) return e->err;
-    if (emit(e, v->as.tagged.tag, v->as.tagged.tag_length) != 0) return e->err;
-    if (emit(e, " ", 1) != 0) return e->err;
+    if (emit(e, "#", 1) != 0)
+        return e->err;
+    if (emit(e, v->as.tagged.tag, v->as.tagged.tag_length) != 0)
+        return e->err;
+    if (emit(e, " ", 1) != 0)
+        return e->err;
     return emit_value(e, v->as.tagged.value);
 }
 
 static int emit_value(emit_ctx_t* e, const edn_value_t* v) {
-    if (e->err != 0) return e->err;
+    if (e->err != 0)
+        return e->err;
     if (v == NULL) {
         return emit_cstr(e, "nil");
     }
@@ -363,15 +399,20 @@ static int validate_options(const edn_write_options_t* opts) {
         }
         return 0;
     }
-    if (opts->indent != 0) return -EDN_ERROR_UNSUPPORTED_TYPE;
-    if (opts->sort_keys) return -EDN_ERROR_UNSUPPORTED_TYPE;
-    if (opts->emit_metadata) return -EDN_ERROR_UNSUPPORTED_TYPE;
-    if (opts->escape_unicode) return -EDN_ERROR_UNSUPPORTED_TYPE;
+    if (opts->indent != 0)
+        return -EDN_ERROR_UNSUPPORTED_TYPE;
+    if (opts->sort_keys)
+        return -EDN_ERROR_UNSUPPORTED_TYPE;
+    if (opts->emit_metadata)
+        return -EDN_ERROR_UNSUPPORTED_TYPE;
+    if (opts->escape_unicode)
+        return -EDN_ERROR_UNSUPPORTED_TYPE;
     return 0;
 }
 
 static bool opt_newline_at_end(const edn_write_options_t* opts) {
-    if (opts == NULL || opts->struct_size == 0) return false;
+    if (opts == NULL || opts->struct_size == 0)
+        return false;
     return opts->newline_at_end;
 }
 
@@ -385,15 +426,18 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
         return -EDN_ERROR_UNSUPPORTED_TYPE;
     }
     int v = validate_options(options);
-    if (v != 0) return v;
+    if (v != 0)
+        return v;
 
     emit_ctx_t e = {cb, ctx, 0};
     emit_value(&e, value);
-    if (e.err != 0) return e.err;
+    if (e.err != 0)
+        return e.err;
 
     if (opt_newline_at_end(options)) {
         emit(&e, "\n", 1);
-        if (e.err != 0) return e.err;
+        if (e.err != 0)
+            return e.err;
     }
     return 0;
 }
@@ -411,7 +455,8 @@ typedef struct {
 
 static int heap_cb(const char* data, size_t n, void* ctx) {
     heap_ctx_t* h = ctx;
-    if (h->failed) return -1;
+    if (h->failed)
+        return -1;
 
     if (h->len + n + 1 > h->cap) {
         size_t new_cap = h->cap ? h->cap : 64;
@@ -442,7 +487,8 @@ char* edn_write_string(const edn_value_t* value, const edn_write_options_t* opti
     int r = edn_write_stream(value, heap_cb, &h, options);
     if (r != 0 || h.failed) {
         free(h.buf);
-        if (out_len) *out_len = 0;
+        if (out_len)
+            *out_len = 0;
         return NULL;
     }
     /* Always null-terminate. */
@@ -450,7 +496,8 @@ char* edn_write_string(const edn_value_t* value, const edn_write_options_t* opti
         char* nb = realloc(h.buf, h.len + 1);
         if (!nb) {
             free(h.buf);
-            if (out_len) *out_len = 0;
+            if (out_len)
+                *out_len = 0;
             return NULL;
         }
         h.buf = nb;
@@ -459,12 +506,14 @@ char* edn_write_string(const edn_value_t* value, const edn_write_options_t* opti
     if (h.buf == NULL) {
         h.buf = malloc(1);
         if (!h.buf) {
-            if (out_len) *out_len = 0;
+            if (out_len)
+                *out_len = 0;
             return NULL;
         }
     }
     h.buf[h.len] = '\0';
-    if (out_len) *out_len = h.len;
+    if (out_len)
+        *out_len = h.len;
     return h.buf;
 }
 
@@ -516,7 +565,8 @@ size_t edn_write_buffer(const edn_value_t* value, char* buf, size_t cap,
 
 static int file_cb(const char* data, size_t n, void* ctx) {
     FILE* fp = ctx;
-    if (n == 0) return 0;
+    if (n == 0)
+        return 0;
     size_t w = fwrite(data, 1, n, fp);
     return (w == n) ? 0 : -1;
 }
@@ -532,7 +582,9 @@ int edn_write_file(const edn_value_t* value, FILE* fp, const edn_write_options_t
  * Convenience
  * ======================================================================== */
 
-char* edn_write(const edn_value_t* value) { return edn_write_string(value, NULL, NULL); }
+char* edn_write(const edn_value_t* value) {
+    return edn_write_string(value, NULL, NULL);
+}
 
 /* ========================================================================
  * Writer registry (scaffold; not yet used by emitter)
@@ -547,4 +599,6 @@ edn_writer_registry_t* edn_writer_registry_create(void) {
     return r;
 }
 
-void edn_writer_registry_destroy(edn_writer_registry_t* r) { free(r); }
+void edn_writer_registry_destroy(edn_writer_registry_t* r) {
+    free(r);
+}
