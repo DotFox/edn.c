@@ -86,6 +86,8 @@ set(SOURCES
     src/reader.c
     src/metadata.c
     src/newline_finder.c
+    src/writer.c
+    src/ryu/d2s.c
 )
 
 # Library target. Default is STATIC; pass -DEDN_BUILD_SHARED=ON for a shared library.

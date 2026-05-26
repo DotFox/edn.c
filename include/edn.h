@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(EDN_BUILDING_SHARED)
@@ -73,7 +74,8 @@ typedef enum {
     EDN_ERROR_UNKNOWN_TAG,
     EDN_ERROR_DUPLICATE_KEY,
     EDN_ERROR_DUPLICATE_ELEMENT,
-    EDN_ERROR_MAX_DEPTH_EXCEEDED
+    EDN_ERROR_MAX_DEPTH_EXCEEDED,
+    EDN_ERROR_UNSUPPORTED_TYPE
 } edn_error_t;
 
 typedef struct {
@@ -823,6 +825,90 @@ EDN_API edn_value_t* edn_value_meta(const edn_value_t* value);
  */
 EDN_API bool edn_value_has_meta(const edn_value_t* value);
 #endif
+
+/* ========================================================================
+ * EDN writer (serializer)
+ * ======================================================================== */
+
+/**
+ * Streaming output callback. Invoked with each emitted byte range. Return 0
+ * to continue, non-zero to abort emission (the negative return is propagated
+ * back to edn_write_*).
+ */
+typedef int (*edn_writer_callback_fn)(const char* buf, size_t len, void* ctx);
+
+/* Opaque writer-extension registry (for EDN_TYPE_EXTERNAL values).
+ * Scaffolded; not yet honored by edn_write_* in this release. */
+typedef struct edn_writer_registry edn_writer_registry_t;
+
+/**
+ * Writer options. Pass NULL to edn_write_* for defaults (compact, raw UTF-8,
+ * no trailing newline). When supplying a non-NULL options pointer you MUST
+ * initialize struct_size to sizeof(edn_write_options_t).
+ *
+ * Implementation status:
+ *   indent           - NOT IMPLEMENTED (non-zero -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   sort_keys        - NOT IMPLEMENTED (true -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   emit_metadata    - NOT IMPLEMENTED (true -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   escape_unicode   - NOT IMPLEMENTED (true -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   writer_registry  - NOT IMPLEMENTED (EDN_TYPE_EXTERNAL -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   newline_at_end   - implemented
+ */
+typedef struct {
+    size_t struct_size;
+    size_t indent;        /* 0 = compact; >0 reserved for future pretty-print */
+    bool sort_keys;       /* reserved */
+    bool emit_metadata;   /* reserved (requires EDN_ENABLE_CLOJURE_EXTENSION) */
+    bool escape_unicode;  /* reserved (non-ASCII bytes -> \uXXXX) */
+    bool newline_at_end;  /* emit trailing '\n' after value */
+    edn_writer_registry_t* writer_registry; /* reserved */
+} edn_write_options_t;
+
+/**
+ * Streaming primitive. All other edn_write_* functions are thin wrappers.
+ *
+ * @return 0 on success; negative on failure (callback non-zero return is
+ *         propagated; -EDN_ERROR_* for internal errors).
+ */
+EDN_API int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* ctx,
+                             const edn_write_options_t* options);
+
+/**
+ * Serialize to a freshly malloc'd, null-terminated string. Caller frees with
+ * free(). Optional out_len receives the byte length (excluding null).
+ *
+ * @return NULL on error (alloc failure or unsupported type).
+ */
+EDN_API char* edn_write_string(const edn_value_t* value, const edn_write_options_t* options,
+                               size_t* out_len);
+
+/**
+ * Serialize to a caller-provided buffer with snprintf semantics: writes at
+ * most cap-1 bytes plus a null terminator, returns the number of bytes that
+ * would have been written (excluding null). If cap == 0, buf may be NULL.
+ *
+ * @return Number of bytes required, or (size_t)-1 on error.
+ */
+EDN_API size_t edn_write_buffer(const edn_value_t* value, char* buf, size_t cap,
+                                const edn_write_options_t* options);
+
+/**
+ * Serialize to a stdio FILE*.
+ *
+ * @return 0 on success, negative on error.
+ */
+EDN_API int edn_write_file(const edn_value_t* value, FILE* fp,
+                           const edn_write_options_t* options);
+
+/**
+ * Convenience: compact, default options, freshly malloc'd string.
+ * Equivalent to edn_write_string(value, NULL, NULL). Caller frees with free().
+ */
+EDN_API char* edn_write(const edn_value_t* value);
+
+/* Writer extension registry (scaffold; not yet honored by edn_write_*). */
+EDN_API edn_writer_registry_t* edn_writer_registry_create(void);
+EDN_API void                   edn_writer_registry_destroy(edn_writer_registry_t* registry);
 
 #ifdef __cplusplus
 }
