@@ -145,8 +145,8 @@ static edn_identifier_scan_t scan_identifier(const char* ptr, const char* end) {
 static edn_value_t* create_nil_value(edn_parser_t* parser, size_t source_start, size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory allocating identifier",
+                             parser->input + source_start, parser->input + source_end);
         return NULL;
     }
 
@@ -161,8 +161,8 @@ static edn_value_t* create_bool_value(edn_parser_t* parser, bool val, size_t sou
                                       size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory allocating identifier",
+                             parser->input + source_start, parser->input + source_end);
         return NULL;
     }
 
@@ -182,8 +182,8 @@ static edn_value_t* create_symbol_value(edn_parser_t* parser, const char* namesp
                                         size_t source_start, size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory allocating identifier",
+                             parser->input + source_start, parser->input + source_end);
         return NULL;
     }
 
@@ -206,8 +206,8 @@ static edn_value_t* create_keyword_value(edn_parser_t* parser, const char* names
                                          size_t source_start, size_t source_end) {
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory allocating identifier",
+                             parser->input + source_start, parser->input + source_end);
         return NULL;
     }
 
@@ -240,10 +240,8 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
     edn_identifier_scan_t scan = scan_identifier(parser->current, parser->end);
 
     if (!scan.valid) {
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Invalid identifier";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX, "Invalid identifier", value_start,
+                             parser->current);
         return NULL;
     }
 
@@ -257,18 +255,15 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
             size_t kw_len = scan.name_length - 1;
 
             if (kw_len == 0) {
-                parser->error = EDN_ERROR_INVALID_SYNTAX;
-                parser->error_message = "Empty keyword name";
-                parser->error_start = value_start;
-                parser->error_end = parser->current;
+                edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX, "Empty keyword name",
+                                     value_start, parser->current);
                 return NULL;
             }
 
             if (*kw_name == ':') {
-                parser->error = EDN_ERROR_INVALID_SYNTAX;
-                parser->error_message = "Keyword name cannot start with ':'";
-                parser->error_start = value_start;
-                parser->error_end = parser->current;
+                edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX,
+                                     "Keyword name cannot start with ':'", value_start,
+                                     parser->current);
                 return NULL;
             }
 
@@ -306,18 +301,15 @@ edn_value_t* edn_read_identifier(edn_parser_t* parser) {
         size_t kw_name_len = scan.name_length;
 
         if (kw_ns_len == 0) {
-            parser->error = EDN_ERROR_INVALID_SYNTAX;
-            parser->error_message = "Empty namespace in keyword";
-            parser->error_start = value_start;
-            parser->error_end = parser->current;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX, "Empty namespace in keyword",
+                                 value_start, parser->current);
             return NULL;
         }
 
         if (*kw_ns == ':') {
-            parser->error = EDN_ERROR_INVALID_SYNTAX;
-            parser->error_message = "Keyword namespace cannot start with ':'";
-            parser->error_start = value_start;
-            parser->error_end = parser->current;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX,
+                                 "Keyword namespace cannot start with ':'", value_start,
+                                 parser->current);
             return NULL;
         }
 

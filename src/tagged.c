@@ -17,21 +17,19 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
     if (parser->current >= parser->end) {
         edn_leave_depth(parser);
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unexpected end of input after '#' (expected tag)";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF,
+                             "Unexpected end of input after '#' (expected tag)", value_start,
+                             parser->current);
         return NULL;
     }
 
     char next = *parser->current;
     if (next == ' ' || next == '\t' || next == '\n' || next == '\r' || next == ',') {
         edn_leave_depth(parser);
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message =
-            "Tagged literal tag must immediately follow '#' (no whitespace allowed)";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(
+            parser, EDN_ERROR_INVALID_SYNTAX,
+            "Tagged literal tag must immediately follow '#' (no whitespace allowed)", value_start,
+            parser->current);
         return NULL;
     }
 
@@ -45,10 +43,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
     if (tag_value->type != EDN_TYPE_SYMBOL) {
         edn_leave_depth(parser);
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Tagged literal must be a symbol";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX, "Tagged literal must be a symbol",
+                             value_start, parser->current);
         return NULL;
     }
 
@@ -61,10 +57,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
     if (value == NULL) {
         edn_leave_depth(parser);
         if (parser->error == EDN_OK) {
-            parser->error = EDN_ERROR_UNEXPECTED_EOF;
-            parser->error_message = "Tagged literal missing value";
-            parser->error_start = value_start;
-            parser->error_end = parser->current;
+            edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF, "Tagged literal missing value",
+                                 value_start, parser->current);
         }
         return NULL;
     }
@@ -81,10 +75,9 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
             if (result == NULL) {
                 edn_leave_depth(parser);
-                parser->error = EDN_ERROR_INVALID_SYNTAX;
-                parser->error_message = error_msg ? error_msg : "Reader function failed";
-                parser->error_start = value_start;
-                parser->error_end = parser->current;
+                edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX,
+                                     error_msg ? error_msg : "Reader function failed", value_start,
+                                     parser->current);
                 return NULL;
             }
 
@@ -104,10 +97,8 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
             case EDN_DEFAULT_READER_ERROR:
                 edn_leave_depth(parser);
-                parser->error = EDN_ERROR_UNKNOWN_TAG;
-                parser->error_message = "No reader registered for tag";
-                parser->error_start = value_start;
-                parser->error_end = parser->current;
+                edn_parser_set_error(parser, EDN_ERROR_UNKNOWN_TAG, "No reader registered for tag",
+                                     value_start, parser->current);
                 return NULL;
 
             case EDN_DEFAULT_READER_PASSTHROUGH:
@@ -121,8 +112,9 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
 
     edn_value_t* tagged = edn_arena_alloc_value(parser->arena);
     if (tagged == NULL) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory allocating tagged literal";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                             "Out of memory allocating tagged literal", value_start,
+                             parser->current);
         return NULL;
     }
 

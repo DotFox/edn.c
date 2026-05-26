@@ -22,17 +22,16 @@ edn_value_t* edn_read_symbolic_value(edn_parser_t* parser) {
         value = NAN;
         ptr += 3;
     } else {
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Invalid symbolic value (expected ##Inf, ##-Inf, or ##NaN)";
-        parser->error_start = value_start;
-        parser->error_end = parser->end;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX,
+                             "Invalid symbolic value (expected ##Inf, ##-Inf, or ##NaN)",
+                             value_start, parser->end);
         return NULL;
     }
 
     edn_value_t* result = edn_arena_alloc_value(parser->arena);
     if (!result) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                             "Out of memory allocating symbolic value", value_start, ptr);
         return NULL;
     }
 

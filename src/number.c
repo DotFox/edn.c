@@ -135,10 +135,7 @@ static inline void advance_char(edn_parser_t* parser) {
  * Set parser error.
  */
 static inline void set_number_error(edn_parser_t* parser, const char* start, const char* message) {
-    parser->error = EDN_ERROR_INVALID_NUMBER;
-    parser->error_message = message;
-    parser->error_start = start;
-    parser->error_end = parser->current;
+    edn_parser_set_error(parser, EDN_ERROR_INVALID_NUMBER, message, start, parser->current);
 }
 
 static inline bool validate_number_delimiter(edn_parser_t* parser, const char* start) {

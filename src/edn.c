@@ -478,14 +478,14 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
         if (c == ' ' || c == ',' || c == ';' || (c >= 0x09 && c <= 0x0D) ||
             (c >= 0x1C && c <= 0x1F)) {
             if (!edn_skip_whitespace(parser)) {
-                parser->error = EDN_ERROR_UNEXPECTED_EOF;
-                parser->error_message = "Unexpected end of input";
+                edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF, "Unexpected end of input",
+                                     parser->current, parser->current);
                 return NULL;
             }
         }
     } else {
-        parser->error = EDN_ERROR_UNEXPECTED_EOF;
-        parser->error_message = "Unexpected end of input";
+        edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF, "Unexpected end of input",
+                             parser->current, parser->current);
         return NULL;
     }
 
@@ -558,14 +558,16 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
             /* Closing delimiters: ), ], } */
             if (parser->depth == 0) {
                 /* Unmatched closing delimiter at top level */
-                parser->error = EDN_ERROR_UNMATCHED_DELIMITER;
+                const char* msg;
                 if (c == ')') {
-                    parser->error_message = "Unmatched closing delimiter ')'";
+                    msg = "Unmatched closing delimiter ')'";
                 } else if (c == ']') {
-                    parser->error_message = "Unmatched closing delimiter ']'";
+                    msg = "Unmatched closing delimiter ']'";
                 } else {
-                    parser->error_message = "Unmatched closing delimiter '}'";
+                    msg = "Unmatched closing delimiter '}'";
                 }
+                edn_parser_set_error(parser, EDN_ERROR_UNMATCHED_DELIMITER, msg, parser->current,
+                                     parser->current + 1);
                 return NULL;
             }
             /* Inside collection - let collection parser handle it */

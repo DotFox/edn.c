@@ -343,6 +343,29 @@ typedef struct {
 } edn_parser_t;
 
 /**
+ * Set parser error state in one call.
+ *
+ * Standard convention for all error sites in the parser:
+ * - `code`: an EDN_ERROR_* enum value
+ * - `message`: human-readable description; should be a single sentence, no
+ *   trailing period, starting with a capital letter, naming the offending
+ *   construct (e.g. "Unterminated list", "Invalid hex digit in character
+ *   escape"). Quote literal delimiters with single quotes ('}', ')').
+ * - `start`/`end`: byte pointers into `parser->input`. `start` points at the
+ *   first byte of the offending range; `end` points one past the last byte
+ *   (half-open). For zero-width errors at a position, pass `end == start` or
+ *   `end == parser->current`.
+ */
+static inline void edn_parser_set_error(edn_parser_t* parser, edn_error_t code,
+                                        const char* message, const char* start,
+                                        const char* end) {
+    parser->error = code;
+    parser->error_message = message;
+    parser->error_start = start;
+    parser->error_end = end;
+}
+
+/**
  * Enter one nesting level. Returns false if the depth cap would be exceeded.
  * On failure, sets parser->error to EDN_ERROR_MAX_DEPTH_EXCEEDED.
  *
@@ -351,10 +374,8 @@ typedef struct {
  */
 static inline bool edn_enter_depth(edn_parser_t* parser) {
     if (parser->depth >= parser->max_depth) {
-        parser->error = EDN_ERROR_MAX_DEPTH_EXCEEDED;
-        parser->error_message = "Maximum nesting depth exceeded";
-        parser->error_start = parser->current;
-        parser->error_end = parser->current;
+        edn_parser_set_error(parser, EDN_ERROR_MAX_DEPTH_EXCEEDED,
+                             "Maximum nesting depth exceeded", parser->current, parser->current);
         return false;
     }
     parser->depth++;

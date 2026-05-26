@@ -443,8 +443,7 @@ TEST(character_missing_delimiter_after) {
     edn_result_t result = edn_read("\\abc", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message,
-                  "Unsupported character - expected delimiter after character literal");
+    assert_str_eq(result.error_message, "Expected delimiter after character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -453,8 +452,7 @@ TEST(character_invalid_named_partial) {
     edn_result_t result = edn_read("\\new", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message,
-                  "Unsupported character - expected delimiter after character literal");
+    assert_str_eq(result.error_message, "Expected delimiter after character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -485,7 +483,7 @@ TEST(character_octal_invalid_digit_8) {
     edn_result_t result = edn_read("\\o8", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -494,7 +492,7 @@ TEST(character_octal_invalid_digit_9) {
     edn_result_t result = edn_read("\\o9", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -503,7 +501,7 @@ TEST(character_octal_overflow) {
     edn_result_t result = edn_read("\\o400", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -512,7 +510,7 @@ TEST(character_octal_trailing_invalid_digit) {
     edn_result_t result = edn_read("\\o128", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
     assert_uint_eq(result.error_start.offset, 0);
 }
 
@@ -541,7 +539,7 @@ TEST(character_octal_in_vector_invalid) {
     edn_result_t result = edn_read("[\\o8]", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
 }
 
 TEST(character_octal_in_map_key_invalid) {
@@ -549,7 +547,7 @@ TEST(character_octal_in_map_key_invalid) {
     edn_result_t result = edn_read("{\\o400 :val}", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_CHARACTER);
-    assert_str_eq(result.error_message, "Invalid Octal escape sequence in character literal");
+    assert_str_eq(result.error_message, "Invalid octal escape sequence in character literal");
 }
 
 #endif /* EDN_ENABLE_CLOJURE_EXTENSION */
@@ -705,6 +703,75 @@ TEST(unterminated_multiline) {
     assert_uint_eq(result.error_end.line, 3);
 }
 
+/* ========================================================================
+ * Error code coverage
+ * ======================================================================== */
+
+TEST(invalid_number_leading_zero) {
+    edn_result_t result = edn_read("0123", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_NUMBER);
+    assert_str_eq(result.error_message, "Leading zeros not allowed");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(invalid_number_trailing_garbage) {
+    /* Number must be followed by whitespace or a delimiter. */
+    edn_result_t result = edn_read("123abc", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_INVALID_NUMBER);
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(duplicate_key_in_map) {
+    edn_result_t result = edn_read("{:a 1 :a 2}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_DUPLICATE_KEY);
+    assert_str_eq(result.error_message, "Map contains duplicate keys");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(duplicate_element_in_set) {
+    edn_result_t result = edn_read("#{1 2 1}", 0);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_DUPLICATE_ELEMENT);
+    assert_str_eq(result.error_message, "Set contains duplicate elements");
+    assert_uint_eq(result.error_start.offset, 0);
+}
+
+TEST(max_depth_exceeded) {
+    /* Cap depth at 8; supply 16 nested '[' to exceed it. */
+    char input[33];
+    for (int i = 0; i < 16; i++) input[i] = '[';
+    for (int i = 16; i < 32; i++) input[i] = ']';
+    input[32] = '\0';
+
+    edn_parse_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.max_depth = 8;
+    edn_result_t result = edn_read_with_options(input, 32, &opts);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_MAX_DEPTH_EXCEEDED);
+    assert_str_eq(result.error_message, "Maximum nesting depth exceeded");
+}
+
+TEST(unknown_tag_default_error_mode) {
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+
+    edn_parse_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.reader_registry = registry;
+    opts.default_reader_mode = EDN_DEFAULT_READER_ERROR;
+    edn_result_t result = edn_read_with_options("#mytag 42", 0, &opts);
+    assert(result.value == NULL);
+    assert(result.error == EDN_ERROR_UNKNOWN_TAG);
+    assert_str_eq(result.error_message, "No reader registered for tag");
+    assert_uint_eq(result.error_start.offset, 0);
+
+    edn_reader_registry_destroy(registry);
+}
+
 int main(void) {
     printf("Running error tests...\n");
 
@@ -801,6 +868,14 @@ int main(void) {
     /* Multi-line Error Positions */
     RUN_TEST(mismatched_multiline);
     RUN_TEST(unterminated_multiline);
+
+    /* Error code coverage */
+    RUN_TEST(invalid_number_leading_zero);
+    RUN_TEST(invalid_number_trailing_garbage);
+    RUN_TEST(duplicate_key_in_map);
+    RUN_TEST(duplicate_element_in_set);
+    RUN_TEST(max_depth_exceeded);
+    RUN_TEST(unknown_tag_default_error_mode);
 
     TEST_SUMMARY("errors");
 }

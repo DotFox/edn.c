@@ -33,10 +33,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         meta_value->type != EDN_TYPE_STRING && meta_value->type != EDN_TYPE_SYMBOL &&
         meta_value->type != EDN_TYPE_VECTOR) {
         edn_leave_depth(parser);
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message = "Metadata must be a map, keyword, string, symbol, or vector";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_SYNTAX,
+                             "Metadata must be a map, keyword, string, symbol, or vector",
+                             value_start, parser->current);
         return NULL;
     }
 
@@ -52,11 +51,10 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         form->type != EDN_TYPE_MAP && form->type != EDN_TYPE_SET && form->type != EDN_TYPE_TAGGED &&
         form->type != EDN_TYPE_SYMBOL) {
         edn_leave_depth(parser);
-        parser->error = EDN_ERROR_INVALID_SYNTAX;
-        parser->error_message =
-            "Metadata can only be attached to collections, tagged literals, and symbols";
-        parser->error_start = value_start;
-        parser->error_end = parser->current;
+        edn_parser_set_error(
+            parser, EDN_ERROR_INVALID_SYNTAX,
+            "Metadata can only be attached to collections, tagged literals, and symbols", value_start,
+            parser->current);
         return NULL;
     }
 
@@ -79,8 +77,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Add {:keyword true} */
             edn_value_t* true_value = edn_arena_alloc_value(parser->arena);
             if (true_value == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata value";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata value", value_start,
+                                     parser->current);
                 return NULL;
             }
             true_value->type = EDN_TYPE_BOOL;
@@ -91,8 +90,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             new_keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             new_values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (new_keys == NULL || new_values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             new_keys[0] = meta_value;
@@ -102,8 +102,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Create {:param-tags vector} */
             edn_value_t* param_tags_keyword = edn_arena_alloc_value(parser->arena);
             if (param_tags_keyword == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating :param-tags keyword";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating :param-tags keyword", value_start,
+                                     parser->current);
                 return NULL;
             }
             param_tags_keyword->type = EDN_TYPE_KEYWORD;
@@ -117,8 +118,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             new_keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             new_values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (new_keys == NULL || new_values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             new_keys[0] = param_tags_keyword;
@@ -128,8 +130,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Add {:tag value} */
             edn_value_t* tag_keyword = edn_arena_alloc_value(parser->arena);
             if (tag_keyword == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating :tag keyword";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating :tag keyword", value_start,
+                                     parser->current);
                 return NULL;
             }
             tag_keyword->type = EDN_TYPE_KEYWORD;
@@ -143,8 +146,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             new_keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             new_values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (new_keys == NULL || new_values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             new_keys[0] = tag_keyword;
@@ -159,8 +163,8 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         edn_value_t** merged_values =
             edn_arena_alloc(parser->arena, max_count * sizeof(edn_value_t*));
         if (merged_keys == NULL || merged_values == NULL) {
-            parser->error = EDN_ERROR_OUT_OF_MEMORY;
-            parser->error_message = "Out of memory merging metadata";
+            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory merging metadata",
+                                 value_start, parser->current);
             return NULL;
         }
 
@@ -198,8 +202,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         /* No existing metadata - create new metadata map */
         edn_value_t* meta_map = edn_arena_alloc_value(parser->arena);
         if (meta_map == NULL) {
-            parser->error = EDN_ERROR_OUT_OF_MEMORY;
-            parser->error_message = "Out of memory creating metadata map";
+            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                 "Out of memory creating metadata map", value_start,
+                                 parser->current);
             return NULL;
         }
         meta_map->type = EDN_TYPE_MAP;
@@ -215,8 +220,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Create {:keyword true} */
             edn_value_t* true_value = edn_arena_alloc_value(parser->arena);
             if (true_value == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata value";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata value", value_start,
+                                     parser->current);
                 return NULL;
             }
             true_value->type = EDN_TYPE_BOOL;
@@ -227,8 +233,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (keys == NULL || values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             keys[0] = meta_value;
@@ -241,8 +248,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Create {:param-tags vector} */
             edn_value_t* param_tags_keyword = edn_arena_alloc_value(parser->arena);
             if (param_tags_keyword == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating :param-tags keyword";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating :param-tags keyword", value_start,
+                                     parser->current);
                 return NULL;
             }
             param_tags_keyword->type = EDN_TYPE_KEYWORD;
@@ -256,8 +264,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (keys == NULL || values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             keys[0] = param_tags_keyword;
@@ -270,8 +279,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             /* Create {:tag value} */
             edn_value_t* tag_keyword = edn_arena_alloc_value(parser->arena);
             if (tag_keyword == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating :tag keyword";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating :tag keyword", value_start,
+                                     parser->current);
                 return NULL;
             }
             tag_keyword->type = EDN_TYPE_KEYWORD;
@@ -285,8 +295,9 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
             edn_value_t** keys = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             edn_value_t** values = edn_arena_alloc(parser->arena, sizeof(edn_value_t*));
             if (keys == NULL || values == NULL) {
-                parser->error = EDN_ERROR_OUT_OF_MEMORY;
-                parser->error_message = "Out of memory creating metadata entry";
+                edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                     "Out of memory creating metadata entry", value_start,
+                                     parser->current);
                 return NULL;
             }
             keys[0] = tag_keyword;

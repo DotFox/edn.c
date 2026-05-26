@@ -24,10 +24,8 @@ edn_value_t* edn_read_discarded_value(edn_parser_t* parser) {
          * Point error_end at the position immediately after the "#_" token,
          * which is where the discarded value should have begun. */
         if (parser->error == EDN_OK) {
-            parser->error = EDN_ERROR_INVALID_DISCARD;
-            parser->error_message = "Discard macro missing value";
-            parser->error_start = start;
-            parser->error_end = start + 2;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_DISCARD,
+                                 "Discard macro missing value", start, start + 2);
         }
         return NULL;
     }

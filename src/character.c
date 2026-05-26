@@ -128,10 +128,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     ptr++;
 
     if (ptr >= end) {
-        parser->error = EDN_ERROR_INVALID_CHARACTER;
-        parser->error_message = "Unexpected end of input in character literal";
-        parser->error_start = start;
-        parser->error_end = ptr;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                             "Unexpected end of input in character literal", start, ptr);
         return NULL;
     }
 
@@ -161,10 +159,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
         ptr++;
         const char* next_ptr;
         if (!parse_octal_escape(ptr, end, &codepoint, &next_ptr)) {
-            parser->error = EDN_ERROR_INVALID_CHARACTER;
-            parser->error_message = "Invalid Octal escape sequence in character literal";
-            parser->error_start = start;
-            parser->error_end = ptr;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                                 "Invalid octal escape sequence in character literal", start, ptr);
             return NULL;
         }
         ptr = next_ptr;
@@ -177,29 +173,25 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
 #ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
         int digits_consumed;
         if (!parse_unicode_escape(ptr, end, &codepoint, &digits_consumed)) {
-            parser->error = EDN_ERROR_INVALID_CHARACTER;
-            parser->error_message = "Invalid Unicode escape sequence in character literal";
-            parser->error_start = start;
-            parser->error_end = ptr + 4;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                                 "Invalid Unicode escape sequence in character literal", start,
+                                 ptr + 4);
             return NULL;
         }
         ptr += digits_consumed;
 #else
         if (!parse_unicode_escape(ptr, end, &codepoint)) {
-            parser->error = EDN_ERROR_INVALID_CHARACTER;
-            parser->error_message = "Invalid Unicode escape sequence in character literal";
-            parser->error_start = start;
-            parser->error_end = ptr + 4;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                                 "Invalid Unicode escape sequence in character literal", start,
+                                 ptr + 4);
             return NULL;
         }
         ptr += 4;
 #endif
     } else {
         if (!is_valid_single_char(*ptr)) {
-            parser->error = EDN_ERROR_INVALID_CHARACTER;
-            parser->error_message = "Unsupported character literal";
-            parser->error_start = start;
-            parser->error_end = ptr + 1;
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER, "Unsupported character literal",
+                                 start, ptr + 1);
             return NULL;
         }
         codepoint = (uint32_t) (unsigned char) *ptr;
@@ -207,27 +199,22 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
     }
 
     if (codepoint > 0x10FFFF) {
-        parser->error = EDN_ERROR_INVALID_CHARACTER;
-        parser->error_message = "Unicode codepoint out of valid range";
-        parser->error_start = start;
-        parser->error_end = ptr;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                             "Unicode codepoint out of valid range", start, ptr);
         return NULL;
     }
 
     /* After parsing a character, we must be at end of input or at a delimiter */
     if (ptr < end && !is_delimiter((unsigned char) *ptr)) {
-        parser->error = EDN_ERROR_INVALID_CHARACTER;
-        parser->error_message =
-            "Unsupported character - expected delimiter after character literal";
-        parser->error_start = start;
-        parser->error_end = ptr;
+        edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                             "Expected delimiter after character literal", start, ptr);
         return NULL;
     }
 
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        parser->error = EDN_ERROR_OUT_OF_MEMORY;
-        parser->error_message = "Out of memory";
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                             "Out of memory allocating character", start, ptr);
         return NULL;
     }
 
