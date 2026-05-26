@@ -53,8 +53,8 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         edn_leave_depth(parser);
         edn_parser_set_error(
             parser, EDN_ERROR_INVALID_SYNTAX,
-            "Metadata can only be attached to collections, tagged literals, and symbols", value_start,
-            parser->current);
+            "Metadata can only be attached to collections, tagged literals, and symbols",
+            value_start, parser->current);
         return NULL;
     }
 

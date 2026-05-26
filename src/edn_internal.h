@@ -356,9 +356,8 @@ typedef struct {
  *   (half-open). For zero-width errors at a position, pass `end == start` or
  *   `end == parser->current`.
  */
-static inline void edn_parser_set_error(edn_parser_t* parser, edn_error_t code,
-                                        const char* message, const char* start,
-                                        const char* end) {
+static inline void edn_parser_set_error(edn_parser_t* parser, edn_error_t code, const char* message,
+                                        const char* start, const char* end) {
     parser->error = code;
     parser->error_message = message;
     parser->error_start = start;
@@ -374,8 +373,8 @@ static inline void edn_parser_set_error(edn_parser_t* parser, edn_error_t code,
  */
 static inline bool edn_enter_depth(edn_parser_t* parser) {
     if (parser->depth >= parser->max_depth) {
-        edn_parser_set_error(parser, EDN_ERROR_MAX_DEPTH_EXCEEDED,
-                             "Maximum nesting depth exceeded", parser->current, parser->current);
+        edn_parser_set_error(parser, EDN_ERROR_MAX_DEPTH_EXCEEDED, "Maximum nesting depth exceeded",
+                             parser->current, parser->current);
         return false;
     }
     parser->depth++;

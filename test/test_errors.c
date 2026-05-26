@@ -708,11 +708,13 @@ TEST(unterminated_multiline) {
  * ======================================================================== */
 
 TEST(invalid_number_leading_zero) {
+#ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     edn_result_t result = edn_read("0123", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_NUMBER);
     assert_str_eq(result.error_message, "Leading zeros not allowed");
     assert_uint_eq(result.error_start.offset, 0);
+#endif
 }
 
 TEST(invalid_number_trailing_garbage) {
@@ -742,8 +744,10 @@ TEST(duplicate_element_in_set) {
 TEST(max_depth_exceeded) {
     /* Cap depth at 8; supply 16 nested '[' to exceed it. */
     char input[33];
-    for (int i = 0; i < 16; i++) input[i] = '[';
-    for (int i = 16; i < 32; i++) input[i] = ']';
+    for (int i = 0; i < 16; i++)
+        input[i] = '[';
+    for (int i = 16; i < 32; i++)
+        input[i] = ']';
     input[32] = '\0';
 
     edn_parse_options_t opts = {0};

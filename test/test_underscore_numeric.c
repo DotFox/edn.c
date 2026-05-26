@@ -491,15 +491,13 @@ TEST(underscore_set_duplicate_linear) {
 /* Set duplicate detection (sorted path, >16 elements) exercises edn_value_compare. */
 TEST(underscore_set_duplicate_sorted) {
     /* 17 unique padding BigInts + duplicate pair (underscore variants) */
-    const char* input =
-        "#{1N 2N 3N 4N 5N 6N 7N 8N 9N 10N 11N 12N 13N 14N 15N 16N 17N "
-        "1_000_000N 1000000N}";
+    const char* input = "#{1N 2N 3N 4N 5N 6N 7N 8N 9N 10N 11N 12N 13N 14N 15N 16N 17N "
+                        "1_000_000N 1000000N}";
     edn_result_t r = edn_read(input, 0);
     assert(r.error == EDN_ERROR_DUPLICATE_ELEMENT);
 
-    const char* input2 =
-        "#{1M 2M 3M 4M 5M 6M 7M 8M 9M 10M 11M 12M 13M 14M 15M 16M 17M "
-        "1_000.5M 1000.5M}";
+    const char* input2 = "#{1M 2M 3M 4M 5M 6M 7M 8M 9M 10M 11M 12M 13M 14M 15M 16M 17M "
+                         "1_000.5M 1000.5M}";
     edn_result_t r2 = edn_read(input2, 0);
     assert(r2.error == EDN_ERROR_DUPLICATE_ELEMENT);
 }

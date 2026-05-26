@@ -102,8 +102,8 @@ edn_value_t* edn_read_list(edn_parser_t* parser) {
 
         if (!edn_collection_builder_add(&builder, element)) {
             edn_leave_depth(parser);
-            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory while building list",
-                                 value_start, parser->current);
+            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                 "Out of memory while building list", value_start, parser->current);
             return NULL;
         }
     }
@@ -247,8 +247,8 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
 
         if (!edn_collection_builder_add(&builder, element)) {
             edn_leave_depth(parser);
-            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory while building set",
-                                 value_start, parser->current);
+            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                 "Out of memory while building set", value_start, parser->current);
             return NULL;
         }
     }
@@ -285,8 +285,8 @@ edn_value_t* edn_read_set(edn_parser_t* parser) {
 
     /* Check for duplicate elements (EDN spec requirement) */
     if (count > 1 && edn_has_duplicates(elements, count)) {
-        edn_parser_set_error(parser, EDN_ERROR_DUPLICATE_ELEMENT,
-                             "Set contains duplicate elements", value_start, parser->current);
+        edn_parser_set_error(parser, EDN_ERROR_DUPLICATE_ELEMENT, "Set contains duplicate elements",
+                             value_start, parser->current);
         return NULL;
     }
 
@@ -516,8 +516,8 @@ static edn_value_t* edn_read_map_internal(edn_parser_t* parser, const char* valu
 
         if (!edn_map_builder_add(&builder, final_key, value)) {
             edn_leave_depth(parser);
-            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory while building map",
-                                 value_start, parser->current);
+            edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
+                                 "Out of memory while building map", value_start, parser->current);
             return NULL;
         }
     }

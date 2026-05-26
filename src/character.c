@@ -190,8 +190,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
 #endif
     } else {
         if (!is_valid_single_char(*ptr)) {
-            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER, "Unsupported character literal",
-                                 start, ptr + 1);
+            edn_parser_set_error(parser, EDN_ERROR_INVALID_CHARACTER,
+                                 "Unsupported character literal", start, ptr + 1);
             return NULL;
         }
         codepoint = (uint32_t) (unsigned char) *ptr;
@@ -213,8 +213,8 @@ edn_value_t* edn_read_character(edn_parser_t* parser) {
 
     edn_value_t* value = edn_arena_alloc_value(parser->arena);
     if (!value) {
-        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
-                             "Out of memory allocating character", start, ptr);
+        edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY, "Out of memory allocating character",
+                             start, ptr);
         return NULL;
     }
 

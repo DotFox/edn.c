@@ -684,7 +684,8 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
         }
         free(lines);
         edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
-                             "Out of memory allocating result string", value_start, parser->current);
+                             "Out of memory allocating result string", value_start,
+                             parser->current);
         return NULL;
     }
 
