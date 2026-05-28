@@ -207,6 +207,66 @@ TEST(write_bigint) {
     free(s);
 }
 
+static bool bigint_roundtrip_equal(const char* input) {
+    edn_result_t a = edn_read(input, 0);
+    if (a.error != EDN_OK)
+        return false;
+    char* serialized = edn_write(a.value);
+    if (!serialized) {
+        edn_free(a.value);
+        return false;
+    }
+    edn_result_t b = edn_read(serialized, 0);
+    bool ok = (b.error == EDN_OK) && edn_value_equal(a.value, b.value);
+    free(serialized);
+    edn_free(a.value);
+    edn_free(b.value);
+    return ok;
+}
+
+TEST(write_bigint_decimal_roundtrip) {
+    char* s = write_roundtrip("123N");
+    assert(s != NULL);
+    assert_str_eq(s, "123N");
+    free(s);
+    assert_true(bigint_roundtrip_equal("123N"));
+}
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+TEST(write_bigint_hex_roundtrip) {
+    assert_true(bigint_roundtrip_equal("0xFFN"));
+}
+
+TEST(write_bigint_octal_roundtrip) {
+    char* s = write_roundtrip("077N");
+    assert(s != NULL);
+    assert_str_eq(s, "077N");
+    free(s);
+    assert_true(bigint_roundtrip_equal("077N"));
+}
+
+TEST(write_bigint_radix2_small) {
+    /* Small radix-2 values fit in int64 and reparse to EDN_TYPE_INT;
+     * edn_value_equal still holds across the int<->bigint bridge. */
+    assert_true(bigint_roundtrip_equal("2r1010"));
+}
+
+TEST(write_bigint_radix5_arbitrary) {
+    assert_true(bigint_roundtrip_equal("5r1234"));
+}
+
+TEST(write_bigint_radix2_large) {
+    /* 71-digit binary literal forces the parser to take the bigint path on
+     * re-parse, exercising radix preservation in the bigint slot. */
+    const char* input = "2r10000000000000000000000000000000000000000000000000000000000000000000000";
+    assert_true(bigint_roundtrip_equal(input));
+}
+
+TEST(write_bigint_radix2_negative) {
+    assert_true(bigint_roundtrip_equal("-2r1111"));
+}
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
 TEST(write_bigdec) {
     char* s = write_roundtrip("3.1415926535897932384626433832795028841971693993751M");
     assert(s != NULL);
@@ -388,7 +448,7 @@ typedef struct {
 static int capture_cb(const char* data, size_t n, void* ctx) {
     capture_ctx_t* c = ctx;
     if (c->len + n + 1 > sizeof(c->buf))
-        return -1;
+        return -EDN_ERROR_OUT_OF_MEMORY;
     memcpy(c->buf + c->len, data, n);
     c->len += n;
     c->buf[c->len] = '\0';
@@ -408,13 +468,76 @@ TEST(write_stream_callback) {
 }
 
 TEST(write_stream_callback_abort) {
-    edn_result_t r = edn_read("[1 2 3]", 0);
+    /* Long string that overflows capture_ctx_t::buf (64 bytes), forcing
+     * capture_cb to return its error code mid-emission. */
+    edn_result_t r = edn_read("[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
+                              0);
     assert(r.error == EDN_OK);
 
     capture_ctx_t c = {{0}, 0};
-    /* Buffer too small forces capture_cb to fail mid-emission. */
     int rc = edn_write_stream(r.value, capture_cb, &c, NULL);
-    assert(rc == 0); /* "[1 2 3]" fits in 64 */
+    assert(rc == -EDN_ERROR_OUT_OF_MEMORY);
+    assert_true(c.len > 0);
+    assert_true(c.len < sizeof(c.buf));
+
+    edn_free(r.value);
+}
+
+static int abort_with_oom_cb(const char* data, size_t n, void* ctx) {
+    (void) data;
+    (void) n;
+    (void) ctx;
+    return -EDN_ERROR_OUT_OF_MEMORY;
+}
+
+TEST(write_stream_callback_error_propagation) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+    int rc = edn_write_stream(r.value, abort_with_oom_cb, NULL, NULL);
+    assert(rc == -EDN_ERROR_OUT_OF_MEMORY);
+    edn_free(r.value);
+}
+
+TEST(write_stream_null_cb_invalid_argument) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+    int rc = edn_write_stream(r.value, NULL, NULL, NULL);
+    assert(rc == -EDN_ERROR_INVALID_ARGUMENT);
+    edn_free(r.value);
+}
+
+TEST(write_file_null_fp_invalid_argument) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+    int rc = edn_write_file(r.value, NULL, NULL);
+    assert(rc == -EDN_ERROR_INVALID_ARGUMENT);
+    edn_free(r.value);
+}
+
+TEST(write_buffer_null_buf_returns_sentinel) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+    size_t needed = edn_write_buffer(r.value, NULL, 16, NULL);
+    assert(needed == (size_t) -1);
+    edn_free(r.value);
+}
+
+TEST(write_options_bogus_struct_size_invalid_argument) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = 1; /* non-zero but smaller than sizeof(opts) */
+
+    /* edn_write_string only signals failure via NULL; probe edn_write_stream
+     * to observe the exact code. */
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s == NULL);
+
+    int rc = edn_write_stream(r.value, abort_with_oom_cb, NULL, &opts);
+    assert(rc == -EDN_ERROR_INVALID_ARGUMENT);
+
     edn_free(r.value);
 }
 
@@ -622,6 +745,15 @@ int main(void) {
     RUN_TEST(write_float_pos_inf);
     RUN_TEST(write_float_neg_inf);
     RUN_TEST(write_bigint);
+    RUN_TEST(write_bigint_decimal_roundtrip);
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    RUN_TEST(write_bigint_hex_roundtrip);
+    RUN_TEST(write_bigint_octal_roundtrip);
+    RUN_TEST(write_bigint_radix2_small);
+    RUN_TEST(write_bigint_radix5_arbitrary);
+    RUN_TEST(write_bigint_radix2_large);
+    RUN_TEST(write_bigint_radix2_negative);
+#endif
     RUN_TEST(write_bigdec);
     RUN_TEST(write_string_simple);
     RUN_TEST(write_string_with_escapes);
@@ -650,6 +782,11 @@ int main(void) {
     RUN_TEST(write_file_tmpfile);
     RUN_TEST(write_stream_callback);
     RUN_TEST(write_stream_callback_abort);
+    RUN_TEST(write_stream_callback_error_propagation);
+    RUN_TEST(write_stream_null_cb_invalid_argument);
+    RUN_TEST(write_file_null_fp_invalid_argument);
+    RUN_TEST(write_buffer_null_buf_returns_sentinel);
+    RUN_TEST(write_options_bogus_struct_size_invalid_argument);
 
     /* options */
     RUN_TEST(write_newline_at_end);
