@@ -16,6 +16,7 @@ typedef struct {
     void* ctx;
     int err;             /* 0 = ok; <0 propagated to caller */
     bool sort_unordered; /* deterministic ordering of map entries and set elements (byte-wise) */
+    bool emit_metadata;  /* emit ^... prefixes for values with attached metadata */
 } emit_ctx_t;
 
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
@@ -217,6 +218,41 @@ static int emit_ratio(emit_ctx_t* e, const edn_value_t* v) {
         return e->err;
     }
     return emit(e, buf, (size_t) len);
+}
+
+/* True iff `v` is a bare (non-namespaced) keyword whose name equals
+ * `name[0..name_len)`. Used to classify metadata maps for short-form
+ * emission (e.g. `:tag`, `:param-tags`). */
+static bool keyword_is_bare(const edn_value_t* v, const char* name, size_t name_len) {
+    return v != NULL && v->type == EDN_TYPE_KEYWORD && v->as.keyword.ns_length == 0 &&
+           v->as.keyword.name_length == name_len && memcmp(v->as.keyword.name, name, name_len) == 0;
+}
+
+/* Emit the `^<META>` prefix for a value's metadata map. Short forms:
+ *   {:tag Sym}            -> ^Sym
+ *   {:param-tags [...]}   -> ^[...]
+ *   {:any-kw true}        -> ^:any-kw         (including namespaced keys)
+ * Anything else (including empty map and non-matching single entries) emits
+ * the full map form `^{...}`. Caller is expected to emit a separating space
+ * between the prefix and the value. */
+static int emit_metadata_prefix(emit_ctx_t* e, const edn_value_t* meta) {
+    if (emit(e, "^", 1) != 0)
+        return e->err;
+    if (meta->as.map.count == 1) {
+        const edn_value_t* k = meta->as.map.keys[0];
+        const edn_value_t* val = meta->as.map.values[0];
+        if (keyword_is_bare(k, "tag", 3) && val != NULL && val->type == EDN_TYPE_SYMBOL) {
+            return emit_value(e, val);
+        }
+        if (keyword_is_bare(k, "param-tags", 10) && val != NULL && val->type == EDN_TYPE_VECTOR) {
+            return emit_value(e, val);
+        }
+        if (k != NULL && k->type == EDN_TYPE_KEYWORD && val != NULL && val->type == EDN_TYPE_BOOL &&
+            val->as.boolean) {
+            return emit_value(e, k);
+        }
+    }
+    return emit_value(e, meta);
 }
 #endif
 
@@ -477,6 +513,15 @@ static int emit_value(emit_ctx_t* e, const edn_value_t* v) {
         return emit_cstr(e, "nil");
     }
 
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (e->emit_metadata && v->metadata != NULL) {
+        if (emit_metadata_prefix(e, v->metadata) != 0)
+            return e->err;
+        if (emit(e, " ", 1) != 0)
+            return e->err;
+    }
+#endif
+
     switch (v->type) {
         case EDN_TYPE_NIL:
             return emit_cstr(e, "nil");
@@ -533,8 +578,10 @@ static int validate_options(const edn_write_options_t* opts) {
     }
     if (opts->indent != 0)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
     if (opts->emit_metadata)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
+#endif
     if (opts->escape_unicode)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
     return 0;
@@ -560,7 +607,12 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
         return v;
 
     bool sort_unordered = (options != NULL && options->struct_size != 0 && options->sort_unordered);
-    emit_ctx_t e = {.cb = cb, .ctx = ctx, .err = 0, .sort_unordered = sort_unordered};
+    bool emit_metadata = (options != NULL && options->struct_size != 0 && options->emit_metadata);
+    emit_ctx_t e = {.cb = cb,
+                    .ctx = ctx,
+                    .err = 0,
+                    .sort_unordered = sort_unordered,
+                    .emit_metadata = emit_metadata};
     emit_value(&e, value);
     if (e.err != 0)
         return e.err;
@@ -618,7 +670,11 @@ static int heap_cb(const char* data, size_t n, void* ctx) {
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
                                  size_t* out_len) {
     heap_ctx_t h = {.buf = NULL, .len = 0, .cap = 0, .failed = false};
-    emit_ctx_t e = {.cb = heap_cb, .ctx = &h, .err = 0, .sort_unordered = sort_unordered};
+    emit_ctx_t e = {.cb = heap_cb,
+                    .ctx = &h,
+                    .err = 0,
+                    .sort_unordered = sort_unordered,
+                    .emit_metadata = false};
     emit_value(&e, v);
     if (e.err != 0 || h.failed) {
         free(h.buf);
