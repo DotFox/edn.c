@@ -707,8 +707,13 @@ edn_value_t* edn_read_number(edn_parser_t* parser) {
         }
 
         if (c >= '1' && c <= '7') {
-            /* Octal: 0777 */
+            /* Octal: 0777. Reset digits_start to exclude the leading '0',
+             * matching the hex `0x` convention. The zero-loop above also
+             * means inputs like "00077N" canonicalize to a stored slice of
+             * "77" — hex does not canonicalize this way (no zero-loop
+             * runs after `0x`). */
             radix = 8;
+            digits_start = parser->current;
             goto parse_octal_digits;
         }
 

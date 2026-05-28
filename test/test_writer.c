@@ -245,6 +245,35 @@ TEST(write_bigint_octal_roundtrip) {
     assert_true(bigint_roundtrip_equal("077N"));
 }
 
+TEST(write_bigint_octal_canonicalizes_leading_zeros) {
+    char* s = write_roundtrip("00077N");
+    assert(s != NULL);
+    assert_str_eq(s, "077N");
+    free(s);
+
+    edn_result_t a = edn_read("00077N", 0);
+    assert(a.error == EDN_OK);
+    char* serialized = edn_write(a.value);
+    assert(serialized != NULL);
+    edn_result_t b = edn_read(serialized, 0);
+    assert(b.error == EDN_OK);
+    assert_true(edn_value_equal(a.value, b.value));
+    free(serialized);
+    edn_free(a.value);
+    edn_free(b.value);
+}
+
+TEST(write_bigint_octal_large) {
+    /* 24 octal digits = 72 bits, well past int64 range, so this exercises
+     * the bigint path (not the int64 fast path) end-to-end. */
+    const char* input = "0777777777777777777777777N";
+    char* s = write_roundtrip(input);
+    assert(s != NULL);
+    assert_str_eq(s, input);
+    free(s);
+    assert_true(bigint_roundtrip_equal(input));
+}
+
 TEST(write_bigint_radix2_small) {
     /* Small radix-2 values fit in int64 and reparse to EDN_TYPE_INT;
      * edn_value_equal still holds across the int<->bigint bridge. */
@@ -749,6 +778,8 @@ int main(void) {
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(write_bigint_hex_roundtrip);
     RUN_TEST(write_bigint_octal_roundtrip);
+    RUN_TEST(write_bigint_octal_canonicalizes_leading_zeros);
+    RUN_TEST(write_bigint_octal_large);
     RUN_TEST(write_bigint_radix2_small);
     RUN_TEST(write_bigint_radix5_arbitrary);
     RUN_TEST(write_bigint_radix2_large);

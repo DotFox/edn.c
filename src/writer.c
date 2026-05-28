@@ -158,16 +158,17 @@ static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
     /* The 'N' suffix is only accepted by the parser on decimal, hex, and
      * octal forms; radix notation (`NrDDD`) explicitly rejects it. Choose
      * the correct prefix and whether to emit the suffix from a single
-     * classification of `radix`. */
+     * classification of `radix`. The parser strips the literal prefix
+     * (`0x` for hex, `0` for octal) from the stored digit string, so the
+     * writer re-emits it symmetrically here. */
     bool emit_n_suffix = true;
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (radix == 16) {
         if (emit(e, "0x", 2) != 0)
             return e->err;
     } else if (radix == 8) {
-        /* For octal, the parser stores the digit string with the leading
-         * '0' prefix already included (unlike hex, where '0x' is stripped),
-         * so emit no extra prefix here. */
+        if (emit(e, "0", 1) != 0)
+            return e->err;
     } else if (radix != 10) {
         char prefix[16];
         int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
