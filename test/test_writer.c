@@ -725,6 +725,142 @@ TEST(write_sort_unordered_set_off_preserves_order) {
     free(s);
 }
 
+/* Idempotency: sorting an already-sorted output must be a fixed point. */
+
+static void assert_sort_idempotent(const char* input) {
+    char* s1 = write_sorted(input);
+    assert(s1 != NULL);
+    char* s2 = write_sorted(s1);
+    assert(s2 != NULL);
+    assert_str_eq(s1, s2);
+    free(s1);
+    free(s2);
+}
+
+TEST(write_sort_unordered_idempotent_map) {
+    assert_sort_idempotent("{:c 1 :a 2 :b 3}");
+}
+
+TEST(write_sort_unordered_idempotent_set) {
+    assert_sort_idempotent("#{:c :a :b}");
+}
+
+TEST(write_sort_unordered_idempotent_nested) {
+    assert_sort_idempotent("{:b {:y 1 :x 2} :a [1 2 3] :c #{:c :a :b}}");
+}
+
+/* Emit-abort cleanup on sort paths. The assert checks the propagated
+ * error code; ASan (`make DEBUG=1`) validates the cleanup itself. */
+
+typedef struct {
+    size_t budget;
+    size_t consumed;
+} budget_cb_ctx_t;
+
+static int budget_cb(const char* data, size_t n, void* ctx) {
+    (void) data;
+    budget_cb_ctx_t* c = ctx;
+    if (c->consumed + n > c->budget) {
+        return -EDN_ERROR_IO_FAILURE;
+    }
+    c->consumed += n;
+    return 0;
+}
+
+TEST(write_sort_unordered_map_abort_cleans_up) {
+    /* 5-byte budget aborts emission mid-map. */
+    edn_result_t r = edn_read("{:c 1 :a 2 :b 3}", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.sort_unordered = true;
+
+    budget_cb_ctx_t ctx = {5, 0};
+    int rc = edn_write_stream(r.value, budget_cb, &ctx, &opts);
+    edn_free(r.value);
+    assert_int_eq(rc, -EDN_ERROR_IO_FAILURE);
+}
+
+TEST(write_sort_unordered_set_abort_cleans_up) {
+    edn_result_t r = edn_read("#{:c :a :b}", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.sort_unordered = true;
+
+    budget_cb_ctx_t ctx = {5, 0};
+    int rc = edn_write_stream(r.value, budget_cb, &ctx, &opts);
+    edn_free(r.value);
+    assert_int_eq(rc, -EDN_ERROR_IO_FAILURE);
+}
+
+/* Round-trip property corpus. */
+
+TEST(write_roundtrip_corpus) {
+    static const char* const corpus[] = {
+        /* scalars */
+        "nil",
+        "true",
+        "false",
+        "0",
+        "1",
+        "-1",
+        "42",
+        "-9223372036854775808",
+        "9223372036854775807",
+        "0.0",
+        "-0.0",
+        "1.0",
+        "3.14",
+        "1.5e10",
+        "##NaN",
+        "##Inf",
+        "##-Inf",
+        "123N",
+        "\"\"",
+        "\"hello\"",
+        "\"with spaces\"",
+        "\"a\\nb\\tc\"",
+        "\\a",
+        "\\newline",
+        "\\space",
+        "\\u00E9",
+        "foo",
+        "my.ns/foo",
+        ":kw",
+        ":my.ns/kw",
+
+        /* collections */
+        "()",
+        "(1)",
+        "(1 2 3)",
+        "(1 (2 (3)))",
+        "[]",
+        "[1]",
+        "[1 2 3]",
+        "[[1] [2 [3]]]",
+        "#{}",
+        "#{1 2 3}",
+        "{}",
+        "{:a 1}",
+        "{:a 1 :b 2 :c 3}",
+
+        /* mixed */
+        "[1 :a \"s\" \\c true nil]",
+        "{[:a :b] 1}",
+        "#inst \"2024-01-01\"",
+    };
+    size_t n = sizeof(corpus) / sizeof(*corpus);
+    for (size_t i = 0; i < n; i++) {
+        if (!roundtrip_equal(corpus[i])) {
+            printf("Round-trip failure for: %s\n", corpus[i]);
+            assert_true(false);
+        }
+    }
+}
+
 TEST(write_reject_emit_metadata) {
     edn_result_t r = edn_read("42", 0);
     assert(r.error == EDN_OK);
@@ -852,6 +988,14 @@ int main(void) {
     RUN_TEST(write_sort_unordered_set_nested);
     RUN_TEST(write_sort_unordered_set_inside_map);
     RUN_TEST(write_sort_unordered_set_off_preserves_order);
+    RUN_TEST(write_sort_unordered_idempotent_map);
+    RUN_TEST(write_sort_unordered_idempotent_set);
+    RUN_TEST(write_sort_unordered_idempotent_nested);
+    RUN_TEST(write_sort_unordered_map_abort_cleans_up);
+    RUN_TEST(write_sort_unordered_set_abort_cleans_up);
+
+    /* roundtrip property corpus */
+    RUN_TEST(write_roundtrip_corpus);
 
     /* registry */
     RUN_TEST(write_registry_create_destroy);
