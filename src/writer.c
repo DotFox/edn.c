@@ -14,8 +14,13 @@
 typedef struct {
     edn_writer_callback_fn cb;
     void* ctx;
-    int err; /* 0 = ok; <0 propagated to caller */
+    int err;             /* 0 = ok; <0 propagated to caller */
+    bool sort_unordered; /* deterministic map key ordering (byte-wise on serialized key) */
 } emit_ctx_t;
+
+static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
+                                 size_t* out_len);
+static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t count);
 
 static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     if (e->err != 0) {
@@ -296,6 +301,9 @@ static int emit_sequence(emit_ctx_t* e, edn_value_t* const* elements, size_t cou
 }
 
 static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
+    if (e->sort_unordered && count > 1) {
+        return emit_set_sorted(e, elements, count);
+    }
     if (emit(e, "#{", 2) != 0)
         return e->err;
     for (size_t i = 0; i < count; i++) {
@@ -309,8 +317,123 @@ static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
     return emit(e, "}", 1);
 }
 
+/* Sortable view of a map key: its serialized bytes plus the original index. */
+typedef struct {
+    char* repr;
+    size_t len;
+    size_t idx;
+} key_sort_item_t;
+
+static int compare_key_sort_items(const void* a, const void* b) {
+    const key_sort_item_t* ia = a;
+    const key_sort_item_t* ib = b;
+    size_t min_len = ia->len < ib->len ? ia->len : ib->len;
+    int c = (min_len > 0) ? memcmp(ia->repr, ib->repr, min_len) : 0;
+    if (c != 0)
+        return c;
+    if (ia->len < ib->len)
+        return -1;
+    if (ia->len > ib->len)
+        return 1;
+    return 0;
+}
+
+static void free_key_sort_items(key_sort_item_t* items, size_t count) {
+    if (items == NULL)
+        return;
+    for (size_t i = 0; i < count; i++) {
+        free(items[i].repr);
+    }
+    free(items);
+}
+
+/* Build a sorted permutation of [0, count) for `elements`, comparing
+ * elements by their byte-wise EDN serialization. On success returns 0 and
+ * sets *out_items to a freshly allocated array of `count` entries whose
+ * `.idx` field gives the sorted order; the caller must release it with
+ * free_key_sort_items. On failure returns a negative EDN_ERROR_* and sets
+ * *out_items to NULL. */
+static int build_sorted_indices(edn_value_t* const* elements, size_t count, bool sort_unordered,
+                                key_sort_item_t** out_items) {
+    *out_items = NULL;
+    key_sort_item_t* items = calloc(count, sizeof(*items));
+    if (items == NULL) {
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    }
+    for (size_t i = 0; i < count; i++) {
+        int r = serialize_key_to_heap(elements[i], sort_unordered, &items[i].repr, &items[i].len);
+        if (r != 0) {
+            free_key_sort_items(items, i);
+            return r;
+        }
+        items[i].idx = i;
+    }
+    qsort(items, count, sizeof(*items), compare_key_sort_items);
+    *out_items = items;
+    return 0;
+}
+
+static int emit_map_sorted(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const* values,
+                           size_t count) {
+    key_sort_item_t* items = NULL;
+    int r = build_sorted_indices(keys, count, e->sort_unordered, &items);
+    if (r != 0) {
+        e->err = r;
+        return e->err;
+    }
+
+    if (emit(e, "{", 1) != 0)
+        goto done;
+    for (size_t i = 0; i < count; i++) {
+        if (i > 0) {
+            if (emit(e, ", ", 2) != 0)
+                goto done;
+        }
+        size_t idx = items[i].idx;
+        if (emit_value(e, keys[idx]) != 0)
+            goto done;
+        if (emit(e, " ", 1) != 0)
+            goto done;
+        if (emit_value(e, values[idx]) != 0)
+            goto done;
+    }
+    emit(e, "}", 1);
+
+done:
+    free_key_sort_items(items, count);
+    return e->err;
+}
+
+static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
+    key_sort_item_t* items = NULL;
+    int r = build_sorted_indices(elements, count, e->sort_unordered, &items);
+    if (r != 0) {
+        e->err = r;
+        return e->err;
+    }
+
+    if (emit(e, "#{", 2) != 0)
+        goto done;
+    for (size_t i = 0; i < count; i++) {
+        if (i > 0) {
+            if (emit(e, " ", 1) != 0)
+                goto done;
+        }
+        if (emit_value(e, elements[items[i].idx]) != 0)
+            goto done;
+    }
+    emit(e, "}", 1);
+
+done:
+    free_key_sort_items(items, count);
+    return e->err;
+}
+
 static int emit_map(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const* values,
                     size_t count) {
+    if (e->sort_unordered && count > 1) {
+        return emit_map_sorted(e, keys, values, count);
+    }
     if (emit(e, "{", 1) != 0)
         return e->err;
     for (size_t i = 0; i < count; i++) {
@@ -401,8 +524,6 @@ static int validate_options(const edn_write_options_t* opts) {
     }
     if (opts->indent != 0)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
-    if (opts->sort_keys)
-        return -EDN_ERROR_UNSUPPORTED_TYPE;
     if (opts->emit_metadata)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
     if (opts->escape_unicode)
@@ -429,7 +550,8 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
     if (v != 0)
         return v;
 
-    emit_ctx_t e = {cb, ctx, 0};
+    bool sort_unordered = (options != NULL && options->struct_size != 0 && options->sort_unordered);
+    emit_ctx_t e = {cb, ctx, 0, sort_unordered};
     emit_value(&e, value);
     if (e.err != 0)
         return e.err;
@@ -478,6 +600,25 @@ static int heap_cb(const char* data, size_t n, void* ctx) {
     }
     memcpy(h->buf + h->len, data, n);
     h->len += n;
+    return 0;
+}
+
+/* Serialize one value into a fresh malloc'd buffer (NOT null-terminated;
+ * length returned via *out_len). Returns 0 on success, a negative
+ * EDN_ERROR_* on failure (in which case *out_buf is set to NULL). */
+static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
+                                 size_t* out_len) {
+    heap_ctx_t h = {NULL, 0, 0, false};
+    emit_ctx_t e = {heap_cb, &h, 0, sort_unordered};
+    emit_value(&e, v);
+    if (e.err != 0 || h.failed) {
+        free(h.buf);
+        *out_buf = NULL;
+        *out_len = 0;
+        return (e.err != 0) ? e.err : -EDN_ERROR_OUT_OF_MEMORY;
+    }
+    *out_buf = h.buf;
+    *out_len = h.len;
     return 0;
 }
 

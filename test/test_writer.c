@@ -450,18 +450,112 @@ TEST(write_reject_indent) {
     edn_free(r.value);
 }
 
-TEST(write_reject_sort_keys) {
-    edn_result_t r = edn_read("{:a 1}", 0);
-    assert(r.error == EDN_OK);
+/* --- sort_unordered --- */
 
+static char* write_sorted(const char* input) {
+    edn_result_t r = edn_read(input, 0);
+    if (r.error != EDN_OK || r.value == NULL) {
+        edn_free(r.value);
+        return NULL;
+    }
     edn_write_options_t opts = {0};
     opts.struct_size = sizeof(opts);
-    opts.sort_keys = true;
-
-    char* s = edn_write_string(r.value, &opts, NULL);
-    assert(s == NULL);
-
+    opts.sort_unordered = true;
+    char* out = edn_write_string(r.value, &opts, NULL);
     edn_free(r.value);
+    return out;
+}
+
+TEST(writer_sort_unordered_basic) {
+    char* s = write_sorted("{:b 1 :a 2 :c 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:a 2, :b 1, :c 3}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_mixed_types) {
+    /* Byte-wise lex order over serialized keys:
+     *   "\"a\"" starts with 0x22, "1" starts with 0x31, ":b" starts with 0x3A
+     * Expected order: "a", 1, :b */
+    char* s = write_sorted("{:b 1 \"a\" 2 1 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "{\"a\" 2, 1 3, :b 1}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_nested) {
+    char* s = write_sorted("{:b {:y 1 :x 2} :a 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:a 3, :b {:x 2, :y 1}}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_empty_and_singleton) {
+    char* sorted_empty = write_sorted("{}");
+    assert(sorted_empty != NULL);
+    assert_str_eq(sorted_empty, "{}");
+    free(sorted_empty);
+
+    char* sorted_one = write_sorted("{:a 1}");
+    assert(sorted_one != NULL);
+    assert_str_eq(sorted_one, "{:a 1}");
+    free(sorted_one);
+
+    char* unsorted_empty = write_roundtrip("{}");
+    assert(unsorted_empty != NULL);
+    assert_str_eq(unsorted_empty, "{}");
+    free(unsorted_empty);
+
+    char* unsorted_one = write_roundtrip("{:a 1}");
+    assert(unsorted_one != NULL);
+    assert_str_eq(unsorted_one, "{:a 1}");
+    free(unsorted_one);
+}
+
+TEST(writer_sort_unordered_off_preserves_order) {
+    char* s = write_roundtrip("{:b 1, :a 2, :c 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:b 1, :a 2, :c 3}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_set_basic) {
+    char* s = write_sorted("#{:c :a :b}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{:a :b :c}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_set_mixed_types) {
+    /* Same byte-wise rationale as writer_sort_unordered_mixed_types:
+     *   "\"a\"" -> 0x22, "1" -> 0x31, ":b" -> 0x3A. */
+    char* s = write_sorted("#{:b \"a\" 1}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{\"a\" 1 :b}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_set_nested) {
+    /* Inner set sorts to "#{:x :y}" (starts with '#' = 0x23), which is less
+     * than ":a" (starts with ':' = 0x3A). */
+    char* s = write_sorted("#{#{:y :x} :a}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{#{:x :y} :a}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_set_inside_map) {
+    char* s = write_sorted("{:s #{:c :a :b}}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:s #{:a :b :c}}");
+    free(s);
+}
+
+TEST(writer_sort_unordered_set_off_preserves_order) {
+    char* s = write_roundtrip("#{:c :a :b}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{:c :a :b}");
+    free(s);
 }
 
 TEST(write_reject_emit_metadata) {
@@ -560,9 +654,20 @@ int main(void) {
     /* options */
     RUN_TEST(write_newline_at_end);
     RUN_TEST(write_reject_indent);
-    RUN_TEST(write_reject_sort_keys);
     RUN_TEST(write_reject_emit_metadata);
     RUN_TEST(write_reject_escape_unicode);
+
+    /* sort_unordered */
+    RUN_TEST(writer_sort_unordered_basic);
+    RUN_TEST(writer_sort_unordered_mixed_types);
+    RUN_TEST(writer_sort_unordered_nested);
+    RUN_TEST(writer_sort_unordered_empty_and_singleton);
+    RUN_TEST(writer_sort_unordered_off_preserves_order);
+    RUN_TEST(writer_sort_unordered_set_basic);
+    RUN_TEST(writer_sort_unordered_set_mixed_types);
+    RUN_TEST(writer_sort_unordered_set_nested);
+    RUN_TEST(writer_sort_unordered_set_inside_map);
+    RUN_TEST(writer_sort_unordered_set_off_preserves_order);
 
     /* registry */
     RUN_TEST(writer_registry_create_destroy);
