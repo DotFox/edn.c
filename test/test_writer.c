@@ -704,19 +704,247 @@ TEST(write_newline_at_end) {
     edn_free(r.value);
 }
 
-TEST(write_reject_indent) {
-    edn_result_t r = edn_read("42", 0);
+/* --- indent (pretty-print) --- */
+
+/* Pretty-print one source string with default indent on (any non-zero
+ * value enables pretty-print; the numeric value itself is ignored). */
+static char* write_pretty(const char* input) {
+    edn_result_t r = edn_read(input, 0);
+    if (r.error != EDN_OK || r.value == NULL) {
+        edn_free(r.value);
+        return NULL;
+    }
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    char* out = edn_write_string(r.value, &opts, NULL);
+    edn_free(r.value);
+    return out;
+}
+
+TEST(write_indent_empty_collections_stay_compact) {
+    char* a = write_pretty("()");
+    char* b = write_pretty("[]");
+    char* c = write_pretty("{}");
+    char* d = write_pretty("#{}");
+    assert(a && b && c && d);
+    assert_str_eq(a, "()");
+    assert_str_eq(b, "[]");
+    assert_str_eq(c, "{}");
+    assert_str_eq(d, "#{}");
+    free(a);
+    free(b);
+    free(c);
+    free(d);
+}
+
+TEST(write_indent_single_element_collections_stay_inline) {
+    char* a = write_pretty("(1)");
+    char* b = write_pretty("[1]");
+    char* c = write_pretty("{:a 1}");
+    char* d = write_pretty("#{1}");
+    assert(a && b && c && d);
+    assert_str_eq(a, "(1)");
+    assert_str_eq(b, "[1]");
+    assert_str_eq(c, "{:a 1}");
+    assert_str_eq(d, "#{1}");
+    free(a);
+    free(b);
+    free(c);
+    free(d);
+}
+
+TEST(write_indent_vector_multi) {
+    char* s = write_pretty("[1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "[1\n 2\n 3]");
+    free(s);
+}
+
+TEST(write_indent_list_multi) {
+    char* s = write_pretty("(1 2 3)");
+    assert(s != NULL);
+    assert_str_eq(s, "(1\n 2\n 3)");
+    free(s);
+}
+
+TEST(write_indent_set_multi_two_space_step) {
+    char* s = write_pretty("#{1 2 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{1\n  2\n  3}");
+    free(s);
+}
+
+TEST(write_indent_map_multi) {
+    char* s = write_pretty("{:a 1 :b 2}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:a 1\n :b 2}");
+    free(s);
+}
+
+TEST(write_indent_nested_vector_in_vector) {
+    char* s = write_pretty("[[1 2] [3 4]]");
+    assert(s != NULL);
+    assert_str_eq(s, "[[1\n  2]\n [3\n  4]]");
+    free(s);
+}
+
+TEST(write_indent_nested_value_in_map) {
+    char* s = write_pretty("{:a [1 2] :b 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "{:a [1\n     2]\n :b 3}");
+    free(s);
+}
+
+TEST(write_indent_nested_key_in_map) {
+    char* s = write_pretty("{[1 2] :v :a :b}");
+    assert(s != NULL);
+    assert_str_eq(s, "{[1\n  2] :v\n :a :b}");
+    free(s);
+}
+
+TEST(write_indent_set_with_nested_vector) {
+    char* s = write_pretty("#{[1 2] 3}");
+    assert(s != NULL);
+    assert_str_eq(s, "#{[1\n   2]\n  3}");
+    free(s);
+}
+
+TEST(write_indent_with_sort_unordered) {
+    edn_result_t r = edn_read("{:c 1 :a 2 :b 3}", 0);
     assert(r.error == EDN_OK);
 
     edn_write_options_t opts = {0};
     opts.struct_size = sizeof(opts);
-    opts.indent = 2;
+    opts.indent = 1;
+    opts.sort_unordered = true;
 
     char* s = edn_write_string(r.value, &opts, NULL);
-    assert(s == NULL);
-
+    assert(s != NULL);
+    assert_str_eq(s, "{:a 2\n :b 3\n :c 1}");
+    free(s);
     edn_free(r.value);
 }
+
+TEST(write_indent_with_newline_at_end) {
+    edn_result_t r = edn_read("[1 2 3]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    opts.newline_at_end = true;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "[1\n 2\n 3]\n");
+    free(s);
+    edn_free(r.value);
+}
+
+TEST(write_indent_with_escape_unicode_in_collection) {
+    edn_result_t r = edn_read("[\"café\" 42]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    opts.escape_unicode = true;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "[\"caf\\u00E9\"\n 42]");
+    free(s);
+    edn_free(r.value);
+}
+
+TEST(write_indent_tagged_with_collection) {
+    /* `#foo ` then `[`, so the inner vector's indent column is 6. */
+    char* s = write_pretty("#foo [1 2]");
+    assert(s != NULL);
+    assert_str_eq(s, "#foo [1\n      2]");
+    free(s);
+}
+
+/* Round-trip: parse → write-with-indent → parse → write-compact yields
+ * exactly what we'd get parsing the original and writing it compactly. */
+TEST(write_indent_roundtrip_via_pretty) {
+    const char* input = "{:a [1 2 3] :b #{4 5} :c \"hi\"}";
+
+    edn_result_t r1 = edn_read(input, 0);
+    assert(r1.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    char* pretty = edn_write_string(r1.value, &opts, NULL);
+    assert(pretty != NULL);
+
+    edn_result_t r2 = edn_read(pretty, 0);
+    assert(r2.error == EDN_OK);
+
+    char* compact_via_pretty = edn_write(r2.value);
+    char* compact_direct = edn_write(r1.value);
+    assert(compact_via_pretty != NULL);
+    assert(compact_direct != NULL);
+    assert_str_eq(compact_via_pretty, compact_direct);
+
+    free(pretty);
+    free(compact_via_pretty);
+    free(compact_direct);
+    edn_free(r1.value);
+    edn_free(r2.value);
+}
+
+/* Backward compat: indent == 0 produces byte-identical compact output. */
+TEST(write_indent_zero_matches_compact) {
+    edn_result_t r = edn_read("[1 2 3]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 0;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "[1 2 3]");
+    free(s);
+    edn_free(r.value);
+}
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+TEST(write_indent_with_metadata_short_keyword) {
+    edn_result_t r = edn_read("^:dynamic [1 2 3]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    opts.emit_metadata = true;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "^:dynamic [1\n           2\n           3]");
+    free(s);
+    edn_free(r.value);
+}
+
+TEST(write_indent_with_metadata_full_map_stays_compact) {
+    edn_result_t r = edn_read("^{:a 1 :b 2} [1 2 3]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    opts.emit_metadata = true;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "^{:a 1, :b 2} [1\n               2\n               3]");
+    free(s);
+    edn_free(r.value);
+}
+#endif
 
 /* --- sort_unordered --- */
 
@@ -1367,9 +1595,30 @@ int main(void) {
 
     /* options */
     RUN_TEST(write_newline_at_end);
-    RUN_TEST(write_reject_indent);
 #ifndef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(write_meta_rejects_when_extension_off);
+#endif
+
+    /* indent (pretty-print) */
+    RUN_TEST(write_indent_empty_collections_stay_compact);
+    RUN_TEST(write_indent_single_element_collections_stay_inline);
+    RUN_TEST(write_indent_vector_multi);
+    RUN_TEST(write_indent_list_multi);
+    RUN_TEST(write_indent_set_multi_two_space_step);
+    RUN_TEST(write_indent_map_multi);
+    RUN_TEST(write_indent_nested_vector_in_vector);
+    RUN_TEST(write_indent_nested_value_in_map);
+    RUN_TEST(write_indent_nested_key_in_map);
+    RUN_TEST(write_indent_set_with_nested_vector);
+    RUN_TEST(write_indent_with_sort_unordered);
+    RUN_TEST(write_indent_with_newline_at_end);
+    RUN_TEST(write_indent_with_escape_unicode_in_collection);
+    RUN_TEST(write_indent_tagged_with_collection);
+    RUN_TEST(write_indent_roundtrip_via_pretty);
+    RUN_TEST(write_indent_zero_matches_compact);
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    RUN_TEST(write_indent_with_metadata_short_keyword);
+    RUN_TEST(write_indent_with_metadata_full_map_stays_compact);
 #endif
 
     /* escape_unicode */

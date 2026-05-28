@@ -18,6 +18,8 @@ typedef struct {
     bool sort_unordered; /* deterministic ordering of map entries and set elements (byte-wise) */
     bool emit_metadata;  /* emit ^... prefixes for values with attached metadata */
     bool escape_unicode; /* escape non-ASCII bytes in strings as \uXXXX (BMP only) */
+    bool indent;         /* pretty-print: hanging-indent collections, one item per line */
+    size_t column;       /* current 0-based byte column since last '\n' in the output */
 } emit_ctx_t;
 
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, bool escape_unicode,
@@ -33,12 +35,36 @@ static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     int r = e->cb(buf, len, e->ctx);
     if (r != 0) {
         e->err = (r < 0) ? r : -r;
+        return e->err;
     }
-    return e->err;
+    for (size_t i = 0; i < len; i++) {
+        if (buf[i] == '\n') {
+            e->column = 0;
+        } else {
+            e->column++;
+        }
+    }
+    return 0;
 }
 
 static int emit_cstr(emit_ctx_t* e, const char* s) {
     return emit(e, s, strlen(s));
+}
+
+static int emit_newline_indent(emit_ctx_t* e, size_t col) {
+    if (emit(e, "\n", 1) != 0) {
+        return e->err;
+    }
+    char spaces[64];
+    memset(spaces, ' ', sizeof(spaces));
+    while (col > 0) {
+        size_t chunk = col < sizeof(spaces) ? col : sizeof(spaces);
+        if (emit(e, spaces, chunk) != 0) {
+            return e->err;
+        }
+        col -= chunk;
+    }
+    return 0;
 }
 
 static int emit_value(emit_ctx_t* e, const edn_value_t* v);
@@ -467,10 +493,16 @@ static int emit_sequence(emit_ctx_t* e, edn_value_t* const* elements, size_t cou
                          char close) {
     if (emit(e, &open, 1) != 0)
         return e->err;
+    size_t indent_col = e->column;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, " ", 1) != 0)
-                return e->err;
+            if (e->indent) {
+                if (emit_newline_indent(e, indent_col) != 0)
+                    return e->err;
+            } else {
+                if (emit(e, " ", 1) != 0)
+                    return e->err;
+            }
         }
         if (emit_value(e, elements[i]) != 0)
             return e->err;
@@ -549,10 +581,16 @@ static int emit_map_sorted(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t*
 
     if (emit(e, "{", 1) != 0)
         goto done;
+    size_t indent_col = e->column;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, ", ", 2) != 0)
-                goto done;
+            if (e->indent) {
+                if (emit_newline_indent(e, indent_col) != 0)
+                    goto done;
+            } else {
+                if (emit(e, ", ", 2) != 0)
+                    goto done;
+            }
         }
         size_t idx = items[i].idx;
         if (emit_value(e, keys[idx]) != 0)
@@ -579,10 +617,16 @@ static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t c
 
     if (emit(e, "#{", 2) != 0)
         goto done;
+    size_t indent_col = e->column;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, " ", 1) != 0)
-                goto done;
+            if (e->indent) {
+                if (emit_newline_indent(e, indent_col) != 0)
+                    goto done;
+            } else {
+                if (emit(e, " ", 1) != 0)
+                    goto done;
+            }
         }
         if (emit_value(e, elements[items[i].idx]) != 0)
             goto done;
@@ -600,10 +644,16 @@ static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
     }
     if (emit(e, "#{", 2) != 0)
         return e->err;
+    size_t indent_col = e->column;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, " ", 1) != 0)
-                return e->err;
+            if (e->indent) {
+                if (emit_newline_indent(e, indent_col) != 0)
+                    return e->err;
+            } else {
+                if (emit(e, " ", 1) != 0)
+                    return e->err;
+            }
         }
         if (emit_value(e, elements[i]) != 0)
             return e->err;
@@ -618,10 +668,16 @@ static int emit_map(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const*
     }
     if (emit(e, "{", 1) != 0)
         return e->err;
+    size_t indent_col = e->column;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) {
-            if (emit(e, ", ", 2) != 0)
-                return e->err;
+            if (e->indent) {
+                if (emit_newline_indent(e, indent_col) != 0)
+                    return e->err;
+            } else {
+                if (emit(e, ", ", 2) != 0)
+                    return e->err;
+            }
         }
         if (emit_value(e, keys[i]) != 0)
             return e->err;
@@ -652,7 +708,11 @@ static int emit_value(emit_ctx_t* e, const edn_value_t* v) {
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
     if (e->emit_metadata && v->metadata != NULL) {
-        if (emit_metadata_prefix(e, v->metadata) != 0)
+        bool save_indent = e->indent;
+        e->indent = false;
+        int rc = emit_metadata_prefix(e, v->metadata);
+        e->indent = save_indent;
+        if (rc != 0)
             return e->err;
         if (emit(e, " ", 1) != 0)
             return e->err;
@@ -715,8 +775,6 @@ static int validate_options(const edn_write_options_t* opts) {
         }
         return 0;
     }
-    if (opts->indent != 0)
-        return -EDN_ERROR_UNSUPPORTED_TYPE;
 #ifndef EDN_ENABLE_CLOJURE_EXTENSION
     if (opts->emit_metadata)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
@@ -746,12 +804,15 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
     bool sort_unordered = (options != NULL && options->struct_size != 0 && options->sort_unordered);
     bool emit_metadata = (options != NULL && options->struct_size != 0 && options->emit_metadata);
     bool escape_unicode = (options != NULL && options->struct_size != 0 && options->escape_unicode);
+    bool indent = (options != NULL && options->struct_size != 0 && options->indent != 0);
     emit_ctx_t e = {.cb = cb,
                     .ctx = ctx,
                     .err = 0,
                     .sort_unordered = sort_unordered,
                     .emit_metadata = emit_metadata,
-                    .escape_unicode = escape_unicode};
+                    .escape_unicode = escape_unicode,
+                    .indent = indent,
+                    .column = 0};
     emit_value(&e, value);
     if (e.err != 0)
         return e.err;

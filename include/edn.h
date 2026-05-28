@@ -849,7 +849,7 @@ typedef struct edn_writer_registry edn_writer_registry_t;
  * initialize struct_size to sizeof(edn_write_options_t).
  *
  * Implementation status:
- *   indent           - NOT IMPLEMENTED (non-zero -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   indent           - implemented as a boolean toggle: 0 = compact, non-zero = pretty-print
  *   sort_unordered   - implemented (byte-wise lex order on serialized elements; maps and sets)
  *   emit_metadata    - implemented (requires EDN_ENABLE_CLOJURE_EXTENSION)
  *   escape_unicode   - implemented (non-ASCII bytes in strings -> \uXXXX BMP escapes;
@@ -859,7 +859,7 @@ typedef struct edn_writer_registry edn_writer_registry_t;
  */
 typedef struct {
     size_t struct_size;
-    size_t indent;                          /* 0 = compact; >0 reserved for future pretty-print */
+    size_t indent;                          /* 0 = compact; non-zero enables pretty-print */
     bool sort_unordered;                    /* deterministic ordering of map entries and set
                                                elements (byte-wise on serialized form) */
     bool emit_metadata;                     /* emit ^... metadata prefixes
