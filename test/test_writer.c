@@ -294,6 +294,60 @@ TEST(write_bigint_radix2_large) {
 TEST(write_bigint_radix2_negative) {
     assert_true(bigint_roundtrip_equal("-2r1111"));
 }
+
+/* Big ratios: numerator and/or denominator overflow int64 range and so go
+ * through the EDN_TYPE_BIGRATIO storage path rather than EDN_TYPE_RATIO.
+ * `edn_value_equal` currently has no BIGRATIO case, so structural round-trip
+ * is verified by checking that re-serializing the parsed output yields the
+ * same byte sequence (serialization is a fixed point on this input). */
+static bool bigratio_serialization_fixed_point(const char* input) {
+    char* once = write_roundtrip(input);
+    if (once == NULL)
+        return false;
+    char* twice = write_roundtrip(once);
+    bool ok = (twice != NULL) && strcmp(once, twice) == 0;
+    free(once);
+    free(twice);
+    return ok;
+}
+
+TEST(write_bigratio_basic) {
+    const char* input = "99999999999999999999/3";
+    char* s = write_roundtrip(input);
+    assert(s != NULL);
+    assert_str_eq(s, input);
+    free(s);
+    assert_true(bigratio_serialization_fixed_point(input));
+}
+
+TEST(write_bigratio_huge_denominator) {
+    const char* input = "3/99999999999999999999";
+    char* s = write_roundtrip(input);
+    assert(s != NULL);
+    assert_str_eq(s, input);
+    free(s);
+    assert_true(bigratio_serialization_fixed_point(input));
+}
+
+TEST(write_bigratio_both_huge) {
+    const char* input = "99999999999999999999/88888888888888888888";
+    char* s = write_roundtrip(input);
+    assert(s != NULL);
+    assert_str_eq(s, input);
+    free(s);
+    assert_true(bigratio_serialization_fixed_point(input));
+}
+
+TEST(write_bigratio_negative) {
+    /* Sign lives on the numerator slot only; the denominator slice is the
+     * positive-magnitude digits. */
+    const char* input = "-99999999999999999999/3";
+    char* s = write_roundtrip(input);
+    assert(s != NULL);
+    assert_str_eq(s, input);
+    free(s);
+    assert_true(bigratio_serialization_fixed_point(input));
+}
 #endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 TEST(write_bigdec) {
@@ -338,6 +392,53 @@ TEST(write_character_unicode) {
     assert_str_eq(s, "\\u00E9");
     free(s);
 }
+
+TEST(write_character_bmp_max) {
+    /* Largest BMP codepoint. The 4-digit \u parser accepts it in every build
+     * mode, so round-trip is required regardless of extension flags. */
+    char* s = write_roundtrip("\\uFFFF");
+    assert(s != NULL);
+    assert_str_eq(s, "\\uFFFF");
+    free(s);
+}
+
+#ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+/* In non-EXPERIMENTAL builds the character parser only accepts exactly 4 hex
+ * digits, so a supplementary codepoint cannot arise from parsing. We
+ * construct one directly to verify the writer refuses rather than emitting
+ * input the parser would reject. The stack value owns no arena, so we must
+ * NOT call edn_free on it. */
+static int sink_cb(const char* data, size_t n, void* ctx) {
+    (void) data;
+    (void) n;
+    (void) ctx;
+    return 0;
+}
+
+TEST(write_character_supplementary_rejected_without_experimental) {
+    edn_value_t v = {0};
+    v.type = EDN_TYPE_CHARACTER;
+    v.as.character = 0x1F600;
+
+    char* s = edn_write_string(&v, NULL, NULL);
+    assert(s == NULL);
+
+    int rc = edn_write_stream(&v, sink_cb, NULL, NULL);
+    assert_int_eq(rc, -EDN_ERROR_UNSUPPORTED_TYPE);
+}
+#endif
+
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+TEST(write_character_supplementary_emits_under_experimental) {
+    /* The 4-6 digit \u parser accepts 5-digit supplementary codepoints, and
+     * snprintf("%04X", cp) emits the natural-width form. */
+    char* s = write_roundtrip("\\u1F600");
+    assert(s != NULL);
+    assert_str_eq(s, "\\u1F600");
+    free(s);
+    assert_true(roundtrip_equal("\\u1F600"));
+}
+#endif
 
 TEST(write_symbol_simple) {
     char* s = write_roundtrip("foo");
@@ -1217,6 +1318,10 @@ int main(void) {
     RUN_TEST(write_bigint_radix5_arbitrary);
     RUN_TEST(write_bigint_radix2_large);
     RUN_TEST(write_bigint_radix2_negative);
+    RUN_TEST(write_bigratio_basic);
+    RUN_TEST(write_bigratio_huge_denominator);
+    RUN_TEST(write_bigratio_both_huge);
+    RUN_TEST(write_bigratio_negative);
 #endif
     RUN_TEST(write_bigdec);
     RUN_TEST(write_string_simple);
@@ -1224,6 +1329,13 @@ int main(void) {
     RUN_TEST(write_character_letter);
     RUN_TEST(write_character_newline);
     RUN_TEST(write_character_unicode);
+    RUN_TEST(write_character_bmp_max);
+#ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+    RUN_TEST(write_character_supplementary_rejected_without_experimental);
+#endif
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+    RUN_TEST(write_character_supplementary_emits_under_experimental);
+#endif
     RUN_TEST(write_symbol_simple);
     RUN_TEST(write_symbol_namespaced);
     RUN_TEST(write_keyword_simple);

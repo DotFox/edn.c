@@ -221,6 +221,29 @@ static int emit_ratio(emit_ctx_t* e, const edn_value_t* v) {
     return emit(e, buf, (size_t) len);
 }
 
+/* The parser produces this shape only when one of the components
+ * exceeds int64_t range; for the fits-in-int64 case it produces
+ * EDN_TYPE_RATIO instead. */
+static int emit_bigratio(emit_ctx_t* e, const edn_value_t* v) {
+    size_t num_len, denom_len;
+    bool num_neg;
+    const char* num;
+    const char* denom;
+    if (!edn_bigratio_get(v, &num, &num_len, &num_neg, &denom, &denom_len)) {
+        e->err = -EDN_ERROR_OUT_OF_MEMORY;
+        return e->err;
+    }
+    if (num_neg) {
+        if (emit(e, "-", 1) != 0)
+            return e->err;
+    }
+    if (emit(e, num, num_len) != 0)
+        return e->err;
+    if (emit(e, "/", 1) != 0)
+        return e->err;
+    return emit(e, denom, denom_len);
+}
+
 /* True iff `v` is a bare (non-namespaced) keyword whose name equals
  * `name[0..name_len)`. Used to classify metadata maps for short-form
  * emission (e.g. `:tag`, `:param-tags`). */
@@ -284,6 +307,15 @@ static int emit_character(emit_ctx_t* e, uint32_t cp) {
         char c = (char) cp;
         return emit(e, &c, 1);
     }
+
+    /* Supplementary codepoints can
+     * only reach this path via programmatic construction in those builds. */
+#ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+    if (cp > 0xFFFF) {
+        e->err = -EDN_ERROR_UNSUPPORTED_TYPE;
+        return e->err;
+    }
+#endif
 
     char buf[16];
     int len = snprintf(buf, sizeof(buf), "u%04X", cp);
@@ -643,6 +675,8 @@ static int emit_value(emit_ctx_t* e, const edn_value_t* v) {
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
         case EDN_TYPE_RATIO:
             return emit_ratio(e, v);
+        case EDN_TYPE_BIGRATIO:
+            return emit_bigratio(e, v);
 #endif
         case EDN_TYPE_CHARACTER:
             return emit_character(e, v->as.character);
