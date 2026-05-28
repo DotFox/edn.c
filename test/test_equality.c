@@ -968,6 +968,156 @@ TEST(hash_ratio_different_value) {
     edn_free(a);
     edn_free(b);
 }
+
+/* BigRatio equality */
+TEST(bigratio_equal_same) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("99999999999999999999/3");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_BIGRATIO);
+    assert(edn_type(b) == EDN_TYPE_BIGRATIO);
+    assert(edn_value_equal(a, b));
+    assert(edn_value_equal(a, a)); /* Self-equality */
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(bigratio_unequal_numerator) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("99999999999999999998/3");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(bigratio_unequal_denominator) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("99999999999999999999/4");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(bigratio_unequal_sign) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("-99999999999999999999/3");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(bigratio_unequal_to_ratio) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("5/3"); /* Irreducible, stays as RATIO */
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_BIGRATIO);
+    assert(edn_type(b) == EDN_TYPE_RATIO);
+    /* Different types, not equal */
+    assert(!edn_value_equal(a, b));
+
+    edn_free(a);
+    edn_free(b);
+}
+
+/* BigRatio hash */
+TEST(bigratio_hash_equal_for_equal_values) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("99999999999999999999/3");
+
+    assert(a != NULL);
+    assert(b != NULL);
+
+    uint64_t hash_a = edn_value_hash(a);
+    uint64_t hash_b = edn_value_hash(b);
+
+    assert(hash_a == hash_b);
+
+    edn_free(a);
+    edn_free(b);
+}
+
+TEST(bigratio_in_set_membership) {
+    edn_value_t* s = parse_helper("#{99999999999999999999/3}");
+    edn_value_t* needle = parse_helper("99999999999999999999/3");
+    edn_value_t* miss = parse_helper("99999999999999999999/4");
+
+    assert(s != NULL);
+    assert(needle != NULL);
+    assert(miss != NULL);
+    assert(edn_type(s) == EDN_TYPE_SET);
+    assert(edn_type(needle) == EDN_TYPE_BIGRATIO);
+
+    /* Hash + equality together drive set membership. */
+    assert(edn_set_contains(s, needle));
+    assert(!edn_set_contains(s, miss));
+
+    edn_free(s);
+    edn_free(needle);
+    edn_free(miss);
+}
+
+/* BigRatio / Ratio compare */
+TEST(bigratio_compare_reflexive) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+
+    assert(a != NULL);
+    assert(edn_type(a) == EDN_TYPE_BIGRATIO);
+    assert(edn_value_compare(&a, &a) == 0);
+
+    edn_free(a);
+}
+
+TEST(bigratio_compare_consistent) {
+    edn_value_t* a = parse_helper("99999999999999999999/3");
+    edn_value_t* b = parse_helper("99999999999999999999/3");
+    edn_value_t* c = parse_helper("99999999999999999999/4");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(c != NULL);
+
+    assert(edn_value_compare(&a, &b) == 0);
+    assert(edn_value_compare(&a, &c) != 0);
+    /* Antisymmetry: compare(a,c) == -compare(c,a) (in sign). */
+    int ac = edn_value_compare(&a, &c);
+    int ca = edn_value_compare(&c, &a);
+    assert((ac < 0 && ca > 0) || (ac > 0 && ca < 0));
+
+    edn_free(a);
+    edn_free(b);
+    edn_free(c);
+}
+
+TEST(ratio_compare_reflexive) {
+    edn_value_t* a = parse_helper("3/4");
+    edn_value_t* b = parse_helper("3/4");
+
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(edn_type(a) == EDN_TYPE_RATIO);
+    assert(edn_value_compare(&a, &a) == 0);
+    assert(edn_value_compare(&a, &b) == 0);
+
+    edn_free(a);
+    edn_free(b);
+}
 #endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 int main(void) {
@@ -1089,6 +1239,18 @@ int main(void) {
     RUN_TEST(equal_ratio_negative);
     RUN_TEST(hash_ratio_same_value);
     RUN_TEST(hash_ratio_different_value);
+
+    /* BigRatio */
+    RUN_TEST(bigratio_equal_same);
+    RUN_TEST(bigratio_unequal_numerator);
+    RUN_TEST(bigratio_unequal_denominator);
+    RUN_TEST(bigratio_unequal_sign);
+    RUN_TEST(bigratio_unequal_to_ratio);
+    RUN_TEST(bigratio_hash_equal_for_equal_values);
+    RUN_TEST(bigratio_in_set_membership);
+    RUN_TEST(bigratio_compare_reflexive);
+    RUN_TEST(bigratio_compare_consistent);
+    RUN_TEST(ratio_compare_reflexive);
 #endif
 
     TEST_SUMMARY("equality");
