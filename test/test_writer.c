@@ -861,8 +861,9 @@ TEST(write_roundtrip_corpus) {
     }
 }
 
-TEST(write_reject_emit_metadata) {
-    edn_result_t r = edn_read("42", 0);
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
+TEST(write_meta_rejects_when_extension_off) {
+    edn_result_t r = edn_read("nil", 0);
     assert(r.error == EDN_OK);
 
     edn_write_options_t opts = {0};
@@ -874,6 +875,7 @@ TEST(write_reject_emit_metadata) {
 
     edn_free(r.value);
 }
+#endif
 
 TEST(write_reject_escape_unicode) {
     edn_result_t r = edn_read("\"x\"", 0);
@@ -888,6 +890,183 @@ TEST(write_reject_escape_unicode) {
 
     edn_free(r.value);
 }
+
+/* --- emit_metadata (Clojure extension only) --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+/* Like write_roundtrip but with emit_metadata=true. */
+static char* write_with_metadata(const char* input) {
+    edn_result_t r = edn_read(input, 0);
+    if (r.error != EDN_OK || r.value == NULL) {
+        edn_free(r.value);
+        return NULL;
+    }
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.emit_metadata = true;
+    char* out = edn_write_string(r.value, &opts, NULL);
+    edn_free(r.value);
+    return out;
+}
+
+/* Round-trip property check that also verifies metadata structure is
+ * preserved (recall edn_value_equal ignores metadata). */
+static bool meta_roundtrip_ok(const char* input) {
+    edn_result_t a = edn_read(input, 0);
+    if (a.error != EDN_OK)
+        return false;
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.emit_metadata = true;
+    char* s = edn_write_string(a.value, &opts, NULL);
+    if (!s) {
+        edn_free(a.value);
+        return false;
+    }
+    edn_result_t b = edn_read(s, 0);
+    bool ok = (b.error == EDN_OK) && edn_value_equal(a.value, b.value);
+    if (ok) {
+        edn_value_t* ma = edn_value_meta(a.value);
+        edn_value_t* mb = edn_value_meta(b.value);
+        ok = ((ma == NULL && mb == NULL) || (ma != NULL && mb != NULL && edn_value_equal(ma, mb)));
+    }
+    free(s);
+    edn_free(a.value);
+    edn_free(b.value);
+    return ok;
+}
+
+/* Short-form classification: each rule emits the minimal syntactic form. */
+
+TEST(write_meta_tag_symbol_short) {
+    char* s = write_with_metadata("^String foo");
+    assert(s != NULL);
+    assert_str_eq(s, "^String foo");
+    free(s);
+}
+
+TEST(write_meta_param_tags_short) {
+    char* s = write_with_metadata("^[java.lang.String long _] sym");
+    assert(s != NULL);
+    assert_str_eq(s, "^[java.lang.String long _] sym");
+    free(s);
+}
+
+TEST(write_meta_true_keyword_short) {
+    char* s = write_with_metadata("^:dynamic [1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "^:dynamic [1 2 3]");
+    free(s);
+}
+
+TEST(write_meta_true_namespaced_keyword_short) {
+    char* s = write_with_metadata("^:my.ns/dynamic [1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "^:my.ns/dynamic [1 2 3]");
+    free(s);
+}
+
+/* Cases that must NOT take short form. */
+
+TEST(write_meta_tag_string_full) {
+    char* s = write_with_metadata("^\"java.lang.String\" sym");
+    assert(s != NULL);
+    assert_str_eq(s, "^{:tag \"java.lang.String\"} sym");
+    free(s);
+}
+
+TEST(write_meta_multi_key_full) {
+    char* s = write_with_metadata("^{:foo 1 :bar 2} [1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "^{:foo 1, :bar 2} [1 2 3]");
+    free(s);
+}
+
+TEST(write_meta_keyword_non_true_full) {
+    char* s = write_with_metadata("^{:dynamic false} [1]");
+    assert(s != NULL);
+    assert_str_eq(s, "^{:dynamic false} [1]");
+    free(s);
+}
+
+TEST(write_meta_namespaced_tag_full) {
+    char* s = write_with_metadata("^{:my.ns/tag String} [1]");
+    assert(s != NULL);
+    assert_str_eq(s, "^{:my.ns/tag String} [1]");
+    free(s);
+}
+
+TEST(write_meta_empty_map) {
+    char* s = write_with_metadata("^{} [1]");
+    assert(s != NULL);
+    assert_str_eq(s, "^{} [1]");
+    free(s);
+}
+
+/* Option gates. */
+
+TEST(write_meta_disabled_skips_meta) {
+    char* s = write_roundtrip("^:dynamic [1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "[1 2 3]");
+    free(s);
+}
+
+TEST(write_meta_no_meta_on_value) {
+    char* s = write_with_metadata("[1 2 3]");
+    assert(s != NULL);
+    assert_str_eq(s, "[1 2 3]");
+    free(s);
+}
+
+/* Recursive / interaction. */
+
+TEST(write_meta_nested_in_value) {
+    /* Metadata can only attach to collections, tagged literals, and symbols,
+     * so the inner form is a vector rather than a bare scalar. */
+    char* s = write_with_metadata("^:outer [^:inner [1] 2]");
+    assert(s != NULL);
+    assert_str_eq(s, "^:outer [^:inner [1] 2]");
+    free(s);
+}
+
+TEST(write_meta_on_tagged) {
+    char* s = write_with_metadata("^:tagged #inst \"2024-01-01\"");
+    assert(s != NULL);
+    assert_str_eq(s, "^:tagged #inst \"2024-01-01\"");
+    free(s);
+}
+
+TEST(write_meta_with_sort_unordered) {
+    edn_result_t r = edn_read("^{:b 2 :a 1} [1 2 3]", 0);
+    assert(r.error == EDN_OK);
+
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.emit_metadata = true;
+    opts.sort_unordered = true;
+
+    char* s = edn_write_string(r.value, &opts, NULL);
+    assert(s != NULL);
+    assert_str_eq(s, "^{:a 1, :b 2} [1 2 3]");
+
+    free(s);
+    edn_free(r.value);
+}
+
+TEST(write_meta_roundtrip_structure) {
+    static const char* const corpus[] = {
+        "^Sym foo", "^[a b] sym", "^:k [1]", "^{:a 1} [1]", "^{} [1]", "^:o [^:i [1]]",
+    };
+    size_t n = sizeof(corpus) / sizeof(*corpus);
+    for (size_t i = 0; i < n; i++) {
+        if (!meta_roundtrip_ok(corpus[i])) {
+            printf("Metadata round-trip failure for: %s\n", corpus[i]);
+            assert_true(false);
+        }
+    }
+}
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
 
 /* --- writer registry scaffold --- */
 
@@ -974,7 +1153,9 @@ int main(void) {
     /* options */
     RUN_TEST(write_newline_at_end);
     RUN_TEST(write_reject_indent);
-    RUN_TEST(write_reject_emit_metadata);
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
+    RUN_TEST(write_meta_rejects_when_extension_off);
+#endif
     RUN_TEST(write_reject_escape_unicode);
 
     /* sort_unordered */
@@ -996,6 +1177,25 @@ int main(void) {
 
     /* roundtrip property corpus */
     RUN_TEST(write_roundtrip_corpus);
+
+    /* emit_metadata (Clojure extension only) */
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    RUN_TEST(write_meta_tag_symbol_short);
+    RUN_TEST(write_meta_param_tags_short);
+    RUN_TEST(write_meta_true_keyword_short);
+    RUN_TEST(write_meta_true_namespaced_keyword_short);
+    RUN_TEST(write_meta_tag_string_full);
+    RUN_TEST(write_meta_multi_key_full);
+    RUN_TEST(write_meta_keyword_non_true_full);
+    RUN_TEST(write_meta_namespaced_tag_full);
+    RUN_TEST(write_meta_empty_map);
+    RUN_TEST(write_meta_disabled_skips_meta);
+    RUN_TEST(write_meta_no_meta_on_value);
+    RUN_TEST(write_meta_nested_in_value);
+    RUN_TEST(write_meta_on_tagged);
+    RUN_TEST(write_meta_with_sort_unordered);
+    RUN_TEST(write_meta_roundtrip_structure);
+#endif
 
     /* registry */
     RUN_TEST(write_registry_create_destroy);
