@@ -708,7 +708,7 @@ TEST(unterminated_multiline) {
  * ======================================================================== */
 
 TEST(invalid_number_leading_zero) {
-#ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+#if !defined(EDN_ENABLE_CLOJURE_EXTENSION) && !defined(EDN_ENABLE_EXPERIMENTAL_EXTENSION)
     edn_result_t result = edn_read("0123", 0);
     assert(result.value == NULL);
     assert(result.error == EDN_ERROR_INVALID_NUMBER);
