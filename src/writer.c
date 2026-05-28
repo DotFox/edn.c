@@ -155,25 +155,29 @@ static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
             return e->err;
     }
 
+    /* The 'N' suffix is only accepted by the parser on decimal, hex, and
+     * octal forms; radix notation (`NrDDD`) explicitly rejects it. Choose
+     * the correct prefix and whether to emit the suffix from a single
+     * classification of `radix`. */
+    bool emit_n_suffix = true;
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
-    if (radix != 10) {
+    if (radix == 16) {
+        if (emit(e, "0x", 2) != 0)
+            return e->err;
+    } else if (radix == 8) {
+        /* For octal, the parser stores the digit string with the leading
+         * '0' prefix already included (unlike hex, where '0x' is stripped),
+         * so emit no extra prefix here. */
+    } else if (radix != 10) {
         char prefix[16];
-        if (radix == 16) {
-            if (emit(e, "0x", 2) != 0)
-                return e->err;
-        } else if (radix == 8) {
-            if (emit(e, "0", 1) != 0)
-                return e->err;
-        } else if (radix == 2) {
-            /* 2rNN form is unambiguous for binary. */
-            int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
-            if (emit(e, prefix, (size_t) pl) != 0)
-                return e->err;
-        } else {
-            int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
-            if (emit(e, prefix, (size_t) pl) != 0)
-                return e->err;
+        int pl = snprintf(prefix, sizeof(prefix), "%ur", (unsigned) radix);
+        if (pl < 0) {
+            e->err = -EDN_ERROR_OUT_OF_MEMORY;
+            return e->err;
         }
+        if (emit(e, prefix, (size_t) pl) != 0)
+            return e->err;
+        emit_n_suffix = false; /* parser rejects N on `NrDDD` form */
     }
 #else
     (void) radix;
@@ -181,7 +185,9 @@ static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
 
     if (emit(e, digits, len) != 0)
         return e->err;
-    return emit(e, "N", 1);
+    if (emit_n_suffix)
+        return emit(e, "N", 1);
+    return 0;
 }
 
 static int emit_bigdec(emit_ctx_t* e, const edn_value_t* v) {
@@ -518,7 +524,7 @@ static int validate_options(const edn_write_options_t* opts) {
     }
     if (opts->struct_size < sizeof(edn_write_options_t)) {
         if (opts->struct_size != 0) {
-            return -EDN_ERROR_UNSUPPORTED_TYPE;
+            return -EDN_ERROR_INVALID_ARGUMENT;
         }
         return 0;
     }
@@ -544,7 +550,7 @@ static bool opt_newline_at_end(const edn_write_options_t* opts) {
 int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* ctx,
                      const edn_write_options_t* options) {
     if (cb == NULL) {
-        return -EDN_ERROR_UNSUPPORTED_TYPE;
+        return -EDN_ERROR_INVALID_ARGUMENT;
     }
     int v = validate_options(options);
     if (v != 0)
@@ -578,7 +584,7 @@ typedef struct {
 static int heap_cb(const char* data, size_t n, void* ctx) {
     heap_ctx_t* h = ctx;
     if (h->failed)
-        return -1;
+        return -EDN_ERROR_OUT_OF_MEMORY;
 
     if (h->len + n + 1 > h->cap) {
         size_t new_cap = h->cap ? h->cap : 64;
@@ -586,14 +592,14 @@ static int heap_cb(const char* data, size_t n, void* ctx) {
             size_t doubled = new_cap * 2;
             if (doubled < new_cap) {
                 h->failed = true;
-                return -1;
+                return -EDN_ERROR_OUT_OF_MEMORY;
             }
             new_cap = doubled;
         }
         char* nb = realloc(h->buf, new_cap);
         if (!nb) {
             h->failed = true;
-            return -1;
+            return -EDN_ERROR_OUT_OF_MEMORY;
         }
         h->buf = nb;
         h->cap = new_cap;
@@ -709,12 +715,14 @@ static int file_cb(const char* data, size_t n, void* ctx) {
     if (n == 0)
         return 0;
     size_t w = fwrite(data, 1, n, fp);
-    return (w == n) ? 0 : -1;
+    /* Short write = I/O failure. The enum has no dedicated I/O code; OOM is
+     * the closest fit and keeps the propagated value a real EDN_ERROR_*. */
+    return (w == n) ? 0 : -EDN_ERROR_OUT_OF_MEMORY;
 }
 
 int edn_write_file(const edn_value_t* value, FILE* fp, const edn_write_options_t* options) {
     if (fp == NULL) {
-        return -EDN_ERROR_UNSUPPORTED_TYPE;
+        return -EDN_ERROR_INVALID_ARGUMENT;
     }
     return edn_write_stream(value, file_cb, fp, options);
 }
