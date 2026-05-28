@@ -716,9 +716,7 @@ static int file_cb(const char* data, size_t n, void* ctx) {
     if (n == 0)
         return 0;
     size_t w = fwrite(data, 1, n, fp);
-    /* Short write = I/O failure. The enum has no dedicated I/O code; OOM is
-     * the closest fit and keeps the propagated value a real EDN_ERROR_*. */
-    return (w == n) ? 0 : -EDN_ERROR_OUT_OF_MEMORY;
+    return (w == n) ? 0 : -EDN_ERROR_IO_FAILURE;
 }
 
 int edn_write_file(const edn_value_t* value, FILE* fp, const edn_write_options_t* options) {

@@ -520,11 +520,26 @@ static int abort_with_oom_cb(const char* data, size_t n, void* ctx) {
     return -EDN_ERROR_OUT_OF_MEMORY;
 }
 
-TEST(write_stream_callback_error_propagation) {
+TEST(write_stream_callback_propagates_oom) {
     edn_result_t r = edn_read("nil", 0);
     assert(r.error == EDN_OK);
     int rc = edn_write_stream(r.value, abort_with_oom_cb, NULL, NULL);
     assert(rc == -EDN_ERROR_OUT_OF_MEMORY);
+    edn_free(r.value);
+}
+
+static int abort_with_io_failure_cb(const char* data, size_t n, void* ctx) {
+    (void) data;
+    (void) n;
+    (void) ctx;
+    return -EDN_ERROR_IO_FAILURE;
+}
+
+TEST(write_stream_callback_propagates_io_failure) {
+    edn_result_t r = edn_read("nil", 0);
+    assert(r.error == EDN_OK);
+    int rc = edn_write_stream(r.value, abort_with_io_failure_cb, NULL, NULL);
+    assert(rc == -EDN_ERROR_IO_FAILURE);
     edn_free(r.value);
 }
 
@@ -813,7 +828,8 @@ int main(void) {
     RUN_TEST(write_file_tmpfile);
     RUN_TEST(write_stream_callback);
     RUN_TEST(write_stream_callback_abort);
-    RUN_TEST(write_stream_callback_error_propagation);
+    RUN_TEST(write_stream_callback_propagates_oom);
+    RUN_TEST(write_stream_callback_propagates_io_failure);
     RUN_TEST(write_stream_null_cb_invalid_argument);
     RUN_TEST(write_file_null_fp_invalid_argument);
     RUN_TEST(write_buffer_null_buf_returns_sentinel);
