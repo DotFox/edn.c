@@ -150,6 +150,24 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
         case EDN_TYPE_RATIO:
             return a->as.ratio.numerator == b->as.ratio.numerator &&
                    a->as.ratio.denominator == b->as.ratio.denominator;
+
+        case EDN_TYPE_BIGRATIO: {
+            if (a->as.bigratio.numer_negative != b->as.bigratio.numer_negative) {
+                return false;
+            }
+            if (a->as.bigratio.numer_length != b->as.bigratio.numer_length) {
+                return false;
+            }
+            if (a->as.bigratio.denom_length != b->as.bigratio.denom_length) {
+                return false;
+            }
+            if (memcmp(a->as.bigratio.numerator, b->as.bigratio.numerator,
+                       a->as.bigratio.numer_length) != 0) {
+                return false;
+            }
+            return memcmp(a->as.bigratio.denominator, b->as.bigratio.denominator,
+                          a->as.bigratio.denom_length) == 0;
+        }
 #endif
 
         case EDN_TYPE_CHARACTER:
@@ -392,6 +410,46 @@ int edn_value_compare(const void* a_ptr, const void* b_ptr) {
 #endif
         }
 
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+        case EDN_TYPE_RATIO: {
+            /* Lexicographic on (sign-of-numerator, numerator, denominator).
+             * NOT a numeric total order — matches BIGINT/BIGDEC compare semantics. */
+            bool neg_a = a->as.ratio.numerator < 0;
+            bool neg_b = b->as.ratio.numerator < 0;
+            if (neg_a != neg_b) {
+                return neg_a ? -1 : 1;
+            }
+            if (a->as.ratio.numerator != b->as.ratio.numerator) {
+                return (a->as.ratio.numerator < b->as.ratio.numerator) ? -1 : 1;
+            }
+            if (a->as.ratio.denominator != b->as.ratio.denominator) {
+                return (a->as.ratio.denominator < b->as.ratio.denominator) ? -1 : 1;
+            }
+            return 0;
+        }
+
+        case EDN_TYPE_BIGRATIO: {
+            /* Lex order on (numer_negative, numer_length, numerator bytes,
+             * denom_length, denominator bytes). Mirrors BIGINT compare. */
+            if (a->as.bigratio.numer_negative != b->as.bigratio.numer_negative) {
+                return a->as.bigratio.numer_negative ? -1 : 1;
+            }
+            if (a->as.bigratio.numer_length != b->as.bigratio.numer_length) {
+                return (int) (a->as.bigratio.numer_length - b->as.bigratio.numer_length);
+            }
+            int cmp = memcmp(a->as.bigratio.numerator, b->as.bigratio.numerator,
+                             a->as.bigratio.numer_length);
+            if (cmp != 0) {
+                return cmp;
+            }
+            if (a->as.bigratio.denom_length != b->as.bigratio.denom_length) {
+                return (int) (a->as.bigratio.denom_length - b->as.bigratio.denom_length);
+            }
+            return memcmp(a->as.bigratio.denominator, b->as.bigratio.denominator,
+                          a->as.bigratio.denom_length);
+        }
+#endif
+
         case EDN_TYPE_FLOAT:
             if (isnan(a->as.floating) && isnan(b->as.floating))
                 return 0;
@@ -580,6 +638,20 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
             }
             for (size_t i = 0; i < sizeof(int64_t); i++) {
                 hash ^= (value->as.ratio.denominator >> (i * 8)) & 0xFF;
+                hash *= FNV_PRIME;
+            }
+            break;
+        }
+
+        case EDN_TYPE_BIGRATIO: {
+            hash ^= value->as.bigratio.numer_negative ? 1 : 0;
+            hash *= FNV_PRIME;
+            for (size_t i = 0; i < value->as.bigratio.numer_length; i++) {
+                hash ^= (uint8_t) value->as.bigratio.numerator[i];
+                hash *= FNV_PRIME;
+            }
+            for (size_t i = 0; i < value->as.bigratio.denom_length; i++) {
+                hash ^= (uint8_t) value->as.bigratio.denominator[i];
                 hash *= FNV_PRIME;
             }
             break;
