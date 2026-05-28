@@ -877,17 +877,120 @@ TEST(write_meta_rejects_when_extension_off) {
 }
 #endif
 
-TEST(write_reject_escape_unicode) {
-    edn_result_t r = edn_read("\"x\"", 0);
+/* --- escape_unicode --- */
+
+static char* write_with_escape_unicode(const char* input) {
+    edn_result_t r = edn_read(input, 0);
+    if (r.error != EDN_OK || r.value == NULL) {
+        edn_free(r.value);
+        return NULL;
+    }
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.escape_unicode = true;
+    char* out = edn_write_string(r.value, &opts, NULL);
+    edn_free(r.value);
+    return out;
+}
+
+TEST(write_escape_unicode_ascii_passthrough) {
+    char* s = write_with_escape_unicode("\"hello world\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"hello world\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_bmp_2byte) {
+    /* U+00E9 (é) -> \u00E9 */
+    char* s = write_with_escape_unicode("\"café\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"caf\\u00E9\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_bmp_3byte) {
+    /* U+65E5 (日) and U+672C (本) */
+    char* s = write_with_escape_unicode("\"日本\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"\\u65E5\\u672C\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_supplementary_passthrough) {
+    /* U+1F600 (😀) -> raw UTF-8 bytes, not surrogate pair. */
+    char* s = write_with_escape_unicode("\"😀\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"\xF0\x9F\x98\x80\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_preserves_existing_escapes) {
+    char* s = write_with_escape_unicode("\"a\\nb\\u00E9c\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"a\\nb\\u00E9c\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_mixed) {
+    char* s = write_with_escape_unicode("\"hello, café! 😀\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"hello, caf\\u00E9! \xF0\x9F\x98\x80\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_off_preserves_raw_utf8) {
+    char* s = write_roundtrip("\"café\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"café\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_empty_string) {
+    char* s = write_with_escape_unicode("\"\"");
+    assert(s != NULL);
+    assert_str_eq(s, "\"\"");
+    free(s);
+}
+
+TEST(write_escape_unicode_inside_collection) {
+    char* s = write_with_escape_unicode("[\"café\" 42]");
+    assert(s != NULL);
+    assert_str_eq(s, "[\"caf\\u00E9\" 42]");
+    free(s);
+}
+
+TEST(write_escape_unicode_does_not_affect_keyword_with_utf8) {
+    /* EDN identifiers have no escape syntax — raw UTF-8 only. */
+    char* s = write_with_escape_unicode(":café");
+    assert(s != NULL);
+    assert_str_eq(s, ":café");
+    free(s);
+}
+
+TEST(write_escape_unicode_does_not_affect_character) {
+    /* Character emitter already escapes non-ASCII; flag must not double-process. */
+    char* s = write_with_escape_unicode("\\u00E9");
+    assert(s != NULL);
+    assert_str_eq(s, "\\u00E9");
+    free(s);
+}
+
+TEST(write_escape_unicode_with_sort_unordered) {
+    /* Sort key for "é" becomes "\u00E9" with escape_unicode on. Byte-wise:
+     * both start with `"`, then `\` (0x5C) < `a` (0x61), so the escaped
+     * string sorts first — opposite of the raw-UTF-8 byte order. */
+    edn_result_t r = edn_read("{\"é\" 1 \"a\" 2}", 0);
     assert(r.error == EDN_OK);
 
     edn_write_options_t opts = {0};
     opts.struct_size = sizeof(opts);
     opts.escape_unicode = true;
+    opts.sort_unordered = true;
 
     char* s = edn_write_string(r.value, &opts, NULL);
-    assert(s == NULL);
-
+    assert(s != NULL);
+    assert_str_eq(s, "{\"\\u00E9\" 1, \"a\" 2}");
+    free(s);
     edn_free(r.value);
 }
 
@@ -1156,7 +1259,20 @@ int main(void) {
 #ifndef EDN_ENABLE_CLOJURE_EXTENSION
     RUN_TEST(write_meta_rejects_when_extension_off);
 #endif
-    RUN_TEST(write_reject_escape_unicode);
+
+    /* escape_unicode */
+    RUN_TEST(write_escape_unicode_ascii_passthrough);
+    RUN_TEST(write_escape_unicode_bmp_2byte);
+    RUN_TEST(write_escape_unicode_bmp_3byte);
+    RUN_TEST(write_escape_unicode_supplementary_passthrough);
+    RUN_TEST(write_escape_unicode_preserves_existing_escapes);
+    RUN_TEST(write_escape_unicode_mixed);
+    RUN_TEST(write_escape_unicode_off_preserves_raw_utf8);
+    RUN_TEST(write_escape_unicode_empty_string);
+    RUN_TEST(write_escape_unicode_inside_collection);
+    RUN_TEST(write_escape_unicode_does_not_affect_keyword_with_utf8);
+    RUN_TEST(write_escape_unicode_does_not_affect_character);
+    RUN_TEST(write_escape_unicode_with_sort_unordered);
 
     /* sort_unordered */
     RUN_TEST(write_sort_unordered_basic);

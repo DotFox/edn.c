@@ -17,10 +17,11 @@ typedef struct {
     int err;             /* 0 = ok; <0 propagated to caller */
     bool sort_unordered; /* deterministic ordering of map entries and set elements (byte-wise) */
     bool emit_metadata;  /* emit ^... prefixes for values with attached metadata */
+    bool escape_unicode; /* escape non-ASCII bytes in strings as \uXXXX (BMP only) */
 } emit_ctx_t;
 
-static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
-                                 size_t* out_len);
+static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, bool escape_unicode,
+                                 char** out_buf, size_t* out_len);
 
 static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     if (e->err != 0) {
@@ -293,15 +294,118 @@ static int emit_character(emit_ctx_t* e, uint32_t cp) {
     return emit(e, buf, (size_t) len);
 }
 
+/* Strict UTF-8 decoder for one multi-byte sequence at `p`. Returns the byte
+ * count consumed (2/3/4) with the codepoint in *out_cp, or 0 on malformation
+ * (overlong, surrogate U+D800..U+DFFF, > U+10FFFF, or short input). */
+static size_t decode_utf8(const unsigned char* p, size_t len, uint32_t* out_cp) {
+    if (len == 0) {
+        return 0;
+    }
+    unsigned char b0 = p[0];
+    if ((b0 & 0xE0) == 0xC0) {
+        if (len < 2 || (p[1] & 0xC0) != 0x80) {
+            return 0;
+        }
+        uint32_t cp = ((uint32_t) (b0 & 0x1F) << 6) | (uint32_t) (p[1] & 0x3F);
+        if (cp < 0x80) {
+            return 0; /* overlong */
+        }
+        *out_cp = cp;
+        return 2;
+    }
+    if ((b0 & 0xF0) == 0xE0) {
+        if (len < 3 || (p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80) {
+            return 0;
+        }
+        uint32_t cp = ((uint32_t) (b0 & 0x0F) << 12) | ((uint32_t) (p[1] & 0x3F) << 6) |
+                      (uint32_t) (p[2] & 0x3F);
+        if (cp < 0x800 || (cp >= 0xD800 && cp <= 0xDFFF)) {
+            return 0; /* overlong or surrogate */
+        }
+        *out_cp = cp;
+        return 3;
+    }
+    if ((b0 & 0xF8) == 0xF0) {
+        if (len < 4 || (p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80 || (p[3] & 0xC0) != 0x80) {
+            return 0;
+        }
+        uint32_t cp = ((uint32_t) (b0 & 0x07) << 18) | ((uint32_t) (p[1] & 0x3F) << 12) |
+                      ((uint32_t) (p[2] & 0x3F) << 6) | (uint32_t) (p[3] & 0x3F);
+        if (cp < 0x10000 || cp > 0x10FFFF) {
+            return 0; /* overlong or out-of-range */
+        }
+        *out_cp = cp;
+        return 4;
+    }
+    return 0;
+}
+
+static int emit_bmp_escape(emit_ctx_t* e, uint32_t cp) {
+    char buf[8];
+    int len = snprintf(buf, sizeof(buf), "\\u%04X", cp);
+    if (len < 0) {
+        e->err = -EDN_ERROR_OUT_OF_MEMORY;
+        return e->err;
+    }
+    return emit(e, buf, (size_t) len);
+}
+
+/* Escape pass: emit ASCII runs verbatim; convert each well-formed non-ASCII
+ * UTF-8 sequence to either `\uXXXX` (BMP) or raw UTF-8 (supplementary). */
+static int emit_string_bytes_escaped(emit_ctx_t* e, const char* data, size_t len) {
+    const unsigned char* bytes = (const unsigned char*) data;
+    size_t run_start = 0;
+    size_t i = 0;
+    while (i < len) {
+        if (bytes[i] < 0x80) {
+            i++;
+            continue;
+        }
+        if (i > run_start) {
+            if (emit(e, data + run_start, i - run_start) != 0)
+                return e->err;
+        }
+        uint32_t cp = 0;
+        size_t n = decode_utf8(bytes + i, len - i, &cp);
+        if (n == 0) {
+            e->err = -EDN_ERROR_INVALID_STRING;
+            return e->err;
+        }
+        if (cp <= 0xFFFF) {
+            if (emit_bmp_escape(e, cp) != 0)
+                return e->err;
+        } else {
+            /* Supplementary plane: pass through as raw UTF-8 (parser does
+             * not accept surrogate pairs). */
+            if (emit(e, data + i, n) != 0)
+                return e->err;
+        }
+        i += n;
+        run_start = i;
+    }
+    if (run_start < len) {
+        return emit(e, data + run_start, len - run_start);
+    }
+    return 0;
+}
+
 static int emit_string(emit_ctx_t* e, const edn_value_t* v) {
     /* Strings store raw source bytes between the quote characters. The source
      * is already valid EDN (any required escapes are present in the bytes),
-     * so verbatim emission between quotes round-trips. */
+     * so verbatim emission between quotes round-trips. When escape_unicode
+     * is set, non-ASCII UTF-8 sequences in the BMP are converted to \uXXXX
+     * on the way out; ASCII bytes (including pre-existing backslash escapes)
+     * pass through unchanged. */
     if (emit(e, "\"", 1) != 0)
         return e->err;
     size_t len = edn_string_get_length(v);
-    if (emit(e, v->as.string.data, len) != 0)
-        return e->err;
+    if (e->escape_unicode) {
+        if (emit_string_bytes_escaped(e, v->as.string.data, len) != 0)
+            return e->err;
+    } else {
+        if (emit(e, v->as.string.data, len) != 0)
+            return e->err;
+    }
     return emit(e, "\"", 1);
 }
 
@@ -382,14 +486,15 @@ static void free_key_sort_items(key_sort_item_t* items, size_t count) {
  * free_key_sort_items. On failure returns a negative EDN_ERROR_* and sets
  * *out_items to NULL. */
 static int build_sorted_indices(edn_value_t* const* elements, size_t count, bool sort_unordered,
-                                key_sort_item_t** out_items) {
+                                bool escape_unicode, key_sort_item_t** out_items) {
     *out_items = NULL;
     key_sort_item_t* items = calloc(count, sizeof(*items));
     if (items == NULL) {
         return -EDN_ERROR_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < count; i++) {
-        int r = serialize_key_to_heap(elements[i], sort_unordered, &items[i].repr, &items[i].len);
+        int r = serialize_key_to_heap(elements[i], sort_unordered, escape_unicode, &items[i].repr,
+                                      &items[i].len);
         if (r != 0) {
             free_key_sort_items(items, i);
             return r;
@@ -404,7 +509,7 @@ static int build_sorted_indices(edn_value_t* const* elements, size_t count, bool
 static int emit_map_sorted(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const* values,
                            size_t count) {
     key_sort_item_t* items = NULL;
-    int r = build_sorted_indices(keys, count, e->sort_unordered, &items);
+    int r = build_sorted_indices(keys, count, e->sort_unordered, e->escape_unicode, &items);
     if (r != 0) {
         e->err = r;
         return e->err;
@@ -434,7 +539,7 @@ done:
 
 static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
     key_sort_item_t* items = NULL;
-    int r = build_sorted_indices(elements, count, e->sort_unordered, &items);
+    int r = build_sorted_indices(elements, count, e->sort_unordered, e->escape_unicode, &items);
     if (r != 0) {
         e->err = r;
         return e->err;
@@ -582,8 +687,6 @@ static int validate_options(const edn_write_options_t* opts) {
     if (opts->emit_metadata)
         return -EDN_ERROR_UNSUPPORTED_TYPE;
 #endif
-    if (opts->escape_unicode)
-        return -EDN_ERROR_UNSUPPORTED_TYPE;
     return 0;
 }
 
@@ -608,11 +711,13 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
 
     bool sort_unordered = (options != NULL && options->struct_size != 0 && options->sort_unordered);
     bool emit_metadata = (options != NULL && options->struct_size != 0 && options->emit_metadata);
+    bool escape_unicode = (options != NULL && options->struct_size != 0 && options->escape_unicode);
     emit_ctx_t e = {.cb = cb,
                     .ctx = ctx,
                     .err = 0,
                     .sort_unordered = sort_unordered,
-                    .emit_metadata = emit_metadata};
+                    .emit_metadata = emit_metadata,
+                    .escape_unicode = escape_unicode};
     emit_value(&e, value);
     if (e.err != 0)
         return e.err;
@@ -667,14 +772,15 @@ static int heap_cb(const char* data, size_t n, void* ctx) {
 /* Serialize one value into a fresh malloc'd buffer (NOT null-terminated;
  * length returned via *out_len). Returns 0 on success, a negative
  * EDN_ERROR_* on failure (in which case *out_buf is set to NULL). */
-static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
-                                 size_t* out_len) {
+static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, bool escape_unicode,
+                                 char** out_buf, size_t* out_len) {
     heap_ctx_t h = {.buf = NULL, .len = 0, .cap = 0, .failed = false};
     emit_ctx_t e = {.cb = heap_cb,
                     .ctx = &h,
                     .err = 0,
                     .sort_unordered = sort_unordered,
-                    .emit_metadata = false};
+                    .emit_metadata = false,
+                    .escape_unicode = escape_unicode};
     emit_value(&e, v);
     if (e.err != 0 || h.failed) {
         free(h.buf);
