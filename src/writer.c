@@ -15,12 +15,11 @@ typedef struct {
     edn_writer_callback_fn cb;
     void* ctx;
     int err;             /* 0 = ok; <0 propagated to caller */
-    bool sort_unordered; /* deterministic map key ordering (byte-wise on serialized key) */
+    bool sort_unordered; /* deterministic ordering of map entries and set elements (byte-wise) */
 } emit_ctx_t;
 
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
                                  size_t* out_len);
-static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t count);
 
 static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     if (e->err != 0) {
@@ -307,24 +306,10 @@ static int emit_sequence(emit_ctx_t* e, edn_value_t* const* elements, size_t cou
     return emit(e, &close, 1);
 }
 
-static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
-    if (e->sort_unordered && count > 1) {
-        return emit_set_sorted(e, elements, count);
-    }
-    if (emit(e, "#{", 2) != 0)
-        return e->err;
-    for (size_t i = 0; i < count; i++) {
-        if (i > 0) {
-            if (emit(e, " ", 1) != 0)
-                return e->err;
-        }
-        if (emit_value(e, elements[i]) != 0)
-            return e->err;
-    }
-    return emit(e, "}", 1);
-}
+/* --- deterministic ordering of unordered collections (maps, sets) --- */
 
-/* Sortable view of a map key: its serialized bytes plus the original index. */
+/* Sortable view of a collection element: its serialized bytes plus the
+ * original index. */
 typedef struct {
     char* repr;
     size_t len;
@@ -434,6 +419,23 @@ static int emit_set_sorted(emit_ctx_t* e, edn_value_t* const* elements, size_t c
 done:
     free_key_sort_items(items, count);
     return e->err;
+}
+
+static int emit_set(emit_ctx_t* e, edn_value_t* const* elements, size_t count) {
+    if (e->sort_unordered && count > 1) {
+        return emit_set_sorted(e, elements, count);
+    }
+    if (emit(e, "#{", 2) != 0)
+        return e->err;
+    for (size_t i = 0; i < count; i++) {
+        if (i > 0) {
+            if (emit(e, " ", 1) != 0)
+                return e->err;
+        }
+        if (emit_value(e, elements[i]) != 0)
+            return e->err;
+    }
+    return emit(e, "}", 1);
 }
 
 static int emit_map(emit_ctx_t* e, edn_value_t* const* keys, edn_value_t* const* values,
@@ -558,7 +560,7 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
         return v;
 
     bool sort_unordered = (options != NULL && options->struct_size != 0 && options->sort_unordered);
-    emit_ctx_t e = {cb, ctx, 0, sort_unordered};
+    emit_ctx_t e = {.cb = cb, .ctx = ctx, .err = 0, .sort_unordered = sort_unordered};
     emit_value(&e, value);
     if (e.err != 0)
         return e.err;
@@ -615,8 +617,8 @@ static int heap_cb(const char* data, size_t n, void* ctx) {
  * EDN_ERROR_* on failure (in which case *out_buf is set to NULL). */
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char** out_buf,
                                  size_t* out_len) {
-    heap_ctx_t h = {NULL, 0, 0, false};
-    emit_ctx_t e = {heap_cb, &h, 0, sort_unordered};
+    heap_ctx_t h = {.buf = NULL, .len = 0, .cap = 0, .failed = false};
+    emit_ctx_t e = {.cb = heap_cb, .ctx = &h, .err = 0, .sort_unordered = sort_unordered};
     emit_value(&e, v);
     if (e.err != 0 || h.failed) {
         free(h.buf);
@@ -631,7 +633,7 @@ static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, char
 
 char* edn_write_string(const edn_value_t* value, const edn_write_options_t* options,
                        size_t* out_len) {
-    heap_ctx_t h = {NULL, 0, 0, false};
+    heap_ctx_t h = {.buf = NULL, .len = 0, .cap = 0, .failed = false};
     int r = edn_write_stream(value, heap_cb, &h, options);
     if (r != 0 || h.failed) {
         free(h.buf);
@@ -696,7 +698,7 @@ size_t edn_write_buffer(const edn_value_t* value, char* buf, size_t cap,
     if (cap > 0 && buf == NULL) {
         return (size_t) -1;
     }
-    buffer_ctx_t b = {buf, cap, 0, 0};
+    buffer_ctx_t b = {.buf = buf, .cap = cap, .pos = 0, .needed = 0};
     int r = edn_write_stream(value, buffer_cb, &b, options);
     if (r != 0) {
         return (size_t) -1;
