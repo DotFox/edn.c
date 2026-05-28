@@ -852,7 +852,8 @@ typedef struct edn_writer_registry edn_writer_registry_t;
  *   indent           - NOT IMPLEMENTED (non-zero -> EDN_ERROR_UNSUPPORTED_TYPE)
  *   sort_unordered   - implemented (byte-wise lex order on serialized elements; maps and sets)
  *   emit_metadata    - implemented (requires EDN_ENABLE_CLOJURE_EXTENSION)
- *   escape_unicode   - NOT IMPLEMENTED (true -> EDN_ERROR_UNSUPPORTED_TYPE)
+ *   escape_unicode   - implemented (non-ASCII bytes in strings -> \uXXXX BMP escapes;
+ *                                   supplementary codepoints pass through as UTF-8)
  *   writer_registry  - NOT IMPLEMENTED (EDN_TYPE_EXTERNAL -> EDN_ERROR_UNSUPPORTED_TYPE)
  *   newline_at_end   - implemented
  */
@@ -863,7 +864,8 @@ typedef struct {
                                                elements (byte-wise on serialized form) */
     bool emit_metadata;                     /* emit ^... metadata prefixes
                                                (requires EDN_ENABLE_CLOJURE_EXTENSION) */
-    bool escape_unicode;                    /* reserved (non-ASCII bytes -> \uXXXX) */
+    bool escape_unicode;                    /* escape non-ASCII bytes in strings as
+                                               \uXXXX (BMP only) */
     bool newline_at_end;                    /* emit trailing '\n' after value */
     edn_writer_registry_t* writer_registry; /* reserved */
 } edn_write_options_t;
