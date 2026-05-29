@@ -6,6 +6,7 @@
 build/
 *.wasm
 *.js
+.build-flags
 
 # Test binaries
 test/test_*
