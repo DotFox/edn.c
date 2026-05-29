@@ -1,6 +1,6 @@
 # EDN.C
 
-A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD acceleration.
+A fast, zero-copy EDN (Extensible Data Notation) reader and writer written in C11 with SIMD acceleration. Ships with a value-tree writer (compact + pretty-print) and a YAJL-style streaming emitter.
 
 [![CI](https://github.com/DotFox/edn.c/workflows/CI/badge.svg)](https://github.com/DotFox/edn.c/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -27,9 +27,12 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
 - **🎯 Simple API**: Easy-to-use interface with comprehensive type support
 - **🧹 Memory-safe**: Arena allocator for efficient cleanup - single `edn_free()` call
 - **🔧 Zero Dependencies**: Pure C11 with standard library only
-- **✅ Fully Tested**: 340+ tests across 24 test suites
+- **✅ Fully Tested**: 2000+ tests across 40+ test suites
 - **📖 UTF-8 Native**: All string inputs and outputs are UTF-8 encoded
 - **🏷️ Tagged Literals**: Extensible data types with custom reader support
+- **✍️ Writer**: Serialize `edn_value_t` to string, buffer, FILE, or callback with Ryū-accurate doubles, sortable map/set output, and round-trip fidelity
+- **🎨 Pretty-print**: Clojure pprint-style indentation (default-dispatch shape, always-break)
+- **📡 Streaming emitter**: YAJL-style push API (`edn_emitter_*` / `edn_emit_*`) that produces EDN incrementally without building a value tree
 - **🗺️ Map Namespace Syntax**: Clojure-compatible `#:ns{...}` syntax (optional, disabled by default)
 - **🔤 Extended Characters**: `\formfeed`, `\backspace`, and octal `\oNNN` literals (optional, disabled by default)
 - **📝 Metadata**: Clojure-style metadata `^{...}` syntax (optional, disabled by default)
@@ -50,6 +53,7 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
   - [Collections](#collections)
   - [Tagged Literals](#tagged-literals)
   - [Custom Readers](#custom-readers)
+  - [External Values](#external-values)
   - [Map Namespace Syntax](#map-namespace-syntax)
   - [Extended Character Literals](#extended-character-literals)
   - [Metadata](#metadata)
@@ -57,6 +61,8 @@ A fast, zero-copy EDN (Extensible Data Notation) reader written in C11 with SIMD
   - [Ratio Numbers](#ratio-numbers)
   - [Extended Integer Formats](#extended-integer-formats)
   - [Underscore in Numeric Literals](#underscore-in-numeric-literals)
+  - [Writer](#writer)
+  - [Streaming Emitter](#streaming-emitter)
 - [Examples](#examples)
 - [Building](#building)
 - [Performance](#performance)
@@ -279,6 +285,40 @@ Get the type of an EDN value.
 edn_type_t edn_type(const edn_value_t *value);
 ```
 
+#### `edn_source_position()`
+
+Get the byte range in the original input that this value was parsed from. Useful for editor integrations, error overlays, and source-aware tooling.
+
+```c
+bool edn_source_position(const edn_value_t *value, size_t *start, size_t *end);
+```
+
+Returns `true` if `value` is non-NULL. `start` and `end` are optional outputs (pass NULL to skip). Offsets are zero-based byte indices into the original input.
+
+**Example:**
+```c
+edn_result_t r = edn_read("[1 2 hello]", 0);
+edn_value_t* sym = edn_vector_get(r.value, 2);
+size_t start, end;
+if (edn_source_position(sym, &start, &end)) {
+    printf("hello at bytes %zu..%zu\n", start, end);  // 5..10
+}
+edn_free(r.value);
+```
+
+#### Reader Limits, Comments, Discards
+
+- **Maximum nesting depth.** The reader defaults to 1024 levels of nesting (and the streaming emitter mirrors the same limit). Exceeding it returns `EDN_ERROR_MAX_DEPTH_EXCEEDED`. Override at parse time via `edn_parse_options_t.max_depth` and `edn_read_with_options`.
+- **Line comments.** A `;` starts a comment that runs to end-of-line, skipped exactly like whitespace.
+- **Discard form `#_`.** `#_ form` reads and discards the following form. Common uses: temporarily silencing a map entry, hiding a vector element. The discard applies to one form regardless of whitespace, so `#_:debug` and `#_ {:a 1}` both work.
+
+```c
+edn_read("[1 ; ignore me\n 2 3]", 0);            // vector of 3 ints
+edn_read("[1 #_ skipped 2 3]", 0);               // vector of 3 ints
+edn_read("{:a 1 :b #_ 999 2}", 0);               // map of 2 entries: :a 1, :b 2
+edn_read("{:a 1 #_ :debug-key #_ 999 :b 2}", 0); // ditto; both forms after #_ are dropped
+```
+
 **Returns:** One of:
 - `EDN_TYPE_NIL`
 - `EDN_TYPE_BOOL`
@@ -287,6 +327,7 @@ edn_type_t edn_type(const edn_value_t *value);
 - `EDN_TYPE_FLOAT` (double)
 - `EDN_TYPE_BIGDEC` (exact precision decimal)
 - `EDN_TYPE_RATIO` (rational number, requires `CLOJURE_EXTENSION=1` build flag)
+- `EDN_TYPE_BIGRATIO` (arbitrary precision rational, requires `CLOJURE_EXTENSION=1` build flag)
 - `EDN_TYPE_CHARACTER` (Unicode codepoint)
 - `EDN_TYPE_STRING`
 - `EDN_TYPE_SYMBOL`
@@ -296,6 +337,7 @@ edn_type_t edn_type(const edn_value_t *value);
 - `EDN_TYPE_MAP`
 - `EDN_TYPE_SET`
 - `EDN_TYPE_TAGGED`
+- `EDN_TYPE_EXTERNAL` (opaque user-supplied value produced by custom readers)
 
 ### Type System
 
@@ -315,7 +357,12 @@ typedef enum {
     EDN_ERROR_UNMATCHED_DELIMITER,     // Mismatched brackets
     EDN_ERROR_UNKNOWN_TAG,             // Unregistered tag (with ERROR mode)
     EDN_ERROR_DUPLICATE_KEY,           // Map has duplicate keys
-    EDN_ERROR_DUPLICATE_ELEMENT        // Set has duplicate elements
+    EDN_ERROR_DUPLICATE_ELEMENT,       // Set has duplicate elements
+    EDN_ERROR_MAX_DEPTH_EXCEEDED,      // Reader / emitter nested too deeply
+    EDN_ERROR_UNSUPPORTED_TYPE,        // Writer cannot serialize the value
+    EDN_ERROR_INVALID_ARGUMENT,        // Bad public-API argument
+    EDN_ERROR_IO_FAILURE,              // Writer/emitter sink callback failed
+    EDN_ERROR_INVALID_STATE            // Streaming emitter contract violation
 } edn_error_t;
 ```
 
@@ -581,12 +628,12 @@ edn_free(r4.value);
 // Error: zero denominator
 edn_result_t r5 = edn_read("5/0", 0);
 // r5.error == EDN_ERROR_INVALID_NUMBER
-// r5.error_message == "Ratio denominator cannot be zero"
+// r5.error_message == "Divide by zero"
 
 // Error: negative denominator (denominators must be positive)
 edn_result_t r6 = edn_read("3/-4", 0);
 // r6.error == EDN_ERROR_INVALID_NUMBER
-// r6.error_message == "Ratio denominator must be positive"
+// r6.error_message == "Expected digit after '/' in ratio"
 
 // Error: hex not supported
 edn_result_t r7 = edn_read("0x10/2", 0);
@@ -615,6 +662,34 @@ When disabled (default):
 **Note:** Ratios are a Clojure language feature, not part of the official EDN specification. They're provided here for compatibility with Clojure's clojure.edn parser.
 
 See `test/test_numbers.c` for comprehensive ratio test examples.
+
+#### Big Ratios
+
+When either side of a ratio overflows `int64_t`, the value is parsed as `EDN_TYPE_BIGRATIO` instead of `EDN_TYPE_RATIO`. Access the digit strings for use with external bignum libraries:
+
+```c
+bool edn_bigratio_get(const edn_value_t *value,
+                      const char **numerator,  size_t *numer_length, bool *numer_negative,
+                      const char **denominator, size_t *denom_length);
+```
+
+The denominator is always positive (sign lives on the numerator). Returned pointers are valid until `edn_free()`.
+
+**Example:**
+```c
+edn_result_t r = edn_read("99999999999999999999/123456789012345678901", 0);
+if (edn_type(r.value) == EDN_TYPE_BIGRATIO) {
+    const char *num, *den;
+    size_t nlen, dlen;
+    bool nneg;
+    edn_bigratio_get(r.value, &num, &nlen, &nneg, &den, &dlen);
+    printf("%s%.*s / %.*s\n", nneg ? "-" : "",
+           (int)nlen, num, (int)dlen, den);
+}
+edn_free(r.value);
+```
+
+Requires `EDN_ENABLE_CLOJURE_EXTENSION`.
 
 ### Extended Integer Formats
 
@@ -729,7 +804,7 @@ edn_free(r1.value);
 edn_result_t r2 = edn_read("3.14_15_92_65_35_89_79", 0);
 double val2;
 edn_double_get(r2.value, &val2);
-// val2 = 3.141592653589793
+// val2 = 3.14159265358979
 edn_free(r2.value);
 
 // Hex bytes (requires CLOJURE_EXTENSION=1)
@@ -1288,6 +1363,110 @@ int main(void) {
 
 See `examples/reader.c` for more complete examples including timestamp conversion, vector extraction, and namespaced tags.
 
+### External Values
+
+For tagged literal readers that need to produce a domain-specific C type (not just transform between EDN types), EDN.C provides `EDN_TYPE_EXTERNAL` — an opaque carrier for arbitrary user data, paired with a process-global registry that teaches the equality, comparison, and hash machinery how to handle it.
+
+**Typical use:** a reader for `#inst "..."` that returns a `struct timespec*` instead of a tagged-literal wrapper, or a reader for `#uuid "..."` that returns a 16-byte UUID struct. Equality on the resulting maps/sets then works transparently.
+
+#### Lifecycle
+
+```c
+// Per-type registration (process-global; typically done once at startup).
+bool edn_external_register_type(uint32_t type_id,
+                                edn_external_equal_fn equal_fn,
+                                edn_external_hash_fn hash_fn);   // hash_fn may be NULL
+void edn_external_unregister_type(uint32_t type_id);
+
+// Inside a reader function (arena is supplied by the parser):
+void*        edn_arena_alloc   (edn_arena_t* arena, size_t size);
+edn_value_t* edn_external_create(edn_arena_t* arena, void* data, uint32_t type_id);
+
+// Accessors (anywhere downstream of parsing):
+bool edn_external_get    (const edn_value_t* v, void** data, uint32_t* type_id);
+bool edn_external_is_type(const edn_value_t* v, uint32_t type_id);
+```
+
+Function types:
+```c
+typedef bool     (*edn_external_equal_fn)(const void* a, const void* b);
+typedef uint64_t (*edn_external_hash_fn) (const void* data);
+```
+
+Memory allocated through `edn_arena_alloc` is owned by the arena and freed automatically when the top-level value is freed with `edn_free`. **Never call `free()` on the pointer you stored in an external value.**
+
+#### Example: `#uuid` reader producing a UUID struct
+
+```c
+#include "edn.h"
+#include <stdint.h>
+#include <string.h>
+
+#define UUID_TYPE_ID 0x55554944u   /* "UUID" */
+
+typedef struct {
+    uint8_t bytes[16];
+} uuid_t;
+
+static bool uuid_eq(const void* a, const void* b) {
+    return memcmp(a, b, 16) == 0;
+}
+
+static uint64_t uuid_hash(const void* p) {
+    const uint8_t* b = p;
+    uint64_t lo, hi;
+    memcpy(&lo, b, 8);
+    memcpy(&hi, b + 8, 8);
+    return lo ^ hi;
+}
+
+static edn_value_t* uuid_reader(edn_value_t* v, edn_arena_t* arena,
+                                const char** err) {
+    if (edn_type(v) != EDN_TYPE_STRING) {
+        *err = "#uuid requires a string";
+        return NULL;
+    }
+    size_t len;
+    const char* s = edn_string_get(v, &len);
+    if (len != 36) {                                   /* 8-4-4-4-12 */
+        *err = "#uuid: expected 36-char hex string";
+        return NULL;
+    }
+    uuid_t* u = edn_arena_alloc(arena, sizeof(*u));
+    if (u == NULL) {
+        *err = "Out of memory";
+        return NULL;
+    }
+    /* ... parse `s` into u->bytes (omitted for brevity) ... */
+    return edn_external_create(arena, u, UUID_TYPE_ID);
+}
+
+int main(void) {
+    edn_external_register_type(UUID_TYPE_ID, uuid_eq, uuid_hash);
+
+    edn_reader_registry_t* reg = edn_reader_registry_create();
+    edn_reader_register(reg, "uuid", uuid_reader);
+
+    edn_parse_options_t opts = { .reader_registry = reg };
+    edn_result_t r = edn_read_with_options(
+        "#{#uuid \"550e8400-e29b-41d4-a716-446655440000\"}", 0, &opts);
+
+    /* The set member is now an EDN_TYPE_EXTERNAL whose data is a uuid_t*.
+       Set membership, structural equality, and map keying all just work
+       via the registered uuid_eq / uuid_hash. */
+
+    edn_free(r.value);
+    edn_reader_registry_destroy(reg);
+    edn_external_unregister_type(UUID_TYPE_ID);
+    return 0;
+}
+```
+
+Notes:
+- Type registration is process-global. Pick a stable `type_id` (e.g. a 4-char FOURCC) per domain type.
+- The hash function may be NULL; equality alone is enough for vector/list use, but maps and sets require a stable hash.
+- The writer does **not** know how to serialize external values — emitting one returns `EDN_ERROR_UNSUPPORTED_TYPE`. A future `edn_writer_registry` (currently a public scaffold; see the Writer options table) will fill this gap.
+
 ### Map Namespace Syntax
 
 EDN.C supports Clojure's map namespace syntax extension, which allows you to specify a namespace that gets automatically applied to all non-namespaced keyword keys in a map.
@@ -1605,6 +1784,219 @@ When disabled (default):
 
 See `examples/example_text_block.c` for more examples.
 
+### Writer
+
+EDN.C ships with a value-tree writer that serializes any `edn_value_t` back to EDN text. Output is byte-stable, round-trips through `edn_read`, and supports four destinations sharing a single streaming callback core.
+
+**Quick example:**
+
+```c
+edn_result_t r = edn_read("{:name \"Alice\" :age 30}", 0);
+
+// Convenience: heap-allocated, compact, default options.
+char* s = edn_write(r.value);
+printf("%s\n", s);          // {:name "Alice", :age 30}
+free(s);
+
+edn_free(r.value);
+```
+
+#### API surface
+
+```c
+typedef int (*edn_writer_callback_fn)(const char* buf, size_t len, void* ctx);
+
+// Streaming primitive — everything below is a thin wrapper.
+int     edn_write_stream(const edn_value_t* v, edn_writer_callback_fn cb, void* ctx,
+                         const edn_write_options_t* options);
+
+// Heap-allocated string (caller frees with free()).
+char*   edn_write_string(const edn_value_t* v, const edn_write_options_t* options,
+                         size_t* out_len);
+
+// snprintf-style: writes at most cap-1 bytes + '\0', returns required length.
+size_t  edn_write_buffer(const edn_value_t* v, char* buf, size_t cap,
+                         const edn_write_options_t* options);
+
+// stdio FILE* sink.
+int     edn_write_file(const edn_value_t* v, FILE* fp, const edn_write_options_t* options);
+
+// Convenience: compact, default options, heap string.
+char*   edn_write(const edn_value_t* v);
+```
+
+#### Options
+
+```c
+typedef struct {
+    size_t struct_size;                     // Set to sizeof(edn_write_options_t)
+    size_t indent;                          // 0 = compact; non-zero = pretty-print
+    bool   sort_unordered;                  // Deterministic order for maps/sets
+    bool   emit_metadata;                   // Emit ^... prefixes (Clojure ext)
+    bool   escape_unicode;                  // Non-ASCII string bytes -> \uXXXX
+    bool   newline_at_end;                  // Append trailing '\n'
+    edn_writer_registry_t* writer_registry; // Reserved
+} edn_write_options_t;
+```
+
+- `indent` is a boolean toggle today (numeric value reserved for future use). Zero = compact; non-zero = pretty-print.
+- `sort_unordered` orders map entries and set elements by their byte-wise serialized form, giving a stable representation regardless of insertion order.
+- `emit_metadata` requires `EDN_ENABLE_CLOJURE_EXTENSION`; emits `^...` short forms for values carrying metadata.
+- `escape_unicode` escapes non-ASCII BMP bytes inside strings as `\uXXXX`; supplementary codepoints pass through as raw UTF-8.
+
+Pass `NULL` for defaults (compact, no sort, no metadata, raw UTF-8, no trailing newline).
+
+#### Pretty-print
+
+Pretty-print follows Clojure pprint's default-dispatch shape (always break, no fit-to-line). Each collection hangs subsequent items at one column past its opening delimiter — i.e. one space for `(`, `[`, `{`, and two spaces for `#{`. The first item stays on the opening line; the closing delimiter sits on the last item's line; empty and single-element collections stay inline.
+
+```c
+edn_result_t r = edn_read("{:a [1 2 3] :b #{4 5}}", 0);
+
+edn_write_options_t opts = { .struct_size = sizeof(opts), .indent = 1 };
+char* s = edn_write_string(r.value, &opts, NULL);
+printf("%s\n", s);
+free(s);
+edn_free(r.value);
+```
+
+Output:
+
+```edn
+{:a [1
+     2
+     3]
+ :b #{4
+      5}}
+```
+
+Notes:
+- Maps drop the `,` separator under indent (Clojure pprint convention).
+- Metadata short forms (`^{...}`, `^:tag`, `^Symbol`) and tagged-literal prefixes (`#tag `) are emitted inline; the value that follows resumes pretty-printing from the column immediately after the trailing space.
+- Combine `indent` with `sort_unordered` for fully deterministic, reviewable output.
+
+#### Destinations
+
+```c
+// String
+char* s = edn_write_string(v, NULL, NULL);
+free(s);
+
+// Caller-provided buffer (snprintf semantics)
+char buf[256];
+size_t need = edn_write_buffer(v, buf, sizeof(buf), NULL);
+if (need >= sizeof(buf)) { /* output truncated, allocate need+1 and retry */ }
+
+// FILE*
+edn_write_file(v, stdout, NULL);
+
+// Custom sink — any byte consumer
+static int my_cb(const char* buf, size_t len, void* ctx) {
+    return fwrite(buf, 1, len, ctx) == len ? 0 : 1;
+}
+edn_write_stream(v, my_cb, stdout, NULL);
+```
+
+`edn_write_*` return `EDN_ERROR_IO_FAILURE` when a callback signals failure, `EDN_ERROR_UNSUPPORTED_TYPE` for values the writer cannot serialize (currently `EDN_TYPE_EXTERNAL`), or other `EDN_ERROR_*` codes via the negative-return convention used by `edn_write_stream`.
+
+### Streaming Emitter
+
+For callers that don't have a complete `edn_value_t` tree (e.g. converting from another in-memory representation, or producing EDN incrementally from a database cursor), EDN.C provides a YAJL-style push API. Bytes flow through the same `edn_writer_callback_fn` used by the writer, and output is byte-identical to what the value-tree writer would produce for the equivalent value.
+
+```c
+static int sink_cb(const char* b, size_t n, void* ctx) {
+    fwrite(b, 1, n, ctx);
+    return 0;
+}
+
+edn_emitter_t* em = edn_emitter_create(sink_cb, stdout, NULL);
+
+edn_emit_begin_map(em);
+edn_emit_keyword(em, "name");
+edn_emit_string(em, "Alice", (size_t)-1);
+edn_emit_keyword(em, "age");
+edn_emit_int(em, 30);
+edn_emit_end_map(em);
+
+edn_emitter_finish(em);
+edn_emitter_destroy(em);
+// stdout: {:name "Alice", :age 30}
+```
+
+#### Lifecycle
+
+```c
+edn_emitter_t* edn_emitter_create(edn_writer_callback_fn cb, void* ctx,
+                                  const edn_write_options_t* options);
+int             edn_emitter_finish(edn_emitter_t* em);
+void            edn_emitter_destroy(edn_emitter_t* em);
+```
+
+- `edn_emitter_create` returns `NULL` if `cb == NULL`, `options->struct_size` is invalid, `options->sort_unordered == true` (streaming cannot sort), `options->writer_registry != NULL`, or allocation fails. Options are copied; the caller's struct lifetime is not the emitter's concern after the call returns.
+- `edn_emitter_finish` validates that exactly one top-level value was emitted, that no collection is unclosed, and that no tag/meta prefix is pending. If `newline_at_end` was set, the trailing `\n` is emitted here. After a successful `finish`, further `edn_emit_*` calls return `-EDN_ERROR_INVALID_STATE`.
+- `edn_emitter_destroy` is NULL-safe and may be called without a prior `finish` (the partial output then remains the caller's concern).
+
+#### Emit functions
+
+```c
+// Scalars
+int edn_emit_nil       (edn_emitter_t*);
+int edn_emit_bool      (edn_emitter_t*, bool);
+int edn_emit_int       (edn_emitter_t*, int64_t);
+int edn_emit_double    (edn_emitter_t*, double);
+int edn_emit_string    (edn_emitter_t*, const char* s, size_t len); // len == (size_t)-1 => strlen
+int edn_emit_keyword   (edn_emitter_t*, const char* name);
+int edn_emit_keyword_ns(edn_emitter_t*, const char* ns, const char* name);
+int edn_emit_symbol    (edn_emitter_t*, const char* name);
+int edn_emit_symbol_ns (edn_emitter_t*, const char* ns, const char* name);
+int edn_emit_character (edn_emitter_t*, uint32_t codepoint);
+
+// Big numbers (requires EDN_ENABLE_CLOJURE_EXTENSION)
+int edn_emit_bigint    (edn_emitter_t*, const char* digits, int radix);
+int edn_emit_bigratio  (edn_emitter_t*, const char* numerator, const char* denominator);
+int edn_emit_bigdecimal(edn_emitter_t*, const char* digits);
+
+// Collections (balanced begin/end pairs)
+int edn_emit_begin_list  (edn_emitter_t*); int edn_emit_end_list  (edn_emitter_t*);
+int edn_emit_begin_vector(edn_emitter_t*); int edn_emit_end_vector(edn_emitter_t*);
+int edn_emit_begin_set   (edn_emitter_t*); int edn_emit_end_set   (edn_emitter_t*);
+int edn_emit_begin_map   (edn_emitter_t*); int edn_emit_end_map   (edn_emitter_t*);
+
+// Prefixes
+int edn_emit_tag (edn_emitter_t*, const char* tag); // #tag applied to next value
+int edn_emit_meta(edn_emitter_t*);                  // Clojure ext; see below
+
+// Embed a pre-built value subtree
+int edn_emit_value(edn_emitter_t*, const edn_value_t* v);
+```
+
+All `edn_emit_*` functions return 0 on success or a negative `-EDN_ERROR_*` code on failure. Any failure poisons the emitter — subsequent calls return `-EDN_ERROR_INVALID_STATE`. The caller must still call `edn_emitter_destroy` on a poisoned emitter.
+
+#### State machine (fail-loud)
+
+- **Balanced collections.** Every `begin_<collection>` must be matched by its corresponding `end_<collection>`; mismatched pairs return `EDN_ERROR_INVALID_STATE`.
+- **Map alternation.** Maps strictly alternate key, value, key, value, ...; ending a map on a key (odd item count) is an error.
+- **Single top-level value.** Exactly one top-level value must be emitted before `edn_emitter_finish`; emitting a second is an error.
+- **Tag prefix.** `edn_emit_tag` records a pending tag consumed by the very next value emit. Two `edn_emit_tag` calls without a value between, or finishing with a pending tag, are errors. The tag string is copied — the caller's buffer need not outlive the call.
+- **Metadata prefix** (Clojure ext). `edn_emit_meta` declares that the next emit is the metadata payload (must be a map, vector, symbol, or keyword); the emit *after* the payload is the actual value. Multiple `edn_emit_meta` calls stack, and tag/meta prefixes flush together in call order. The payload may itself be a streamed collection — the emitter buffers its bytes and commits them as a short-form `^...` prefix once the payload is complete.
+- **Validation.** Identifiers (keywords, symbols, tags) are validated against the reader's grammar. Character codepoints `> 0x10FFFF` and surrogates `0xD800..0xDFFF` are rejected. String bytes must be well-formed UTF-8. Big-number digit strings must match the radix's character class. All violations return `EDN_ERROR_INVALID_ARGUMENT`.
+- **Duplicate keys / set elements are NOT checked.** Streaming the emitter would defeat the purpose. The caller is responsible for uniqueness; emitting duplicates produces output that may not round-trip through `edn_read`.
+- **Maximum nesting depth** mirrors the reader's default (1024 levels); exceeding it returns `EDN_ERROR_MAX_DEPTH_EXCEEDED`.
+
+#### Pretty-print and embed
+
+The emitter honors `options->indent` exactly like the value-tree writer — column tracking flows through the same chokepoint, so streamed and tree-built output of the same logical value are byte-identical.
+
+`edn_emit_value` embeds a pre-built `edn_value_t` subtree as if it had been emitted scalar-by-scalar. Any pending tag/meta prefix applies to the embedded value as a whole. Use it as an escape hatch when you already have part of the data as a parsed tree:
+
+```c
+edn_emit_begin_vector(em);
+edn_emit_tag(em, "uuid");
+edn_emit_string(em, "550e8400-e29b-41d4-a716-446655440000", (size_t)-1);
+edn_emit_value(em, some_existing_subtree);
+edn_emit_end_vector(em);
+```
+
 ## Examples
 
 ### Interactive TUI Viewer
@@ -1758,6 +2150,31 @@ make clean
 make info
 ```
 
+### WebAssembly Build
+
+EDN.C builds to a WebAssembly module via Emscripten, with SIMD128 enabled, embind bindings, and a JS bridge for custom tagged-literal readers (in `bindings/wasm/wasm_edn.c`).
+
+**Prerequisites:**
+- [Emscripten](https://emscripten.org/) (`emcc` on PATH)
+- Node.js 16.4+ for running the output (older versions need `--experimental-wasm-simd`)
+
+**Build:**
+```bash
+# Builds edn.wasm + edn.js
+make wasm
+
+# Run the WASM example
+node examples/wasm_example.js
+
+# Build and run WASM benchmarks
+make bench-wasm
+
+# Inspect WASM build config
+make info-wasm
+```
+
+The output (`edn.wasm`, `edn.js`) can be loaded directly from a browser or Node.js; `examples/wasm_example.js` shows the basic load + parse path.
+
 ### Windows Build
 
 EDN.C fully supports Windows with MSVC, MinGW, and Clang. Choose your preferred method:
@@ -1845,30 +2262,34 @@ See `bench/` directory for detailed benchmarking tools and results.
 **Current version**: 1.0.0 (Release Candidate)
 
 ✅ **Complete features:**
-- Full EDN specification support
+- Full EDN specification support (reader + writer)
 - All scalar types (nil, bool, int, bigint, float, character, string, symbol, keyword)
 - All collection types (lists, vectors, maps, sets)
 - Tagged literals with custom reader support
 - Discard forms `#_`
 - Comments (`;` line comments)
 - Duplicate detection for maps/sets
-- Deep structural equality
+- Deep structural equality, comparison, and hashing
 - SIMD optimization for ARM64 (NEON) and x86_64 (SSE4.2)
 - Cross-platform support (Unix, macOS, Linux, Windows)
+- Writer: value-tree serializer to string/buffer/FILE/callback with Ryū doubles, sortable map/set output, and round-trip fidelity
+- Pretty-print: Clojure pprint-style default-dispatch indentation
+- Streaming emitter: YAJL-style push API (`edn_emitter_*` / `edn_emit_*`) with state-machine validation and embed-value escape hatch
 - Optional Clojure extensions (disabled by default):
   - Map namespace syntax `#:ns{...}`
   - Extended character literals (`\formfeed`, `\backspace`, `\oNNN`)
   - Metadata `^{...}` syntax
+  - BigInt / BigRatio / BigDecimal read and write
 
 ✅ **Testing:**
-- 340+ tests across 24 test suites
+- 2000+ tests across 40+ test suites
 - Memory safety verified with ASAN/UBSAN
-- Edge case coverage (empty collections, deeply nested structures, Unicode, etc.)
+- Edge case coverage (empty collections, deeply nested structures, Unicode, abort-cleanup paths, round-trip corpus, etc.)
 
 📋 **Roadmap:**
 - Performance profiling and further optimization
 - Extended documentation and tutorials
-- Streaming/Incremental parsing
+- Streaming/incremental reader (push-style parser to complement the streaming emitter)
 - Additional SIMD Platform Support:
   - 32-bit x86 (i386/i686) `__i386__, _M_IX86. mostly the same as x86-64`
   - 32-bit ARM (ARMv7) `__arm__, _M_ARM. mostly the same as ARM64 NEON`
@@ -1876,6 +2297,23 @@ See `bench/` directory for detailed benchmarking tools and results.
 - Extra features:
   - float trailing dot ("1." => 1.0, "1.M" => 1.0M)
   - octal escape ("\"\\176\"" => "~")
+
+## Notes
+
+### Thread safety
+
+- `edn_value_t` trees, `edn_emitter_t` instances, and `edn_reader_registry_t` instances are **not** thread-safe. Use one per thread, or guard with external synchronization.
+- The process-global external-type registry (`edn_external_register_type` / `edn_external_unregister_type`) serializes its internal mutations, but callers must still order registration relative to any concurrent parsing — a reader cannot see a type registered mid-parse.
+- The pure accessor functions (`edn_type`, `edn_*_get`, `edn_*_count`, etc.) are safe to call from multiple threads against the same value tree, provided no other thread is mutating the tree (which the public API never does — `edn_free` is the only mutator and trees are immutable in between).
+
+### Symbol visibility (`EDN_API`)
+
+Public functions are decorated with `EDN_API`. By default it expands to a plain declaration suitable for static-library builds. For shared-library builds, define one of these at compile time:
+
+- `-DEDN_BUILDING_SHARED` when compiling the library itself (emits the exported attribute on Unix-likes and `__declspec(dllexport)` on Windows).
+- `-DEDN_USING_SHARED` when compiling a consumer that links against a Windows DLL (emits `__declspec(dllimport)`).
+
+On Unix-likes the import side is a no-op, so consumers don't need to define anything.
 
 ## Contributing
 
