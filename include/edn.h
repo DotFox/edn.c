@@ -77,7 +77,8 @@ typedef enum {
     EDN_ERROR_MAX_DEPTH_EXCEEDED,
     EDN_ERROR_UNSUPPORTED_TYPE,
     EDN_ERROR_INVALID_ARGUMENT,
-    EDN_ERROR_IO_FAILURE
+    EDN_ERROR_IO_FAILURE,
+    EDN_ERROR_INVALID_STATE
 } edn_error_t;
 
 typedef struct {
@@ -848,6 +849,11 @@ typedef struct edn_writer_registry edn_writer_registry_t;
  * no trailing newline). When supplying a non-NULL options pointer you MUST
  * initialize struct_size to sizeof(edn_write_options_t).
  *
+ * The same struct also configures the streaming emitter (see
+ * edn_emitter_create) with two caveats:
+ *   - sort_unordered=true is rejected at emitter_create (streaming cannot sort).
+ *   - emit_metadata=false makes edn_emit_meta return -EDN_ERROR_INVALID_STATE.
+ *
  * Implementation status:
  *   indent           - implemented as a boolean toggle: 0 = compact, non-zero = pretty-print
  *   sort_unordered   - implemented (byte-wise lex order on serialized elements; maps and sets)
@@ -914,6 +920,182 @@ EDN_API char* edn_write(const edn_value_t* value);
 /* Writer extension registry (scaffold; not yet honored by edn_write_*). */
 EDN_API edn_writer_registry_t* edn_writer_registry_create(void);
 EDN_API void edn_writer_registry_destroy(edn_writer_registry_t* registry);
+
+/* ========================================================================
+ * EDN streaming emitter
+ * ========================================================================
+ *
+ * Push-style YAJL-like emitter for callers that do not have a complete
+ * edn_value_t tree to serialize. Bytes flow through the same
+ * edn_writer_callback_fn used by edn_write_*; output is byte-identical to
+ * what the value-tree writer would produce for the equivalent value.
+ *
+ * State machine (fail-loud):
+ *   - Every begin_<collection> must be matched by the corresponding
+ *     end_<collection>; mismatched pairs return -EDN_ERROR_INVALID_STATE.
+ *   - Maps strictly alternate key, value, key, value, ...; ending a map on
+ *     a key (odd item count) returns -EDN_ERROR_INVALID_STATE.
+ *   - Exactly one top-level value must be emitted before edn_emitter_finish;
+ *     emitting a second top-level value, or finishing with zero values,
+ *     returns -EDN_ERROR_INVALID_STATE.
+ *   - edn_emit_tag records a pending tag consumed by the very next value
+ *     emit (scalar, begin_<collection>, big number, or edn_emit_value).
+ *     Calling edn_emit_tag twice without a value between, or finishing with
+ *     a pending tag, returns -EDN_ERROR_INVALID_STATE.
+ *   - edn_emit_meta (Clojure extension) declares that the next emit is a
+ *     metadata payload (must be map, vector, symbol, or keyword); the
+ *     emit *after* that payload is the value the metadata attaches to.
+ *     Multiple meta declarations stack in call order, and tag/meta prefixes
+ *     flush together in call order. Finishing with a pending meta state
+ *     returns -EDN_ERROR_INVALID_STATE.
+ *   - Identifier syntax, character codepoints (> 0x10FFFF and surrogates),
+ *     UTF-8 well-formedness, and big-number digit characters are validated
+ *     at the entry of the relevant emit function; violations return
+ *     -EDN_ERROR_INVALID_ARGUMENT.
+ *   - Duplicate map keys and duplicate set elements are NOT checked; the
+ *     caller is responsible for uniqueness. Emitting duplicates produces
+ *     output that may not round-trip through edn_read.
+ *   - Maximum nesting depth mirrors the reader's (EDN_DEFAULT_MAX_DEPTH);
+ *     exceeding it returns -EDN_ERROR_MAX_DEPTH_EXCEEDED.
+ *
+ * All edn_emit_* functions return 0 on success; on failure they return a
+ * negative -EDN_ERROR_* code and leave the emitter in an unusable state
+ * (further emits return -EDN_ERROR_INVALID_STATE). The caller must still
+ * call edn_emitter_destroy in either case.
+ */
+
+typedef struct edn_emitter edn_emitter_t;
+
+/**
+ * Create a streaming emitter.
+ *
+ * @param cb       Callback receiving emitted byte ranges (required).
+ * @param ctx      Opaque pointer passed back to cb.
+ * @param options  Writer options (may be NULL for defaults). Copied; the
+ *                 caller's struct lifetime is not the emitter's concern after
+ *                 this call returns.
+ *
+ * @return New emitter, or NULL on:
+ *         - cb == NULL,
+ *         - non-NULL options with bad struct_size,
+ *         - options->sort_unordered == true (streaming cannot sort),
+ *         - options->writer_registry != NULL (not honored by the writer),
+ *         - allocation failure.
+ */
+EDN_API edn_emitter_t* edn_emitter_create(edn_writer_callback_fn cb, void* ctx,
+                                          const edn_write_options_t* options);
+
+/**
+ * Finish a streaming emission.
+ *
+ * Verifies that the emitter is at top level, that exactly one top-level
+ * value has been emitted, and that no tag/meta prefix is pending. If
+ * options->newline_at_end was set at create time, emits the trailing '\n'.
+ * After a successful finish, all further edn_emit_* calls return
+ * -EDN_ERROR_INVALID_STATE.
+ *
+ * @return 0 on success; negative -EDN_ERROR_* on failure.
+ */
+EDN_API int edn_emitter_finish(edn_emitter_t* emitter);
+
+/**
+ * Destroy an emitter. NULL-safe. Calling destroy without a prior finish is
+ * allowed; the partial output remains the caller's concern.
+ */
+EDN_API void edn_emitter_destroy(edn_emitter_t* emitter);
+
+/* --- Scalars ----------------------------------------------------------- */
+EDN_API int edn_emit_nil(edn_emitter_t* emitter);
+EDN_API int edn_emit_bool(edn_emitter_t* emitter, bool value);
+EDN_API int edn_emit_int(edn_emitter_t* emitter, int64_t value);
+EDN_API int edn_emit_double(edn_emitter_t* emitter, double value);
+
+/**
+ * Emit a string. `len == (size_t)-1` requests strlen(s). The input is
+ * validated as well-formed UTF-8; malformed input returns
+ * -EDN_ERROR_INVALID_ARGUMENT.
+ */
+EDN_API int edn_emit_string(edn_emitter_t* emitter, const char* s, size_t len);
+
+/**
+ * Emit a keyword/symbol. Names and namespaces are validated against the
+ * reader's identifier grammar; invalid input returns
+ * -EDN_ERROR_INVALID_ARGUMENT.
+ */
+EDN_API int edn_emit_keyword(edn_emitter_t* emitter, const char* name);
+EDN_API int edn_emit_keyword_ns(edn_emitter_t* emitter, const char* ns, const char* name);
+EDN_API int edn_emit_symbol(edn_emitter_t* emitter, const char* name);
+EDN_API int edn_emit_symbol_ns(edn_emitter_t* emitter, const char* ns, const char* name);
+
+/**
+ * Emit a character literal. Codepoints > 0x10FFFF and surrogates
+ * (0xD800..0xDFFF) return -EDN_ERROR_INVALID_ARGUMENT.
+ */
+EDN_API int edn_emit_character(edn_emitter_t* emitter, uint32_t codepoint);
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+/**
+ * Emit a big integer. `digits` is the digit string with optional leading
+ * '-' sign. `radix` must be in [2, 36]. Output matches what the value-tree
+ * writer produces for the same parsed BigInt (including the radix prefix
+ * and 'N' suffix conventions).
+ */
+EDN_API int edn_emit_bigint(edn_emitter_t* emitter, const char* digits, int radix);
+
+/**
+ * Emit a big ratio. Numerator may have a leading '-' sign; denominator is
+ * positive-magnitude digits only.
+ */
+EDN_API int edn_emit_bigratio(edn_emitter_t* emitter, const char* numerator,
+                              const char* denominator);
+
+/**
+ * Emit a big decimal. `digits` is the decimal representation with optional
+ * leading '-' sign and optional fractional part / exponent.
+ */
+EDN_API int edn_emit_bigdecimal(edn_emitter_t* emitter, const char* digits);
+#endif
+
+/* --- Collections ------------------------------------------------------- */
+EDN_API int edn_emit_begin_list(edn_emitter_t* emitter);
+EDN_API int edn_emit_end_list(edn_emitter_t* emitter);
+EDN_API int edn_emit_begin_vector(edn_emitter_t* emitter);
+EDN_API int edn_emit_end_vector(edn_emitter_t* emitter);
+EDN_API int edn_emit_begin_set(edn_emitter_t* emitter);
+EDN_API int edn_emit_end_set(edn_emitter_t* emitter);
+
+/**
+ * Begin a map. Caller MUST emit strictly alternating key, value, key,
+ * value, ... pairs and is responsible for key uniqueness; the emitter does
+ * not check for duplicates.
+ */
+EDN_API int edn_emit_begin_map(edn_emitter_t* emitter);
+EDN_API int edn_emit_end_map(edn_emitter_t* emitter);
+
+/**
+ * Record a pending tag. The very next value emitted is prefixed with
+ * `#<tag> `. The tag string is copied; the caller's buffer need not
+ * outlive this call.
+ */
+EDN_API int edn_emit_tag(edn_emitter_t* emitter, const char* tag);
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+/**
+ * Declare that the next emitted value is a metadata payload (must be map,
+ * vector, symbol, or keyword); the emit after the payload is the actual
+ * value the metadata attaches to. Requires options->emit_metadata == true.
+ * Multiple calls stack; tag and meta prefixes flush together in call order.
+ */
+EDN_API int edn_emit_meta(edn_emitter_t* emitter);
+#endif
+
+/**
+ * Embed a pre-built value subtree. Behaves as if the value's scalars and
+ * containers were emitted one-by-one through this emitter. Honors the
+ * emitter's options (indent, escape_unicode, ...) and consumes any pending
+ * tag/meta prefixes that apply to the embedded value as a whole.
+ */
+EDN_API int edn_emit_value(edn_emitter_t* emitter, const edn_value_t* value);
 
 #ifdef __cplusplus
 }

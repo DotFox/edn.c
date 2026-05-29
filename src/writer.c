@@ -167,17 +167,12 @@ static int emit_float(emit_ctx_t* e, double d) {
     return emit(e, out, (size_t) (o - out));
 }
 
-static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
-    size_t len;
-    bool neg;
-    uint8_t radix;
-    const char* digits = edn_bigint_get(v, &len, &neg, &radix);
-    if (!digits) {
-        e->err = -EDN_ERROR_OUT_OF_MEMORY;
-        return e->err;
-    }
-
-    if (neg) {
+/* Emit a bigint from its parts (sign, digit string sans prefix, radix).
+ * Shared by the value-tree writer and the streaming emitter; the latter
+ * pre-validates the digit string against the radix character class. */
+static int emit_bigint_parts(emit_ctx_t* e, const char* digits, size_t len, bool negative,
+                             uint8_t radix) {
+    if (negative) {
         if (emit(e, "-", 1) != 0)
             return e->err;
     }
@@ -216,6 +211,18 @@ static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
     if (emit_n_suffix)
         return emit(e, "N", 1);
     return 0;
+}
+
+static int emit_bigint(emit_ctx_t* e, const edn_value_t* v) {
+    size_t len;
+    bool neg;
+    uint8_t radix;
+    const char* digits = edn_bigint_get(v, &len, &neg, &radix);
+    if (!digits) {
+        e->err = -EDN_ERROR_OUT_OF_MEMORY;
+        return e->err;
+    }
+    return emit_bigint_parts(e, digits, len, neg, radix);
 }
 
 static int emit_bigdec(emit_ctx_t* e, const edn_value_t* v) {
@@ -1008,4 +1015,1025 @@ edn_writer_registry_t* edn_writer_registry_create(void) {
 
 void edn_writer_registry_destroy(edn_writer_registry_t* r) {
     free(r);
+}
+
+/* ========================================================================
+ * Streaming emitter
+ * ========================================================================
+ *
+ * Push-style emitter built on top of the same `emit_ctx_t` chokepoint used
+ * by the value-tree writer. The emitter owns a single emit_ctx_t whose
+ * callback is `emitter_dispatch_cb`; the dispatcher writes either to the
+ * user callback or into a capture buffer (used to buffer streamed
+ * metadata payloads). The capture path saves/restores column tracking so
+ * indent behavior is identical to the value-tree path.
+ */
+
+typedef enum {
+    EMITTER_FRAME_LIST,
+    EMITTER_FRAME_VECTOR,
+    EMITTER_FRAME_SET,
+    EMITTER_FRAME_MAP
+} emitter_frame_kind_t;
+
+typedef struct {
+    emitter_frame_kind_t kind;
+    size_t item_count; /* items emitted so far (map: keys+values combined) */
+    size_t indent_col; /* column at which inner items align */
+} emitter_frame_t;
+
+typedef struct emitter_prefix {
+    char* bytes;
+    size_t len;
+    struct emitter_prefix* next;
+} emitter_prefix_t;
+
+/* Classification used to gate metadata-payload validation. */
+typedef enum {
+    PAYLOAD_NIL,
+    PAYLOAD_BOOL,
+    PAYLOAD_INT,
+    PAYLOAD_DOUBLE,
+    PAYLOAD_STRING,
+    PAYLOAD_KEYWORD,
+    PAYLOAD_SYMBOL,
+    PAYLOAD_CHAR,
+    PAYLOAD_BIGNUM,
+    PAYLOAD_LIST,
+    PAYLOAD_VECTOR,
+    PAYLOAD_SET,
+    PAYLOAD_MAP,
+    PAYLOAD_EMBED
+} payload_kind_t;
+
+struct edn_emitter {
+    /* Output context: cb routes through emitter_dispatch_cb. */
+    emit_ctx_t e;
+    edn_writer_callback_fn user_cb;
+    void* user_ctx;
+
+    /* Cached options (only fields that survive create-time validation). */
+    bool newline_at_end;
+    bool emit_metadata_enabled;
+    bool indent_enabled;
+
+    /* Frame stack. Inline first slot avoids alloc for shallow output. */
+    emitter_frame_t* frames;
+    size_t frames_count;
+    size_t frames_cap;
+    emitter_frame_t inline_frames[16];
+
+    /* Pending prefix list (tag/meta), emitted in call order before the
+     * next non-prefix value. */
+    emitter_prefix_t* pending_head;
+    emitter_prefix_t* pending_tail;
+    bool tag_pending; /* exactly one tag may be pending at a time */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    /* Meta payload state. */
+    bool expecting_meta_payload;
+    bool capturing;
+    bool capture_is_scalar;
+    size_t capture_start_depth; /* frames_count when capture began */
+
+    /* Capture buffer. */
+    char* capture_buf;
+    size_t capture_len;
+    size_t capture_cap;
+
+    /* Saved state during capture. */
+    size_t saved_column;
+    bool saved_indent;
+#endif
+
+    /* Lifecycle / state flags. */
+    bool produced_top_value;
+    bool finished;
+    bool poisoned; /* sticky error flag: any failure marks the emitter unusable */
+};
+
+/* --- dispatch + capture --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+static int emitter_capture_append(edn_emitter_t* em, const char* data, size_t n) {
+    if (em->capture_len + n > em->capture_cap) {
+        size_t new_cap = em->capture_cap ? em->capture_cap : 64;
+        while (new_cap < em->capture_len + n) {
+            size_t doubled = new_cap * 2;
+            if (doubled < new_cap)
+                return -EDN_ERROR_OUT_OF_MEMORY;
+            new_cap = doubled;
+        }
+        char* nb = realloc(em->capture_buf, new_cap);
+        if (!nb)
+            return -EDN_ERROR_OUT_OF_MEMORY;
+        em->capture_buf = nb;
+        em->capture_cap = new_cap;
+    }
+    memcpy(em->capture_buf + em->capture_len, data, n);
+    em->capture_len += n;
+    return 0;
+}
+#endif
+
+static int emitter_dispatch_cb(const char* data, size_t n, void* ctx) {
+    edn_emitter_t* em = ctx;
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (em->capturing) {
+        return emitter_capture_append(em, data, n);
+    }
+#endif
+    return em->user_cb(data, n, em->user_ctx);
+}
+
+/* --- frame stack --- */
+
+static int emitter_push_frame(edn_emitter_t* em, emitter_frame_kind_t kind, size_t indent_col) {
+    if (em->frames_count >= em->frames_cap) {
+        size_t new_cap = em->frames_cap * 2;
+        emitter_frame_t* new_frames;
+        if (em->frames == em->inline_frames) {
+            new_frames = malloc(new_cap * sizeof(*new_frames));
+            if (!new_frames)
+                return -EDN_ERROR_OUT_OF_MEMORY;
+            memcpy(new_frames, em->inline_frames, em->frames_count * sizeof(*new_frames));
+        } else {
+            new_frames = realloc(em->frames, new_cap * sizeof(*new_frames));
+            if (!new_frames)
+                return -EDN_ERROR_OUT_OF_MEMORY;
+        }
+        em->frames = new_frames;
+        em->frames_cap = new_cap;
+    }
+    em->frames[em->frames_count++] = (emitter_frame_t) {kind, 0, indent_col};
+    return 0;
+}
+
+static emitter_frame_t* emitter_top_frame(edn_emitter_t* em) {
+    return em->frames_count > 0 ? &em->frames[em->frames_count - 1] : NULL;
+}
+
+/* --- pending prefix list --- */
+
+static void emitter_free_prefixes(edn_emitter_t* em) {
+    emitter_prefix_t* p = em->pending_head;
+    while (p) {
+        emitter_prefix_t* nx = p->next;
+        free(p->bytes);
+        free(p);
+        p = nx;
+    }
+    em->pending_head = em->pending_tail = NULL;
+}
+
+static int emitter_push_prefix(edn_emitter_t* em, char* bytes, size_t len) {
+    emitter_prefix_t* p = malloc(sizeof(*p));
+    if (!p) {
+        free(bytes);
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    }
+    p->bytes = bytes;
+    p->len = len;
+    p->next = NULL;
+    if (em->pending_tail) {
+        em->pending_tail->next = p;
+    } else {
+        em->pending_head = p;
+    }
+    em->pending_tail = p;
+    return 0;
+}
+
+static int emitter_flush_prefixes(edn_emitter_t* em) {
+    while (em->pending_head) {
+        emitter_prefix_t* p = em->pending_head;
+        if (emit(&em->e, p->bytes, p->len) != 0)
+            return em->e.err;
+        em->pending_head = p->next;
+        if (!em->pending_head)
+            em->pending_tail = NULL;
+        free(p->bytes);
+        free(p);
+    }
+    em->tag_pending = false;
+    return 0;
+}
+
+/* --- validation --- */
+
+/* Single identifier segment: non-empty, no delimiter bytes, no slash, no
+ * adjacent colons. Mirrors the reader's scan_identifier validity rules for
+ * a chunk that does not contain a namespace separator. */
+static bool valid_ident_chunk(const char* s, size_t len) {
+    if (s == NULL || len == 0)
+        return false;
+    bool prev_colon = false;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char) s[i];
+        if (is_delimiter(c) || c == '/')
+            return false;
+        if (c == ':') {
+            if (prev_colon)
+                return false;
+            prev_colon = true;
+        } else {
+            prev_colon = false;
+        }
+    }
+    return true;
+}
+
+/* Keyword name: chunk-valid AND does not start with ':' (the leading ':'
+ * is the keyword sigil and cannot also appear at the start of the name). */
+static bool valid_kw_name(const char* s, size_t len) {
+    return valid_ident_chunk(s, len) && s[0] != ':';
+}
+
+/* Symbol name / namespace: chunk-valid, does not start with ':', and does
+ * not look like the start of a number (leading digit, or +/- followed by
+ * a digit). Note '/' alone is a valid symbol name per the reader's special
+ * case, but emit_symbol always namespaces explicitly via emit_symbol_ns,
+ * so we don't carve out the lone-slash case here. */
+static bool valid_sym_chunk(const char* s, size_t len) {
+    if (!valid_ident_chunk(s, len))
+        return false;
+    if (s[0] == ':')
+        return false;
+    if (s[0] >= '0' && s[0] <= '9')
+        return false;
+    if ((s[0] == '+' || s[0] == '-') && len >= 2 && s[1] >= '0' && s[1] <= '9')
+        return false;
+    return true;
+}
+
+static bool valid_utf8(const char* s, size_t len) {
+    const unsigned char* p = (const unsigned char*) s;
+    size_t i = 0;
+    while (i < len) {
+        if (p[i] < 0x80) {
+            i++;
+            continue;
+        }
+        uint32_t cp;
+        size_t n = decode_utf8(p + i, len - i, &cp);
+        if (n == 0)
+            return false;
+        i += n;
+    }
+    return true;
+}
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+/* Validate a digit string and split off the optional leading '-'. */
+static bool split_sign_and_validate_digits(const char* digits, uint8_t radix, const char** out_d,
+                                           size_t* out_len, bool* out_neg) {
+    if (digits == NULL || *digits == '\0')
+        return false;
+    bool neg = false;
+    if (*digits == '-') {
+        neg = true;
+        digits++;
+    } else if (*digits == '+') {
+        digits++;
+    }
+    size_t len = strlen(digits);
+    if (len == 0)
+        return false;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char) digits[i];
+        int dv = -1;
+        if (c >= '0' && c <= '9')
+            dv = c - '0';
+        else if (c >= 'a' && c <= 'z')
+            dv = (int) (c - 'a') + 10;
+        else if (c >= 'A' && c <= 'Z')
+            dv = (int) (c - 'A') + 10;
+        if (dv < 0 || dv >= radix)
+            return false;
+    }
+    *out_d = digits;
+    *out_len = len;
+    *out_neg = neg;
+    return true;
+}
+
+/* Validate a bigdec literal: optional '-', integer-part digits, optional
+ * '.' fraction, optional 'eE' [+/-] exponent. */
+static bool valid_bigdec_digits(const char* s, const char** out_payload, size_t* out_len,
+                                bool* out_neg) {
+    if (s == NULL || *s == '\0')
+        return false;
+    bool neg = false;
+    if (*s == '-') {
+        neg = true;
+        s++;
+    } else if (*s == '+') {
+        s++;
+    }
+    const char* start = s;
+    size_t int_digits = 0;
+    while (*s >= '0' && *s <= '9') {
+        int_digits++;
+        s++;
+    }
+    if (int_digits == 0)
+        return false;
+    if (*s == '.') {
+        s++;
+        size_t frac_digits = 0;
+        while (*s >= '0' && *s <= '9') {
+            frac_digits++;
+            s++;
+        }
+        if (frac_digits == 0)
+            return false;
+    }
+    if (*s == 'e' || *s == 'E') {
+        s++;
+        if (*s == '+' || *s == '-')
+            s++;
+        size_t exp_digits = 0;
+        while (*s >= '0' && *s <= '9') {
+            exp_digits++;
+            s++;
+        }
+        if (exp_digits == 0)
+            return false;
+    }
+    if (*s != '\0')
+        return false;
+    *out_payload = start;
+    *out_len = (size_t) (s - start);
+    *out_neg = neg;
+    return true;
+}
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
+/* --- separator emission --- */
+
+static int emitter_emit_separator(edn_emitter_t* em, emitter_frame_t* f) {
+    if (f->item_count == 0) {
+        return 0;
+    }
+    /* Map alternation: odd item_count = value position (single space, no
+     * newline); even item_count > 0 = next key (pair separator). */
+    if (f->kind == EMITTER_FRAME_MAP && (f->item_count & 1) == 1) {
+        return emit(&em->e, " ", 1);
+    }
+    if (em->e.indent) {
+        return emit_newline_indent(&em->e, f->indent_col);
+    }
+    if (f->kind == EMITTER_FRAME_MAP) {
+        return emit(&em->e, ", ", 2);
+    }
+    return emit(&em->e, " ", 1);
+}
+
+/* --- capture lifecycle --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+static void emitter_start_capture(edn_emitter_t* em, bool is_scalar) {
+    em->capturing = true;
+    em->capture_is_scalar = is_scalar;
+    em->capture_start_depth = em->frames_count;
+    em->capture_len = 0;
+    /* Force compact emission of the payload bytes; restore on stop. */
+    em->saved_indent = em->e.indent;
+    em->saved_column = em->e.column;
+    em->e.indent = false;
+}
+
+/* Wrap the captured payload as `^<payload> ` and push onto pending prefix
+ * list. Restores column/indent. */
+static int emitter_stop_capture_commit(edn_emitter_t* em) {
+    em->capturing = false;
+    em->e.indent = em->saved_indent;
+    em->e.column = em->saved_column;
+
+    size_t pl = em->capture_len;
+    size_t total = 1 + pl + 1; /* '^' + payload + ' ' */
+    char* buf = malloc(total);
+    if (!buf)
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    buf[0] = '^';
+    if (pl > 0)
+        memcpy(buf + 1, em->capture_buf, pl);
+    buf[1 + pl] = ' ';
+    em->capture_len = 0;
+    return emitter_push_prefix(em, buf, total);
+}
+#endif
+
+/* --- pre/post value hooks --- */
+
+/* Called at the start of every value-producing public function.
+ * Validates state, flushes prefixes (if not capturing), and emits the
+ * inter-item separator within an open frame. */
+static int emitter_pre_value(edn_emitter_t* em, payload_kind_t kind) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->poisoned || em->finished)
+        return -EDN_ERROR_INVALID_STATE;
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (em->expecting_meta_payload) {
+        bool ok = (kind == PAYLOAD_KEYWORD || kind == PAYLOAD_SYMBOL || kind == PAYLOAD_MAP ||
+                   kind == PAYLOAD_VECTOR || kind == PAYLOAD_EMBED);
+        if (!ok) {
+            em->poisoned = true;
+            return -EDN_ERROR_INVALID_STATE;
+        }
+        em->expecting_meta_payload = false;
+        bool is_scalar =
+            (kind == PAYLOAD_KEYWORD || kind == PAYLOAD_SYMBOL || kind == PAYLOAD_EMBED);
+        emitter_start_capture(em, is_scalar);
+        /* IMPORTANT: skip separator + prefix flush. The payload bytes are
+         * conceptually part of a prefix on the upcoming real value, not a
+         * value in the enclosing container; any pending tag/meta prefixes
+         * apply to the real value and must remain queued. */
+        return 0;
+    }
+#else
+    (void) kind;
+#endif
+
+    emitter_frame_t* f = emitter_top_frame(em);
+    if (f == NULL) {
+        if (em->produced_top_value) {
+            em->poisoned = true;
+            return -EDN_ERROR_INVALID_STATE;
+        }
+    } else {
+        if (emitter_emit_separator(em, f) != 0) {
+            em->poisoned = true;
+            return em->e.err ? em->e.err : -EDN_ERROR_OUT_OF_MEMORY;
+        }
+    }
+
+    if (emitter_flush_prefixes(em) != 0) {
+        em->poisoned = true;
+        return em->e.err ? em->e.err : -EDN_ERROR_OUT_OF_MEMORY;
+    }
+    return 0;
+}
+
+/* Called at the end of a scalar emit (and after embedded edn_emit_value
+ * completes). For collections, the equivalent logic lives in the end_X
+ * functions because the depth-balance check fires there. */
+static int emitter_post_scalar(edn_emitter_t* em) {
+    if (em->poisoned || em->e.err != 0) {
+        em->poisoned = true;
+        return em->e.err ? em->e.err : -EDN_ERROR_INVALID_STATE;
+    }
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (em->capturing && em->capture_is_scalar && em->frames_count == em->capture_start_depth) {
+        int r = emitter_stop_capture_commit(em);
+        if (r != 0) {
+            em->poisoned = true;
+            return r;
+        }
+        /* The captured scalar was the meta payload, not a real value. */
+        return 0;
+    }
+#endif
+
+    emitter_frame_t* f = emitter_top_frame(em);
+    if (f != NULL) {
+        f->item_count++;
+    } else {
+        em->produced_top_value = true;
+    }
+    return 0;
+}
+
+/* --- create / finish / destroy --- */
+
+static int emitter_validate_options_for_create(const edn_write_options_t* opts) {
+    if (opts == NULL)
+        return 0;
+    if (opts->struct_size != 0 && opts->struct_size < sizeof(edn_write_options_t))
+        return -1;
+    if (opts->struct_size == 0)
+        return 0;
+    if (opts->sort_unordered)
+        return -1;
+    if (opts->writer_registry != NULL)
+        return -1;
+#ifndef EDN_ENABLE_CLOJURE_EXTENSION
+    if (opts->emit_metadata)
+        return -1;
+#endif
+    return 0;
+}
+
+edn_emitter_t* edn_emitter_create(edn_writer_callback_fn cb, void* ctx,
+                                  const edn_write_options_t* options) {
+    if (cb == NULL)
+        return NULL;
+    if (emitter_validate_options_for_create(options) != 0)
+        return NULL;
+
+    edn_emitter_t* em = calloc(1, sizeof(*em));
+    if (em == NULL)
+        return NULL;
+
+    bool has_opts = (options != NULL && options->struct_size != 0);
+    em->user_cb = cb;
+    em->user_ctx = ctx;
+    em->newline_at_end = has_opts && options->newline_at_end;
+    em->emit_metadata_enabled = has_opts && options->emit_metadata;
+    em->indent_enabled = has_opts && options->indent != 0;
+
+    em->e.cb = emitter_dispatch_cb;
+    em->e.ctx = em;
+    em->e.err = 0;
+    em->e.sort_unordered = false;
+    em->e.emit_metadata = em->emit_metadata_enabled;
+    em->e.escape_unicode = has_opts && options->escape_unicode;
+    em->e.indent = em->indent_enabled;
+    em->e.column = 0;
+
+    em->frames = em->inline_frames;
+    em->frames_count = 0;
+    em->frames_cap = sizeof(em->inline_frames) / sizeof(em->inline_frames[0]);
+    return em;
+}
+
+void edn_emitter_destroy(edn_emitter_t* em) {
+    if (em == NULL)
+        return;
+    if (em->frames != em->inline_frames)
+        free(em->frames);
+    emitter_free_prefixes(em);
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    free(em->capture_buf);
+#endif
+    free(em);
+}
+
+int edn_emitter_finish(edn_emitter_t* em) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->poisoned || em->finished)
+        return -EDN_ERROR_INVALID_STATE;
+    if (em->frames_count != 0)
+        return -EDN_ERROR_INVALID_STATE;
+    if (em->tag_pending || em->pending_head != NULL)
+        return -EDN_ERROR_INVALID_STATE;
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (em->expecting_meta_payload || em->capturing)
+        return -EDN_ERROR_INVALID_STATE;
+#endif
+    if (!em->produced_top_value)
+        return -EDN_ERROR_INVALID_STATE;
+    if (em->newline_at_end) {
+        if (emit(&em->e, "\n", 1) != 0)
+            return em->e.err;
+    }
+    em->finished = true;
+    return 0;
+}
+
+/* --- depth check shared by begin_X --- */
+
+static int emitter_enter_depth(edn_emitter_t* em) {
+    if (em->frames_count >= EDN_DEFAULT_MAX_DEPTH) {
+        em->poisoned = true;
+        return -EDN_ERROR_MAX_DEPTH_EXCEEDED;
+    }
+    return 0;
+}
+
+/* --- scalars --- */
+
+int edn_emit_nil(edn_emitter_t* em) {
+    int r = emitter_pre_value(em, PAYLOAD_NIL);
+    if (r != 0)
+        return r;
+    if (emit_cstr(&em->e, "nil") != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_bool(edn_emitter_t* em, bool value) {
+    int r = emitter_pre_value(em, PAYLOAD_BOOL);
+    if (r != 0)
+        return r;
+    if (emit_cstr(&em->e, value ? "true" : "false") != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_int(edn_emitter_t* em, int64_t value) {
+    int r = emitter_pre_value(em, PAYLOAD_INT);
+    if (r != 0)
+        return r;
+    if (emit_int(&em->e, value) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_double(edn_emitter_t* em, double value) {
+    int r = emitter_pre_value(em, PAYLOAD_DOUBLE);
+    if (r != 0)
+        return r;
+    if (emit_float(&em->e, value) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_string(edn_emitter_t* em, const char* s, size_t len) {
+    if (em == NULL || s == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (len == (size_t) -1)
+        len = strlen(s);
+    if (!valid_utf8(s, len))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_STRING);
+    if (r != 0)
+        return r;
+    if (emit(&em->e, "\"", 1) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    int wr =
+        em->e.escape_unicode ? emit_string_bytes_escaped(&em->e, s, len) : emit(&em->e, s, len);
+    if (wr != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    if (emit(&em->e, "\"", 1) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+static int emit_kw_or_sym_raw(edn_emitter_t* em, bool is_keyword, const char* ns,
+                              const char* name) {
+    if (is_keyword) {
+        if (emit(&em->e, ":", 1) != 0)
+            return em->e.err;
+    }
+    if (ns != NULL) {
+        if (emit(&em->e, ns, strlen(ns)) != 0)
+            return em->e.err;
+        if (emit(&em->e, "/", 1) != 0)
+            return em->e.err;
+    }
+    return emit(&em->e, name, strlen(name));
+}
+
+int edn_emit_keyword(edn_emitter_t* em, const char* name) {
+    if (em == NULL || name == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_kw_name(name, strlen(name)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_KEYWORD);
+    if (r != 0)
+        return r;
+    if (emit_kw_or_sym_raw(em, true, NULL, name) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_keyword_ns(edn_emitter_t* em, const char* ns, const char* name) {
+    if (em == NULL || ns == NULL || name == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_sym_chunk(ns, strlen(ns)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_kw_name(name, strlen(name)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_KEYWORD);
+    if (r != 0)
+        return r;
+    if (emit_kw_or_sym_raw(em, true, ns, name) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_symbol(edn_emitter_t* em, const char* name) {
+    if (em == NULL || name == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_sym_chunk(name, strlen(name)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_SYMBOL);
+    if (r != 0)
+        return r;
+    if (emit_kw_or_sym_raw(em, false, NULL, name) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_symbol_ns(edn_emitter_t* em, const char* ns, const char* name) {
+    if (em == NULL || ns == NULL || name == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_sym_chunk(ns, strlen(ns)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (!valid_sym_chunk(name, strlen(name)))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_SYMBOL);
+    if (r != 0)
+        return r;
+    if (emit_kw_or_sym_raw(em, false, ns, name) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_character(edn_emitter_t* em, uint32_t cp) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_CHAR);
+    if (r != 0)
+        return r;
+    if (emit_character(&em->e, cp) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+int edn_emit_bigint(edn_emitter_t* em, const char* digits, int radix) {
+    if (em == NULL || digits == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (radix < 2 || radix > 36)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    const char* d;
+    size_t dlen;
+    bool neg;
+    if (!split_sign_and_validate_digits(digits, (uint8_t) radix, &d, &dlen, &neg))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_BIGNUM);
+    if (r != 0)
+        return r;
+    if (emit_bigint_parts(&em->e, d, dlen, neg, (uint8_t) radix) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_bigratio(edn_emitter_t* em, const char* numerator, const char* denominator) {
+    if (em == NULL || numerator == NULL || denominator == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    const char* n;
+    size_t nlen;
+    bool nneg;
+    if (!split_sign_and_validate_digits(numerator, 10, &n, &nlen, &nneg))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    /* Denominator must be positive: reject leading sign. */
+    if (*denominator == '-' || *denominator == '+')
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    const char* d;
+    size_t dlen;
+    bool dneg;
+    if (!split_sign_and_validate_digits(denominator, 10, &d, &dlen, &dneg))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_BIGNUM);
+    if (r != 0)
+        return r;
+    emit_ctx_t* e = &em->e;
+    if (nneg) {
+        if (emit(e, "-", 1) != 0) {
+            em->poisoned = true;
+            return e->err;
+        }
+    }
+    if (emit(e, n, nlen) != 0 || emit(e, "/", 1) != 0 || emit(e, d, dlen) != 0) {
+        em->poisoned = true;
+        return e->err;
+    }
+    return emitter_post_scalar(em);
+}
+
+int edn_emit_bigdecimal(edn_emitter_t* em, const char* digits) {
+    if (em == NULL || digits == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    const char* d;
+    size_t dlen;
+    bool neg;
+    if (!valid_bigdec_digits(digits, &d, &dlen, &neg))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    int r = emitter_pre_value(em, PAYLOAD_BIGNUM);
+    if (r != 0)
+        return r;
+    emit_ctx_t* e = &em->e;
+    if (neg) {
+        if (emit(e, "-", 1) != 0) {
+            em->poisoned = true;
+            return e->err;
+        }
+    }
+    if (emit(e, d, dlen) != 0 || emit(e, "M", 1) != 0) {
+        em->poisoned = true;
+        return e->err;
+    }
+    return emitter_post_scalar(em);
+}
+#endif
+
+/* --- collections --- */
+
+static int emitter_begin_collection(edn_emitter_t* em, emitter_frame_kind_t kind, const char* open,
+                                    size_t open_len, payload_kind_t pk) {
+    int r = emitter_pre_value(em, pk);
+    if (r != 0)
+        return r;
+    r = emitter_enter_depth(em);
+    if (r != 0)
+        return r;
+    if (emit(&em->e, open, open_len) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    size_t indent_col = em->e.column;
+    if (emitter_push_frame(em, kind, indent_col) != 0) {
+        em->poisoned = true;
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    }
+    return 0;
+}
+
+static int emitter_end_collection(edn_emitter_t* em, emitter_frame_kind_t kind, const char* close) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->poisoned || em->finished)
+        return -EDN_ERROR_INVALID_STATE;
+    emitter_frame_t* f = emitter_top_frame(em);
+    if (f == NULL || f->kind != kind) {
+        em->poisoned = true;
+        return -EDN_ERROR_INVALID_STATE;
+    }
+    if (kind == EMITTER_FRAME_MAP && (f->item_count & 1) == 1) {
+        em->poisoned = true;
+        return -EDN_ERROR_INVALID_STATE;
+    }
+    /* Pending tag at end of empty collection is a state error: the tag
+     * would have nothing to attach to inside the just-closed container. */
+    if (em->tag_pending || em->pending_head != NULL) {
+        em->poisoned = true;
+        return -EDN_ERROR_INVALID_STATE;
+    }
+    if (emit(&em->e, close, 1) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    em->frames_count--;
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    /* If this end balanced a captured collection payload, commit. */
+    if (em->capturing && em->frames_count == em->capture_start_depth) {
+        int rc = emitter_stop_capture_commit(em);
+        if (rc != 0) {
+            em->poisoned = true;
+            return rc;
+        }
+        return 0; /* captured value is not a real value emission */
+    }
+#endif
+
+    emitter_frame_t* parent = emitter_top_frame(em);
+    if (parent != NULL) {
+        parent->item_count++;
+    } else {
+        em->produced_top_value = true;
+    }
+    return 0;
+}
+
+int edn_emit_begin_list(edn_emitter_t* em) {
+    return emitter_begin_collection(em, EMITTER_FRAME_LIST, "(", 1, PAYLOAD_LIST);
+}
+int edn_emit_end_list(edn_emitter_t* em) {
+    return emitter_end_collection(em, EMITTER_FRAME_LIST, ")");
+}
+int edn_emit_begin_vector(edn_emitter_t* em) {
+    return emitter_begin_collection(em, EMITTER_FRAME_VECTOR, "[", 1, PAYLOAD_VECTOR);
+}
+int edn_emit_end_vector(edn_emitter_t* em) {
+    return emitter_end_collection(em, EMITTER_FRAME_VECTOR, "]");
+}
+int edn_emit_begin_set(edn_emitter_t* em) {
+    return emitter_begin_collection(em, EMITTER_FRAME_SET, "#{", 2, PAYLOAD_SET);
+}
+int edn_emit_end_set(edn_emitter_t* em) {
+    return emitter_end_collection(em, EMITTER_FRAME_SET, "}");
+}
+int edn_emit_begin_map(edn_emitter_t* em) {
+    return emitter_begin_collection(em, EMITTER_FRAME_MAP, "{", 1, PAYLOAD_MAP);
+}
+int edn_emit_end_map(edn_emitter_t* em) {
+    return emitter_end_collection(em, EMITTER_FRAME_MAP, "}");
+}
+
+/* --- tag --- */
+
+int edn_emit_tag(edn_emitter_t* em, const char* tag) {
+    if (em == NULL || tag == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->poisoned || em->finished)
+        return -EDN_ERROR_INVALID_STATE;
+    size_t tag_len = strlen(tag);
+    if (!valid_sym_chunk(tag, tag_len))
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->tag_pending) {
+        em->poisoned = true;
+        return -EDN_ERROR_INVALID_STATE;
+    }
+    /* Build `#<tag> ` and push as a pending prefix. */
+    size_t total = 1 + tag_len + 1;
+    char* buf = malloc(total);
+    if (buf == NULL)
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    buf[0] = '#';
+    memcpy(buf + 1, tag, tag_len);
+    buf[1 + tag_len] = ' ';
+    if (emitter_push_prefix(em, buf, total) != 0)
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    em->tag_pending = true;
+    return 0;
+}
+
+/* --- meta --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+int edn_emit_meta(edn_emitter_t* em) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    if (em->poisoned || em->finished)
+        return -EDN_ERROR_INVALID_STATE;
+    if (!em->emit_metadata_enabled)
+        return -EDN_ERROR_INVALID_STATE;
+    if (em->expecting_meta_payload) {
+        em->poisoned = true;
+        return -EDN_ERROR_INVALID_STATE;
+    }
+    em->expecting_meta_payload = true;
+    return 0;
+}
+#endif
+
+/* --- embed --- */
+
+static payload_kind_t embed_payload_kind(const edn_value_t* v) {
+    if (v == NULL)
+        return PAYLOAD_NIL;
+    switch (v->type) {
+        case EDN_TYPE_MAP:
+            return PAYLOAD_MAP;
+        case EDN_TYPE_VECTOR:
+            return PAYLOAD_VECTOR;
+        case EDN_TYPE_SYMBOL:
+            return PAYLOAD_SYMBOL;
+        case EDN_TYPE_KEYWORD:
+            return PAYLOAD_KEYWORD;
+        default:
+            return PAYLOAD_EMBED;
+    }
+}
+
+int edn_emit_value(edn_emitter_t* em, const edn_value_t* v) {
+    if (em == NULL)
+        return -EDN_ERROR_INVALID_ARGUMENT;
+    /* Use the value's actual type so that meta-payload validation rejects
+     * non-meta-payload-eligible embedded values. */
+    payload_kind_t kind = embed_payload_kind(v);
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    if (em->expecting_meta_payload) {
+        bool ok = (kind == PAYLOAD_KEYWORD || kind == PAYLOAD_SYMBOL || kind == PAYLOAD_MAP ||
+                   kind == PAYLOAD_VECTOR);
+        if (!ok) {
+            em->poisoned = true;
+            return -EDN_ERROR_INVALID_STATE;
+        }
+    }
+#endif
+    int r = emitter_pre_value(em, kind);
+    if (r != 0)
+        return r;
+    if (emit_value(&em->e, v) != 0) {
+        em->poisoned = true;
+        return em->e.err;
+    }
+    return emitter_post_scalar(em);
 }
