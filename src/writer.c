@@ -1165,7 +1165,10 @@ static int emitter_push_frame(edn_emitter_t* em, emitter_frame_kind_t kind, size
         em->frames = new_frames;
         em->frames_cap = new_cap;
     }
-    em->frames[em->frames_count++] = (emitter_frame_t) {kind, 0, indent_col};
+    emitter_frame_t* f = &em->frames[em->frames_count++];
+    f->kind = kind;
+    f->item_count = 0;
+    f->indent_col = indent_col;
     return 0;
 }
 
