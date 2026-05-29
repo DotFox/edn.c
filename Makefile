@@ -73,6 +73,16 @@ ifneq (,$(filter 1,$(EXPERIMENTAL_EXTENSION) $(ALL)))
     CFLAGS += -DEDN_ENABLE_EXPERIMENTAL_EXTENSION
 endif
 
+# Feature-flag fingerprint: force a rebuild when feature macros (or DEBUG)
+# change, so stale objects compiled with different -D flags are never reused.
+FLAG_SIGNATURE := CLOJURE=$(filter 1,$(CLOJURE_EXTENSION) $(ALL))|EXPERIMENTAL=$(filter 1,$(EXPERIMENTAL_EXTENSION) $(ALL))|DEBUG=$(DEBUG)
+.PHONY: FORCE
+FORCE:
+.build-flags: FORCE
+	@if [ "$$(cat $@ 2>/dev/null)" != "$(FLAG_SIGNATURE)" ]; then \
+		echo "$(FLAG_SIGNATURE)" > $@; \
+	fi
+
 # Verbose mode
 VERBOSE ?= 0
 ifeq ($(VERBOSE),1)
@@ -87,6 +97,9 @@ SRCS = src/edn.c src/arena.c src/simd.c src/string.c src/number.c src/character.
 # Native build objects and library
 OBJS = $(SRCS:.c=.o)
 LIB = libedn.a
+
+# Rebuild objects whenever the feature-flag fingerprint changes.
+$(OBJS): .build-flags
 
 # Shared library
 ifeq ($(UNAME_S),Darwin)
@@ -282,6 +295,7 @@ clean:
 	$(Q)rm -f $(EXAMPLES_BINS)
 	$(Q)rm -rf *.dSYM test/*.dSYM bench/*.dSYM
 	$(Q)rm -rf profile_*.trace
+	$(Q)rm -f .build-flags
 
 # Print configuration
 .PHONY: info
