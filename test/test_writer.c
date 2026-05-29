@@ -1508,6 +1508,843 @@ TEST(write_registry_create_destroy) {
     edn_writer_registry_destroy(r);
 }
 
+/* ============================================================
+ * Streaming emitter (edn_emitter_*) tests
+ * ============================================================ */
+
+typedef struct {
+    char buf[4096];
+    size_t len;
+} emit_capture_t;
+
+static int emit_capture_cb(const char* data, size_t n, void* ctx) {
+    emit_capture_t* c = ctx;
+    if (c->len + n + 1 > sizeof(c->buf))
+        return -EDN_ERROR_OUT_OF_MEMORY;
+    memcpy(c->buf + c->len, data, n);
+    c->len += n;
+    c->buf[c->len] = '\0';
+    return 0;
+}
+
+/* --- lifecycle / validation --- */
+
+TEST(emitter_create_null_callback) {
+    edn_emitter_t* em = edn_emitter_create(NULL, NULL, NULL);
+    assert_ptr_eq(em, NULL);
+}
+
+TEST(emitter_create_bad_struct_size) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = 4; /* nonzero but smaller than struct */
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert_ptr_eq(em, NULL);
+}
+
+TEST(emitter_create_sort_unordered_rejected) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.sort_unordered = true;
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert_ptr_eq(em, NULL);
+}
+
+TEST(emitter_create_writer_registry_rejected) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.writer_registry = edn_writer_registry_create();
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert_ptr_eq(em, NULL);
+    edn_writer_registry_destroy(opts.writer_registry);
+}
+
+TEST(emitter_destroy_null_ok) {
+    edn_emitter_destroy(NULL);
+}
+
+TEST(emitter_destroy_without_finish_ok) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* Begin a vector but never finish; destroy must not crash. */
+    assert_int_eq(edn_emit_begin_vector(em), 0);
+    assert_int_eq(edn_emit_int(em, 1), 0);
+    edn_emitter_destroy(em);
+}
+
+TEST(emitter_finish_empty_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    int rc = edn_emitter_finish(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emitter_finish_then_emit_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_nil(em), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    int rc = edn_emit_nil(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emitter_finish_with_newline_at_end) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.newline_at_end = true;
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_nil(em), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "nil\n");
+    edn_emitter_destroy(em);
+}
+
+/* --- scalars --- */
+
+/* Mini helper: run `body` in a fresh emitter and compare captured output. */
+#define EMITTER_OUTPUT_EQ(body, expected)                               \
+    do {                                                                \
+        emit_capture_t c = {{0}, 0};                                    \
+        edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, 0); \
+        assert(em != NULL);                                             \
+        body;                                                           \
+        assert_int_eq(edn_emitter_finish(em), 0);                       \
+        assert_str_eq(c.buf, expected);                                 \
+        edn_emitter_destroy(em);                                        \
+    } while (0)
+
+TEST(emit_nil) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_nil(em), 0); }, "nil");
+}
+
+TEST(emit_bool_true) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_bool(em, true), 0); }, "true");
+}
+
+TEST(emit_bool_false) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_bool(em, false), 0); }, "false");
+}
+
+TEST(emit_int_zero) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_int(em, 0), 0); }, "0");
+}
+
+TEST(emit_int_min) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_int(em, INT64_MIN), 0); }, "-9223372036854775808");
+}
+
+TEST(emit_int_max) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_int(em, INT64_MAX), 0); }, "9223372036854775807");
+}
+
+TEST(emit_double_simple) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, 1.5), 0); }, "1.5");
+}
+
+TEST(emit_double_special) {
+    /* Match the value-tree writer (##NaN, ##Inf, ##-Inf). */
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, 0.0 / 0.0), 0); }, "##NaN");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, 1.0 / 0.0), 0); }, "##Inf");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, -1.0 / 0.0), 0); }, "##-Inf");
+}
+
+TEST(emit_string_simple) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_string(em, "hi", 2), 0); }, "\"hi\"");
+}
+
+TEST(emit_string_with_escapes) {
+    /* Caller pre-encoded the EDN escapes into bytes. */
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_string(em, "a\\nb", 4), 0); }, "\"a\\nb\"");
+}
+
+TEST(emit_string_len_sentinel) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_string(em, "hi", (size_t) -1), 0); }, "\"hi\"");
+}
+
+TEST(emit_string_invalid_utf8_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* Bare 0xC3 with no continuation byte is invalid UTF-8. */
+    int rc = edn_emit_string(em, "\xC3", 1);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_keyword_simple) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_keyword(em, "kw"), 0); }, ":kw");
+}
+
+TEST(emit_keyword_ns) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_keyword_ns(em, "my.ns", "kw"), 0); }, ":my.ns/kw");
+}
+
+TEST(emit_symbol_simple) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_symbol(em, "foo"), 0); }, "foo");
+}
+
+TEST(emit_symbol_ns) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_symbol_ns(em, "ns", "foo"), 0); }, "ns/foo");
+}
+
+TEST(emit_keyword_invalid_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* Embedded space. */
+    assert_int_eq(edn_emit_keyword(em, "a b"), -EDN_ERROR_INVALID_ARGUMENT);
+    /* Empty. */
+    assert_int_eq(edn_emit_keyword(em, ""), -EDN_ERROR_INVALID_ARGUMENT);
+    /* Leading ':'. */
+    assert_int_eq(edn_emit_keyword(em, ":kw"), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_symbol_invalid_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* Leading digit. */
+    assert_int_eq(edn_emit_symbol(em, "1abc"), -EDN_ERROR_INVALID_ARGUMENT);
+    /* Embedded delimiter. */
+    assert_int_eq(edn_emit_symbol(em, "a b"), -EDN_ERROR_INVALID_ARGUMENT);
+    /* Empty. */
+    assert_int_eq(edn_emit_symbol(em, ""), -EDN_ERROR_INVALID_ARGUMENT);
+    /* +5 looks like a signed number. */
+    assert_int_eq(edn_emit_symbol(em, "+5"), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_character_ascii) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_character(em, 'a'), 0); }, "\\a");
+}
+
+TEST(emit_character_named) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_character(em, '\n'), 0); }, "\\newline");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_character(em, ' '), 0); }, "\\space");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_character(em, '\t'), 0); }, "\\tab");
+}
+
+TEST(emit_character_unicode_bmp) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_character(em, 0x00E9), 0); }, "\\u00E9");
+}
+
+TEST(emit_character_invalid_codepoint_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_character(em, 0x110000), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_character_surrogate_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_character(em, 0xD800), -EDN_ERROR_INVALID_ARGUMENT);
+    assert_int_eq(edn_emit_character(em, 0xDFFF), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_top_level_double_value_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_int(em, 1), 0);
+    int rc = edn_emit_int(em, 2);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+/* --- collections --- */
+
+TEST(emit_empty_vector) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_vector(em), 0);
+            assert_int_eq(edn_emit_end_vector(em), 0);
+        },
+        "[]");
+}
+
+TEST(emit_vector_with_scalars) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_vector(em), 0);
+            assert_int_eq(edn_emit_int(em, 1), 0);
+            assert_int_eq(edn_emit_int(em, 2), 0);
+            assert_int_eq(edn_emit_int(em, 3), 0);
+            assert_int_eq(edn_emit_end_vector(em), 0);
+        },
+        "[1 2 3]");
+}
+
+TEST(emit_nested_vector) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_vector(em), 0);
+            assert_int_eq(edn_emit_int(em, 1), 0);
+            assert_int_eq(edn_emit_begin_vector(em), 0);
+            assert_int_eq(edn_emit_int(em, 2), 0);
+            assert_int_eq(edn_emit_end_vector(em), 0);
+            assert_int_eq(edn_emit_end_vector(em), 0);
+        },
+        "[1 [2]]");
+}
+
+TEST(emit_empty_list) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_list(em), 0);
+            assert_int_eq(edn_emit_end_list(em), 0);
+        },
+        "()");
+}
+
+TEST(emit_list_with_scalars) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_list(em), 0);
+            assert_int_eq(edn_emit_keyword(em, "a"), 0);
+            assert_int_eq(edn_emit_keyword(em, "b"), 0);
+            assert_int_eq(edn_emit_end_list(em), 0);
+        },
+        "(:a :b)");
+}
+
+TEST(emit_empty_set) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_set(em), 0);
+            assert_int_eq(edn_emit_end_set(em), 0);
+        },
+        "#{}");
+}
+
+TEST(emit_set_with_scalars) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_set(em), 0);
+            assert_int_eq(edn_emit_int(em, 1), 0);
+            assert_int_eq(edn_emit_int(em, 2), 0);
+            assert_int_eq(edn_emit_end_set(em), 0);
+        },
+        "#{1 2}");
+}
+
+TEST(emit_empty_map) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_map(em), 0);
+            assert_int_eq(edn_emit_end_map(em), 0);
+        },
+        "{}");
+}
+
+TEST(emit_map_with_pairs) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_begin_map(em), 0);
+            assert_int_eq(edn_emit_keyword(em, "a"), 0);
+            assert_int_eq(edn_emit_int(em, 1), 0);
+            assert_int_eq(edn_emit_keyword(em, "b"), 0);
+            assert_int_eq(edn_emit_int(em, 2), 0);
+            assert_int_eq(edn_emit_end_map(em), 0);
+        },
+        "{:a 1, :b 2}");
+}
+
+TEST(emit_mismatched_end_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_begin_vector(em), 0);
+    int rc = edn_emit_end_map(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_map_odd_count_at_end_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_begin_map(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "a"), 0);
+    int rc = edn_emit_end_map(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_end_without_begin_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    int rc = edn_emit_end_vector(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_max_depth_exceeded) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* EDN_DEFAULT_MAX_DEPTH = 1024 -> opening 1024 vectors succeeds, the
+     * 1025th fails. */
+    for (size_t i = 0; i < EDN_DEFAULT_MAX_DEPTH; i++) {
+        assert_int_eq(edn_emit_begin_vector(em), 0);
+    }
+    int rc = edn_emit_begin_vector(em);
+    assert_int_eq(rc, -EDN_ERROR_MAX_DEPTH_EXCEEDED);
+    edn_emitter_destroy(em);
+}
+
+/* --- indent interaction --- */
+
+/* Compare streaming output against value-tree writer for the same source. */
+static bool streaming_matches_value_tree(const char* edn_input, void (*build)(edn_emitter_t*),
+                                         const edn_write_options_t* opts) {
+    edn_result_t r = edn_read(edn_input, 0);
+    if (r.error != EDN_OK) {
+        edn_free(r.value);
+        return false;
+    }
+    char* expected = edn_write_string(r.value, opts, NULL);
+    edn_free(r.value);
+    if (expected == NULL)
+        return false;
+
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, opts);
+    if (em == NULL) {
+        free(expected);
+        return false;
+    }
+    build(em);
+    int fr = edn_emitter_finish(em);
+    edn_emitter_destroy(em);
+    if (fr != 0) {
+        free(expected);
+        return false;
+    }
+    bool eq = strcmp(c.buf, expected) == 0;
+    if (!eq) {
+        printf("\n    streaming: \"%s\"\n", c.buf);
+        printf("    expected:  \"%s\"\n", expected);
+    }
+    free(expected);
+    return eq;
+}
+
+static void build_vec_123(edn_emitter_t* em) {
+    edn_emit_begin_vector(em);
+    edn_emit_int(em, 1);
+    edn_emit_int(em, 2);
+    edn_emit_int(em, 3);
+    edn_emit_end_vector(em);
+}
+
+TEST(emit_vector_with_indent_matches_value_tree) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    assert_true(streaming_matches_value_tree("[1 2 3]", build_vec_123, &opts));
+}
+
+static void build_nested_map(edn_emitter_t* em) {
+    edn_emit_begin_map(em);
+    edn_emit_keyword(em, "a");
+    edn_emit_begin_vector(em);
+    edn_emit_int(em, 1);
+    edn_emit_int(em, 2);
+    edn_emit_end_vector(em);
+    edn_emit_keyword(em, "b");
+    edn_emit_int(em, 3);
+    edn_emit_end_map(em);
+}
+
+TEST(emit_nested_map_with_indent_matches_value_tree) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    assert_true(streaming_matches_value_tree("{:a [1 2] :b 3}", build_nested_map, &opts));
+}
+
+TEST(emit_set_with_indent_two_space_step) {
+    /* `#{` is two columns wide; pretty-printed children align two spaces in. */
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_begin_set(em), 0);
+    assert_int_eq(edn_emit_int(em, 1), 0);
+    assert_int_eq(edn_emit_int(em, 2), 0);
+    assert_int_eq(edn_emit_end_set(em), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "#{1\n  2}");
+    edn_emitter_destroy(em);
+}
+
+/* --- tagged literals --- */
+
+TEST(emit_tag_then_value) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_tag(em, "foo"), 0);
+            assert_int_eq(edn_emit_int(em, 42), 0);
+        },
+        "#foo 42");
+}
+
+TEST(emit_tag_then_collection) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_tag(em, "foo"), 0);
+            assert_int_eq(edn_emit_begin_vector(em), 0);
+            assert_int_eq(edn_emit_int(em, 1), 0);
+            assert_int_eq(edn_emit_int(em, 2), 0);
+            assert_int_eq(edn_emit_end_vector(em), 0);
+        },
+        "#foo [1 2]");
+}
+
+TEST(emit_tag_invalid_identifier_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    int rc = edn_emit_tag(em, "a b");
+    assert_int_eq(rc, -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_tag_twice_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_tag(em, "foo"), 0);
+    int rc = edn_emit_tag(em, "bar");
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_tag_then_finish_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_tag(em, "foo"), 0);
+    int rc = edn_emitter_finish(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_tag_with_indent) {
+    /* Tag prefix sits inline; the nested collection pretty-prints from the
+     * column AFTER the trailing space. */
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.indent = 1;
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, &opts);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_tag(em, "foo"), 0);
+    assert_int_eq(edn_emit_begin_vector(em), 0);
+    assert_int_eq(edn_emit_int(em, 1), 0);
+    assert_int_eq(edn_emit_int(em, 2), 0);
+    assert_int_eq(edn_emit_end_vector(em), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    /* `#foo [` puts `[` at column 5; items align at column 6. */
+    assert_str_eq(c.buf, "#foo [1\n      2]");
+    edn_emitter_destroy(em);
+}
+
+/* --- big numbers --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+TEST(emit_bigint_decimal) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_bigint(em, "12345", 10), 0); }, "12345N");
+}
+
+TEST(emit_bigint_hex) {
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_bigint(em, "FF", 16), 0); }, "0xFFN");
+}
+
+TEST(emit_bigint_invalid_radix_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_bigint(em, "10", 1), -EDN_ERROR_INVALID_ARGUMENT);
+    assert_int_eq(edn_emit_bigint(em, "10", 37), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_bigint_invalid_digits_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_bigint(em, "12X", 10), -EDN_ERROR_INVALID_ARGUMENT);
+    assert_int_eq(edn_emit_bigint(em, "", 10), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_bigratio) {
+    EMITTER_OUTPUT_EQ(
+        { assert_int_eq(edn_emit_bigratio(em, "99999999999999999999", "3"), 0); },
+        "99999999999999999999/3");
+}
+
+TEST(emit_bigratio_invalid_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    /* Denominator may not be signed. */
+    assert_int_eq(edn_emit_bigratio(em, "1", "-3"), -EDN_ERROR_INVALID_ARGUMENT);
+    /* Empty numerator. */
+    assert_int_eq(edn_emit_bigratio(em, "", "3"), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_bigdecimal) {
+    EMITTER_OUTPUT_EQ(
+        { assert_int_eq(edn_emit_bigdecimal(em, "3.14159265358979"), 0); }, "3.14159265358979M");
+}
+
+TEST(emit_bigdecimal_invalid_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_bigdecimal(em, "abc"), -EDN_ERROR_INVALID_ARGUMENT);
+    assert_int_eq(edn_emit_bigdecimal(em, "1."), -EDN_ERROR_INVALID_ARGUMENT);
+    assert_int_eq(edn_emit_bigdecimal(em, ""), -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
+/* Streamed big-number output equals the value-tree path's output. */
+static bool stream_bignum_matches(const char* input, void (*build)(edn_emitter_t*)) {
+    edn_result_t r = edn_read(input, 0);
+    if (r.error != EDN_OK) {
+        edn_free(r.value);
+        return false;
+    }
+    char* expected = edn_write(r.value);
+    edn_free(r.value);
+    if (!expected)
+        return false;
+
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    if (!em) {
+        free(expected);
+        return false;
+    }
+    build(em);
+    int fr = edn_emitter_finish(em);
+    edn_emitter_destroy(em);
+    bool eq = (fr == 0) && strcmp(c.buf, expected) == 0;
+    free(expected);
+    return eq;
+}
+
+static void build_bigint_123(edn_emitter_t* em) {
+    edn_emit_bigint(em, "123", 10);
+}
+static void build_bigratio_basic(edn_emitter_t* em) {
+    edn_emit_bigratio(em, "99999999999999999999", "3");
+}
+static void build_bigdec_basic(edn_emitter_t* em) {
+    edn_emit_bigdecimal(em, "3.1415926535897932384626433832795028841971693993751");
+}
+
+TEST(emit_bignum_matches_value_tree) {
+    assert_true(stream_bignum_matches("123N", build_bigint_123));
+    assert_true(stream_bignum_matches("99999999999999999999/3", build_bigratio_basic));
+    assert_true(stream_bignum_matches("3.1415926535897932384626433832795028841971693993751M",
+                                      build_bigdec_basic));
+}
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
+/* --- metadata (Clojure extension) --- */
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+static edn_emitter_t* meta_emitter(emit_capture_t* c) {
+    edn_write_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.emit_metadata = true;
+    return edn_emitter_create(emit_capture_cb, c, &opts);
+}
+
+TEST(emit_meta_keyword_payload_then_value) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "dynamic"), 0);
+    assert_int_eq(edn_emit_symbol(em, "value"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "^:dynamic value");
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_map_payload_streamed) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_begin_map(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "a"), 0);
+    assert_int_eq(edn_emit_int(em, 1), 0);
+    assert_int_eq(edn_emit_keyword(em, "b"), 0);
+    assert_int_eq(edn_emit_int(em, 2), 0);
+    assert_int_eq(edn_emit_end_map(em), 0);
+    assert_int_eq(edn_emit_symbol(em, "value"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "^{:a 1, :b 2} value");
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_invalid_payload_type_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    /* Strings are not valid Clojure short-form meta payloads. */
+    int rc = edn_emit_string(em, "x", 1);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_disabled_in_options_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL); /* default = off */
+    assert(em != NULL);
+    int rc = edn_emit_meta(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_stacked) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "a"), 0);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "b"), 0);
+    assert_int_eq(edn_emit_symbol(em, "v"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "^:a ^:b v");
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_with_tag_order_preserved) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_tag(em, "foo"), 0);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "a"), 0);
+    assert_int_eq(edn_emit_symbol(em, "v"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "#foo ^:a v");
+    edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_then_finish_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    int rc = edn_emitter_finish(em);
+    assert_int_eq(rc, -EDN_ERROR_INVALID_STATE);
+    edn_emitter_destroy(em);
+}
+#endif /* EDN_ENABLE_CLOJURE_EXTENSION */
+
+/* --- hybrid embed --- */
+
+TEST(emit_value_embed_scalar) {
+    edn_result_t r = edn_read("42", 0);
+    assert(r.error == EDN_OK);
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_value(em, r.value), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "42");
+    edn_emitter_destroy(em);
+    edn_free(r.value);
+}
+
+TEST(emit_value_embed_collection_inside_open_vector) {
+    edn_result_t r = edn_read("[1 2]", 0);
+    assert(r.error == EDN_OK);
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_begin_vector(em), 0);
+    assert_int_eq(edn_emit_keyword(em, "a"), 0);
+    assert_int_eq(edn_emit_value(em, r.value), 0);
+    assert_int_eq(edn_emit_end_vector(em), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "[:a [1 2]]");
+    edn_emitter_destroy(em);
+    edn_free(r.value);
+}
+
+TEST(emit_value_embed_with_pending_tag) {
+    edn_result_t r = edn_read("\"2024-01-01\"", 0);
+    assert(r.error == EDN_OK);
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_tag(em, "inst"), 0);
+    assert_int_eq(edn_emit_value(em, r.value), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "#inst \"2024-01-01\"");
+    edn_emitter_destroy(em);
+    edn_free(r.value);
+}
+
+/* --- round-trip corpus --- */
+
+TEST(emitter_roundtrip_corpus) {
+    static const char* const corpus[] = {
+        "nil",       "true", "false",  "0",      "42",      "-17",        "1.5",
+        "\"hello\"", ":kw",  ":ns/kw", "foo",    "ns/foo",  "\\a",        "[]",
+        "[1 2 3]",   "{}",   "{:a 1}", "#{1 2}", "(1 2 3)", "[:a [1 2]]",
+    };
+    size_t n = sizeof(corpus) / sizeof(*corpus);
+    for (size_t i = 0; i < n; i++) {
+        edn_result_t a = edn_read(corpus[i], 0);
+        assert(a.error == EDN_OK);
+
+        emit_capture_t c = {{0}, 0};
+        edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+        assert(em != NULL);
+        assert_int_eq(edn_emit_value(em, a.value), 0);
+        assert_int_eq(edn_emitter_finish(em), 0);
+        edn_emitter_destroy(em);
+
+        edn_result_t b = edn_read(c.buf, 0);
+        if (b.error != EDN_OK || !edn_value_equal(a.value, b.value)) {
+            printf("\n    round-trip mismatch for: %s\n", corpus[i]);
+            printf("    re-emitted as:           %s\n", c.buf);
+            assert_true(false);
+        }
+        edn_free(a.value);
+        edn_free(b.value);
+    }
+}
+
 int main(void) {
     printf("Running writer tests...\n");
 
@@ -1676,6 +2513,99 @@ int main(void) {
 
     /* registry */
     RUN_TEST(write_registry_create_destroy);
+
+    /* streaming emitter: lifecycle + validation */
+    RUN_TEST(emitter_create_null_callback);
+    RUN_TEST(emitter_create_bad_struct_size);
+    RUN_TEST(emitter_create_sort_unordered_rejected);
+    RUN_TEST(emitter_create_writer_registry_rejected);
+    RUN_TEST(emitter_destroy_null_ok);
+    RUN_TEST(emitter_destroy_without_finish_ok);
+    RUN_TEST(emitter_finish_empty_fails);
+    RUN_TEST(emitter_finish_then_emit_fails);
+    RUN_TEST(emitter_finish_with_newline_at_end);
+
+    /* streaming emitter: scalars */
+    RUN_TEST(emit_nil);
+    RUN_TEST(emit_bool_true);
+    RUN_TEST(emit_bool_false);
+    RUN_TEST(emit_int_zero);
+    RUN_TEST(emit_int_min);
+    RUN_TEST(emit_int_max);
+    RUN_TEST(emit_double_simple);
+    RUN_TEST(emit_double_special);
+    RUN_TEST(emit_string_simple);
+    RUN_TEST(emit_string_with_escapes);
+    RUN_TEST(emit_string_len_sentinel);
+    RUN_TEST(emit_string_invalid_utf8_fails);
+    RUN_TEST(emit_keyword_simple);
+    RUN_TEST(emit_keyword_ns);
+    RUN_TEST(emit_symbol_simple);
+    RUN_TEST(emit_symbol_ns);
+    RUN_TEST(emit_keyword_invalid_fails);
+    RUN_TEST(emit_symbol_invalid_fails);
+    RUN_TEST(emit_character_ascii);
+    RUN_TEST(emit_character_named);
+    RUN_TEST(emit_character_unicode_bmp);
+    RUN_TEST(emit_character_invalid_codepoint_fails);
+    RUN_TEST(emit_character_surrogate_fails);
+    RUN_TEST(emit_top_level_double_value_fails);
+
+    /* streaming emitter: collections */
+    RUN_TEST(emit_empty_vector);
+    RUN_TEST(emit_vector_with_scalars);
+    RUN_TEST(emit_nested_vector);
+    RUN_TEST(emit_empty_list);
+    RUN_TEST(emit_list_with_scalars);
+    RUN_TEST(emit_empty_set);
+    RUN_TEST(emit_set_with_scalars);
+    RUN_TEST(emit_empty_map);
+    RUN_TEST(emit_map_with_pairs);
+    RUN_TEST(emit_mismatched_end_fails);
+    RUN_TEST(emit_map_odd_count_at_end_fails);
+    RUN_TEST(emit_end_without_begin_fails);
+    RUN_TEST(emit_max_depth_exceeded);
+
+    /* streaming emitter: indent */
+    RUN_TEST(emit_vector_with_indent_matches_value_tree);
+    RUN_TEST(emit_nested_map_with_indent_matches_value_tree);
+    RUN_TEST(emit_set_with_indent_two_space_step);
+
+    /* streaming emitter: tagged */
+    RUN_TEST(emit_tag_then_value);
+    RUN_TEST(emit_tag_then_collection);
+    RUN_TEST(emit_tag_invalid_identifier_fails);
+    RUN_TEST(emit_tag_twice_fails);
+    RUN_TEST(emit_tag_then_finish_fails);
+    RUN_TEST(emit_tag_with_indent);
+
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+    /* streaming emitter: big numbers */
+    RUN_TEST(emit_bigint_decimal);
+    RUN_TEST(emit_bigint_hex);
+    RUN_TEST(emit_bigint_invalid_radix_fails);
+    RUN_TEST(emit_bigint_invalid_digits_fails);
+    RUN_TEST(emit_bigratio);
+    RUN_TEST(emit_bigratio_invalid_fails);
+    RUN_TEST(emit_bigdecimal);
+    RUN_TEST(emit_bigdecimal_invalid_fails);
+    RUN_TEST(emit_bignum_matches_value_tree);
+
+    /* streaming emitter: metadata */
+    RUN_TEST(emit_meta_keyword_payload_then_value);
+    RUN_TEST(emit_meta_map_payload_streamed);
+    RUN_TEST(emit_meta_invalid_payload_type_fails);
+    RUN_TEST(emit_meta_disabled_in_options_fails);
+    RUN_TEST(emit_meta_stacked);
+    RUN_TEST(emit_meta_with_tag_order_preserved);
+    RUN_TEST(emit_meta_then_finish_fails);
+#endif
+
+    /* streaming emitter: hybrid embed + round-trip */
+    RUN_TEST(emit_value_embed_scalar);
+    RUN_TEST(emit_value_embed_collection_inside_open_vector);
+    RUN_TEST(emit_value_embed_with_pending_tag);
+    RUN_TEST(emitter_roundtrip_corpus);
 
     TEST_SUMMARY("writer");
 }
