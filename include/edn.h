@@ -1075,7 +1075,8 @@ EDN_API int edn_emit_end_map(edn_emitter_t* emitter);
 /**
  * Record a pending tag. The very next value emitted is prefixed with
  * `#<tag> `. The tag string is copied; the caller's buffer need not
- * outlive this call.
+ * outlive this call. Namespaced tags using a single '/' separator are
+ * accepted, e.g. `#my/tag`.
  */
 EDN_API int edn_emit_tag(edn_emitter_t* emitter, const char* tag);
 

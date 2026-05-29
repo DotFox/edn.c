@@ -403,6 +403,15 @@ TEST(write_character_bmp_max) {
     free(s);
 }
 
+TEST(write_character_control_codepoint) {
+    /* Low control codepoint. The 4-digit \u parser accepts it in every build
+     * mode, so round-trip is required regardless of extension flags. */
+    char* s = write_roundtrip("\\u0001");
+    assert(s != NULL);
+    assert_str_eq(s, "\\u0001");
+    free(s);
+}
+
 #ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
 /* In non-EXPERIMENTAL builds the character parser only accepts exactly 4 hex
  * digits, so a supplementary codepoint cannot arise from parsing. We
@@ -2027,6 +2036,24 @@ TEST(emit_tag_invalid_identifier_fails) {
     edn_emitter_destroy(em);
 }
 
+TEST(emit_tag_namespaced) {
+    EMITTER_OUTPUT_EQ(
+        {
+            assert_int_eq(edn_emit_tag(em, "my/tag"), 0);
+            assert_int_eq(edn_emit_int(em, 42), 0);
+        },
+        "#my/tag 42");
+}
+
+TEST(emit_tag_invalid_namespace_fails) {
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
+    assert(em != NULL);
+    int rc = edn_emit_tag(em, "/tag");
+    assert_int_eq(rc, -EDN_ERROR_INVALID_ARGUMENT);
+    edn_emitter_destroy(em);
+}
+
 TEST(emit_tag_twice_fails) {
     emit_capture_t c = {{0}, 0};
     edn_emitter_t* em = edn_emitter_create(emit_capture_cb, &c, NULL);
@@ -2209,6 +2236,36 @@ TEST(emit_meta_map_payload_streamed) {
     assert_int_eq(edn_emitter_finish(em), 0);
     assert_str_eq(c.buf, "^{:a 1, :b 2} value");
     edn_emitter_destroy(em);
+}
+
+TEST(emit_meta_map_payload_embedded) {
+    edn_result_t r = edn_read("{:a 1}", 0);
+    assert(r.error == EDN_OK);
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_value(em, r.value), 0);
+    assert_int_eq(edn_emit_symbol(em, "value"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "^{:a 1} value");
+    edn_emitter_destroy(em);
+    edn_free(r.value);
+}
+
+TEST(emit_meta_vector_payload_embedded) {
+    edn_result_t r = edn_read("[1 2]", 0);
+    assert(r.error == EDN_OK);
+    emit_capture_t c = {{0}, 0};
+    edn_emitter_t* em = meta_emitter(&c);
+    assert(em != NULL);
+    assert_int_eq(edn_emit_meta(em), 0);
+    assert_int_eq(edn_emit_value(em, r.value), 0);
+    assert_int_eq(edn_emit_symbol(em, "value"), 0);
+    assert_int_eq(edn_emitter_finish(em), 0);
+    assert_str_eq(c.buf, "^[1 2] value");
+    edn_emitter_destroy(em);
+    edn_free(r.value);
 }
 
 TEST(emit_meta_invalid_payload_type_fails) {
@@ -2395,6 +2452,7 @@ int main(void) {
     RUN_TEST(write_character_newline);
     RUN_TEST(write_character_unicode);
     RUN_TEST(write_character_bmp_max);
+    RUN_TEST(write_character_control_codepoint);
 #ifndef EDN_ENABLE_EXPERIMENTAL_EXTENSION
     RUN_TEST(write_character_supplementary_rejected_without_experimental);
 #endif
@@ -2575,6 +2633,8 @@ int main(void) {
     RUN_TEST(emit_tag_then_value);
     RUN_TEST(emit_tag_then_collection);
     RUN_TEST(emit_tag_invalid_identifier_fails);
+    RUN_TEST(emit_tag_namespaced);
+    RUN_TEST(emit_tag_invalid_namespace_fails);
     RUN_TEST(emit_tag_twice_fails);
     RUN_TEST(emit_tag_then_finish_fails);
     RUN_TEST(emit_tag_with_indent);
@@ -2594,6 +2654,8 @@ int main(void) {
     /* streaming emitter: metadata */
     RUN_TEST(emit_meta_keyword_payload_then_value);
     RUN_TEST(emit_meta_map_payload_streamed);
+    RUN_TEST(emit_meta_map_payload_embedded);
+    RUN_TEST(emit_meta_vector_payload_embedded);
     RUN_TEST(emit_meta_invalid_payload_type_fails);
     RUN_TEST(emit_meta_disabled_in_options_fails);
     RUN_TEST(emit_meta_stacked);
