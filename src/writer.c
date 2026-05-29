@@ -1093,7 +1093,6 @@ struct edn_emitter {
     /* Meta payload state. */
     bool expecting_meta_payload;
     bool capturing;
-    bool capture_is_scalar;
     size_t capture_start_depth; /* frames_count when capture began */
 
     /* Capture buffer. */
@@ -1269,6 +1268,16 @@ static bool valid_sym_chunk(const char* s, size_t len) {
     return true;
 }
 
+static bool valid_tag(const char* s, size_t len) {
+    const char* slash = memchr(s, '/', len);
+    if (slash == NULL)
+        return valid_sym_chunk(s, len);
+    size_t ns_len = (size_t) (slash - s);
+    const char* name = slash + 1;
+    size_t name_len = len - ns_len - 1;
+    return valid_sym_chunk(s, ns_len) && valid_sym_chunk(name, name_len);
+}
+
 static bool valid_utf8(const char* s, size_t len) {
     const unsigned char* p = (const unsigned char*) s;
     size_t i = 0;
@@ -1395,9 +1404,8 @@ static int emitter_emit_separator(edn_emitter_t* em, emitter_frame_t* f) {
 /* --- capture lifecycle --- */
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
-static void emitter_start_capture(edn_emitter_t* em, bool is_scalar) {
+static void emitter_start_capture(edn_emitter_t* em) {
     em->capturing = true;
-    em->capture_is_scalar = is_scalar;
     em->capture_start_depth = em->frames_count;
     em->capture_len = 0;
     /* Force compact emission of the payload bytes; restore on stop. */
@@ -1447,9 +1455,7 @@ static int emitter_pre_value(edn_emitter_t* em, payload_kind_t kind) {
             return -EDN_ERROR_INVALID_STATE;
         }
         em->expecting_meta_payload = false;
-        bool is_scalar =
-            (kind == PAYLOAD_KEYWORD || kind == PAYLOAD_SYMBOL || kind == PAYLOAD_EMBED);
-        emitter_start_capture(em, is_scalar);
+        emitter_start_capture(em);
         /* IMPORTANT: skip separator + prefix flush. The payload bytes are
          * conceptually part of a prefix on the upcoming real value, not a
          * value in the enclosing container; any pending tag/meta prefixes
@@ -1490,7 +1496,7 @@ static int emitter_post_scalar(edn_emitter_t* em) {
     }
 
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
-    if (em->capturing && em->capture_is_scalar && em->frames_count == em->capture_start_depth) {
+    if (em->capturing && em->frames_count == em->capture_start_depth) {
         int r = emitter_stop_capture_commit(em);
         if (r != 0) {
             em->poisoned = true;
@@ -1957,7 +1963,7 @@ int edn_emit_tag(edn_emitter_t* em, const char* tag) {
     if (em->poisoned || em->finished)
         return -EDN_ERROR_INVALID_STATE;
     size_t tag_len = strlen(tag);
-    if (!valid_sym_chunk(tag, tag_len))
+    if (!valid_tag(tag, tag_len))
         return -EDN_ERROR_INVALID_ARGUMENT;
     if (em->tag_pending) {
         em->poisoned = true;
