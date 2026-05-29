@@ -1,5 +1,6 @@
 /* test_writer.c - Tests for the EDN writer. */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1651,10 +1652,9 @@ TEST(emit_double_simple) {
 }
 
 TEST(emit_double_special) {
-    /* Match the value-tree writer (##NaN, ##Inf, ##-Inf). */
-    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, 0.0 / 0.0), 0); }, "##NaN");
-    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, 1.0 / 0.0), 0); }, "##Inf");
-    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, -1.0 / 0.0), 0); }, "##-Inf");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, NAN), 0); }, "##NaN");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, INFINITY), 0); }, "##Inf");
+    EMITTER_OUTPUT_EQ({ assert_int_eq(edn_emit_double(em, -INFINITY), 0); }, "##-Inf");
 }
 
 TEST(emit_string_simple) {
