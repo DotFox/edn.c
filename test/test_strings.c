@@ -35,6 +35,27 @@ TEST(simd_find_quote_not_found) {
     assert(result == NULL);
 }
 
+TEST(simd_find_quote_backslash_after_quote) {
+    /* body of "abc", followed by , "d\ne"] and padding -> >= 16 bytes */
+    const char* input = "abc\",\"d\\ne\"]xxxxx";
+    bool has_escape = true;
+    const char* result = edn_simd_find_quote(input, input + strlen(input), &has_escape);
+    assert(result != NULL);
+    assert(*result == '"');
+    assert(result == input + 3);
+    assert(has_escape == false);
+}
+
+TEST(simd_find_quote_simd_block_escape) {
+    const char* input = "abcdef\\\"ghijklmn\"";
+    bool has_escape = false;
+    const char* result = edn_simd_find_quote(input, input + strlen(input), &has_escape);
+    assert(result != NULL);
+    assert(*result == '"');
+    assert(result == input + 16);
+    assert(has_escape == true);
+}
+
 /* Test string parsing via edn_read */
 TEST(parse_string_simple) {
     const char* input = "\"hello\"";
@@ -370,6 +391,8 @@ int main(void) {
     run_test_simd_find_quote_simple();
     run_test_simd_find_quote_with_escape();
     run_test_simd_find_quote_not_found();
+    run_test_simd_find_quote_backslash_after_quote();
+    run_test_simd_find_quote_simd_block_escape();
 
     /* Lazy parsing tests */
     run_test_parse_string_simple();

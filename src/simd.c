@@ -335,7 +335,6 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
         v128_t bs_v = wasm_i8x16_eq(chunk, wasm_i8x16_splat('\\'));
         v128_t specials = wasm_v128_or(quote_v, bs_v);
 
-        int bs_mask = wasm_i8x16_bitmask(bs_v);
         int special_mask = wasm_i8x16_bitmask(specials);
 
         if (special_mask == 0) {
@@ -357,7 +356,11 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
         }
 
         if (out_has_backslash) {
-            *out_has_backslash = has_backslash || (bs_mask != 0);
+            /* The closing quote is the first special byte in this block, so any
+             * '\\' bits in bs_mask are necessarily *after* the quote (outside the
+             * string). Escapes that belong to the string were already accumulated
+             * via the c == '\\' branch in earlier iterations. */
+            *out_has_backslash = has_backslash;
         }
         return ptr + idx;
     }
@@ -394,7 +397,6 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
         uint8x16_t bs_v = vceqq_u8(chunk, vdupq_n_u8('\\'));
         uint8x16_t specials = vorrq_u8(quote_v, bs_v);
 
-        uint16_t bs_mask = edn_neon_movemask_u8(bs_v);
         uint16_t special_mask = edn_neon_movemask_u8(specials);
 
         if (special_mask == 0u) {
@@ -419,7 +421,11 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
 
         /* Must be a '"' (we don't have any other specials) */
         if (out_has_backslash) {
-            *out_has_backslash = has_backslash || (bs_mask != 0);
+            /* The closing quote is the first special byte in this block, so any
+             * '\\' bits in bs_mask are necessarily *after* the quote (outside the
+             * string). Escapes that belong to the string were already accumulated
+             * via the c == '\\' branch in earlier iterations. */
+            *out_has_backslash = has_backslash;
         }
         return ptr + idx;
     }
@@ -482,7 +488,11 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
 
         /* Must be a '"' (we don't have any other specials) */
         if (out_has_backslash) {
-            *out_has_backslash = has_backslash || (bs_mask != 0);
+            /* The closing quote is the first special byte in this block, so any
+             * '\\' bits in bs_mask are necessarily *after* the quote (outside the
+             * string). Escapes that belong to the string were already accumulated
+             * via the c == '\\' branch in earlier iterations. */
+            *out_has_backslash = has_backslash;
         }
         return ptr + idx;
     }
