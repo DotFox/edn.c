@@ -1251,7 +1251,7 @@ edn_result_t edn_read_with_options(const char *input, size_t length,
 **Parse options fields:**
 - `reader_registry`: Optional reader registry for tagged literal transformations
 - `eof_value`: Optional value to return when EOF is encountered instead of an error
-- `default_reader_mode`: Behavior for unregistered tags (see below)
+- `default_reader_mode`: Behavior for unregistered tags, including when `reader_registry` is NULL (see below)
 
 **Default reader modes:**
 - `EDN_DEFAULT_READER_PASSTHROUGH`: Return `EDN_TYPE_TAGGED` for unregistered tags (default)

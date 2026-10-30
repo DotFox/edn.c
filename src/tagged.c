@@ -63,8 +63,7 @@ edn_value_t* edn_read_tagged(edn_parser_t* parser) {
         return NULL;
     }
 
-    /* Check if reader registry is provided and not in discard mode */
-    if (parser->reader_registry != NULL && !parser->discard_mode) {
+    if (!parser->discard_mode) {
         edn_reader_fn reader =
             edn_reader_lookup_internal(parser->reader_registry, tag_string, tag_length);
 

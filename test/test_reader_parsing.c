@@ -360,6 +360,49 @@ TEST(parse_reader_with_whitespace) {
     edn_reader_registry_destroy(registry);
 }
 
+TEST(parse_null_registry_default_modes) {
+    const struct {
+        edn_default_reader_mode_t mode;
+        const char* input;
+        const char* expected;
+    } cases[] = {
+        {EDN_DEFAULT_READER_PASSTHROUGH, "#unknown 42", "#unknown 42"},
+        {EDN_DEFAULT_READER_PASSTHROUGH, "#outer #inner 42", "#outer #inner 42"},
+        {EDN_DEFAULT_READER_UNWRAP, "#unknown 42", "42"},
+        {EDN_DEFAULT_READER_UNWRAP, "#outer #inner 42", "42"},
+        {EDN_DEFAULT_READER_UNWRAP, "#unknown nil", "nil"},
+        {EDN_DEFAULT_READER_UNWRAP, "[#unknown [1 2]]", "[[1 2]]"},
+        {EDN_DEFAULT_READER_ERROR, "#unknown 42", NULL},
+        {EDN_DEFAULT_READER_ERROR, "#_ #unknown 42 7", "7"},
+        {EDN_DEFAULT_READER_ERROR, "[#_ #outer #inner 42]", "[]"},
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        edn_parse_options_t opts = {0};
+        opts.struct_size = sizeof(opts);
+        opts.default_reader_mode = cases[i].mode;
+        edn_result_t result = edn_read_with_options(cases[i].input, 0, &opts);
+
+        if (cases[i].expected == NULL) {
+            bool has_value = result.value != NULL;
+            edn_free(result.value);
+            assert_int_eq(result.error, EDN_ERROR_UNKNOWN_TAG);
+            assert(!has_value);
+            assert_str_eq(result.error_message, "No reader registered for tag");
+            assert_uint_eq(result.error_start.offset, 0);
+            assert_uint_eq(result.error_end.offset, strlen(cases[i].input));
+        } else {
+            edn_result_t expected = edn_read(cases[i].expected, 0);
+            bool equal = edn_value_equal(result.value, expected.value);
+            edn_free(result.value);
+            edn_free(expected.value);
+            assert_int_eq(result.error, EDN_OK);
+            assert_int_eq(expected.error, EDN_OK);
+            assert(equal);
+        }
+    }
+}
+
 int main(void) {
     printf("Running reader parsing tests...\n");
 
@@ -377,6 +420,7 @@ int main(void) {
     RUN_TEST(parse_namespaced_tag_reader);
     RUN_TEST(parse_reader_in_map);
     RUN_TEST(parse_reader_with_whitespace);
+    RUN_TEST(parse_null_registry_default_modes);
 
     TEST_SUMMARY("reader parsing");
 }
