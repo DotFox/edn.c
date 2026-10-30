@@ -510,6 +510,51 @@ TEST(external_register_update) {
     edn_external_unregister_type(POINT_TYPE_ID);
 }
 
+TEST(external_duplicate_detection_with_optional_hash) {
+    const size_t counts[] = {17, 1001};
+    const char* prefixes[] = {"", "[", "(", "#{", "{:p ", "{", "#wrapper "};
+    const char* suffixes[] = {"", "]", ")", "}", "}", " 0}", ""};
+    char input[65536];
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+    assert(edn_reader_register(registry, "point", point_reader));
+    edn_parse_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.reader_registry = registry;
+
+    for (int with_hash = 0; with_hash <= 1; with_hash++) {
+        assert(
+            edn_external_register_type(POINT_TYPE_ID, point_equal, with_hash ? point_hash : NULL));
+        for (size_t c = 0; c < sizeof(counts) / sizeof(counts[0]); c++) {
+            for (size_t w = 0; w < sizeof(prefixes) / sizeof(prefixes[0]); w++) {
+                for (int is_map = 0; is_map <= 1; is_map++) {
+                    size_t used =
+                        (size_t) snprintf(input, sizeof(input), "%s", is_map ? "{" : "#{");
+                    for (size_t i = 0; i < counts[c]; i++) {
+                        size_t x = i == counts[c] - 1 ? 0 : i;
+                        int written =
+                            snprintf(input + used, sizeof(input) - used, "%s#point [%zu 1]%s%s",
+                                     prefixes[w], x, suffixes[w], is_map ? " nil " : " ");
+                        assert(written >= 0 && (size_t) written < sizeof(input) - used);
+                        used += (size_t) written;
+                    }
+                    assert(used + 1 < sizeof(input));
+                    input[used++] = '}';
+                    input[used] = '\0';
+                    edn_result_t result = edn_read_with_options(input, used, &opts);
+                    bool has_value = result.value != NULL;
+                    edn_free(result.value);
+                    assert_int_eq(result.error,
+                                  is_map ? EDN_ERROR_DUPLICATE_KEY : EDN_ERROR_DUPLICATE_ELEMENT);
+                    assert(!has_value);
+                }
+            }
+        }
+    }
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
 int main(void) {
     printf("Running external value tests...\n\n");
 
@@ -531,6 +576,7 @@ int main(void) {
     RUN_TEST(external_in_set_with_equality);
     RUN_TEST(external_register_null_equal);
     RUN_TEST(external_register_update);
+    RUN_TEST(external_duplicate_detection_with_optional_hash);
 
     TEST_SUMMARY("external value");
 }

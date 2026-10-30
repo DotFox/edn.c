@@ -19,7 +19,8 @@ typedef struct {
     bool emit_metadata;  /* emit ^... prefixes for values with attached metadata */
     bool escape_unicode; /* escape non-ASCII bytes in strings as \uXXXX (BMP only) */
     bool indent;         /* pretty-print: hanging-indent collections, one item per line */
-    size_t column;       /* current 0-based byte column since last '\n' in the output */
+    bool track_column;
+    size_t column; /* current 0-based byte column since last '\n' in the output */
 } emit_ctx_t;
 
 static int serialize_key_to_heap(const edn_value_t* v, bool sort_unordered, bool escape_unicode,
@@ -36,6 +37,9 @@ static int emit(emit_ctx_t* e, const char* buf, size_t len) {
     if (r != 0) {
         e->err = (r < 0) ? r : -r;
         return e->err;
+    }
+    if (!e->track_column) {
+        return 0;
     }
     for (size_t i = 0; i < len; i++) {
         if (buf[i] == '\n') {
@@ -819,6 +823,7 @@ int edn_write_stream(const edn_value_t* value, edn_writer_callback_fn cb, void* 
                     .emit_metadata = emit_metadata,
                     .escape_unicode = escape_unicode,
                     .indent = indent,
+                    .track_column = indent,
                     .column = 0};
     emit_value(&e, value);
     if (e.err != 0)
@@ -1561,6 +1566,7 @@ edn_emitter_t* edn_emitter_create(edn_writer_callback_fn cb, void* ctx,
     em->e.emit_metadata = em->emit_metadata_enabled;
     em->e.escape_unicode = has_opts && options->escape_unicode;
     em->e.indent = em->indent_enabled;
+    em->e.track_column = em->indent_enabled;
     em->e.column = 0;
 
     em->frames = em->inline_frames;

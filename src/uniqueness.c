@@ -9,7 +9,37 @@
 #include "edn_internal.h"
 
 #define LINEAR_THRESHOLD 16
-#define SORTED_THRESHOLD 1000
+
+static bool edn_value_has_consistent_hash(const edn_value_t* value) {
+    if (value == NULL) {
+        return false;
+    }
+    switch (value->type) {
+        case EDN_TYPE_EXTERNAL:
+            return edn_external_lookup_hash(value->as.external.type_id) != NULL;
+        case EDN_TYPE_LIST:
+        case EDN_TYPE_VECTOR:
+        case EDN_TYPE_SET:
+            for (size_t i = 0; i < value->as.list.count; i++) {
+                if (!edn_value_has_consistent_hash(value->as.list.elements[i])) {
+                    return false;
+                }
+            }
+            return true;
+        case EDN_TYPE_MAP:
+            for (size_t i = 0; i < value->as.map.count; i++) {
+                if (!edn_value_has_consistent_hash(value->as.map.keys[i]) ||
+                    !edn_value_has_consistent_hash(value->as.map.values[i])) {
+                    return false;
+                }
+            }
+            return true;
+        case EDN_TYPE_TAGGED:
+            return edn_value_has_consistent_hash(value->as.tagged.value);
+        default:
+            return true;
+    }
+}
 
 static bool edn_has_duplicates_linear(edn_value_t** elements, size_t count) {
     for (size_t i = 0; i < count; i++) {
@@ -137,9 +167,11 @@ bool edn_has_duplicates(edn_value_t** elements, size_t count) {
 
     if (count <= LINEAR_THRESHOLD) {
         return edn_has_duplicates_linear(elements, count);
-    } else if (count <= SORTED_THRESHOLD) {
-        return edn_has_duplicates_sorted(elements, count);
-    } else {
-        return edn_has_duplicates_hash(elements, count);
     }
+    for (size_t i = 0; i < count; i++) {
+        if (!edn_value_has_consistent_hash(elements[i])) {
+            return edn_has_duplicates_linear(elements, count);
+        }
+    }
+    return edn_has_duplicates_hash(elements, count);
 }
