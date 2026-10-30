@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "../include/edn.h"
+#include "../src/edn_internal.h"
 #include "test_framework.h"
 
 /* ========================================================================
@@ -222,6 +223,83 @@ TEST(error_position_after_comment) {
  * MAIN TEST RUNNER
  * ======================================================================== */
 
+TEST(error_positions_match_newline_index) {
+    const char* forms[] = {"",        "]",   "[1\n 2}", "{\n:a}", "#tag", "#_",
+                           "\"abc\n", ")\n", "\n\n",    "\r",     "\r\n"};
+    const size_t prefix_lengths[] = {0, 1, 15, 16, 31, 32, 63, 64, 127, 128, 4096};
+    const char* patterns[] = {" ", "\n", "\r\n", " \t\n\n\r"};
+    char input[8192];
+
+    for (size_t p = 0; p < sizeof(patterns) / sizeof(patterns[0]); p++) {
+        for (size_t n = 0; n < sizeof(prefix_lengths) / sizeof(prefix_lengths[0]); n++) {
+            size_t prefix_length = prefix_lengths[n];
+            for (size_t i = 0; i < prefix_length; i++) {
+                input[i] = patterns[p][i % strlen(patterns[p])];
+            }
+            for (size_t f = 0; f < sizeof(forms) / sizeof(forms[0]); f++) {
+                size_t length = prefix_length + strlen(forms[f]);
+                memcpy(input + prefix_length, forms[f], strlen(forms[f]));
+                input[length] = '\0';
+                edn_result_t result = edn_read(input, length);
+                assert(result.error != EDN_OK);
+                assert(result.value == NULL);
+                assert(result.error_start.offset <= length);
+                assert(result.error_end.offset <= length);
+
+                edn_arena_t* arena = edn_arena_create();
+                assert(arena != NULL);
+                newline_positions_t* positions =
+                    newline_find_all_ex(input, length, NEWLINE_MODE_LF, arena);
+                document_position_t start = {0}, end = {0};
+                bool start_ok = newline_get_position(positions, result.error_start.offset, &start);
+                bool end_ok = newline_get_position(positions, result.error_end.offset, &end);
+                edn_arena_destroy(arena);
+                assert(start_ok && end_ok);
+                assert_uint_eq(result.error_start.line, start.line);
+                assert_uint_eq(result.error_start.column, start.column);
+                assert_uint_eq(result.error_end.line, end.line);
+                assert_uint_eq(result.error_end.column, end.column);
+            }
+        }
+    }
+}
+
+TEST(error_positions_with_truncated_character) {
+    char* input = malloc(4);
+    assert(input != NULL);
+    memcpy(input, "\\u12", 4);
+    edn_result_t result = edn_read(input, 4);
+    free(input);
+
+    assert_int_eq(result.error, EDN_ERROR_INVALID_CHARACTER);
+    assert(result.value == NULL);
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_start.line, 1);
+    assert_uint_eq(result.error_start.column, 1);
+    assert_uint_eq(result.error_end.offset, 6);
+    assert_uint_eq(result.error_end.line, 1);
+    assert_uint_eq(result.error_end.column, 7);
+}
+
+TEST(error_positions_with_large_unread_tail) {
+    size_t length = 1024 * 1024;
+    char* input = malloc(length);
+    assert(input != NULL);
+    memset(input, '\n', length);
+    memcpy(input, "[1\n 2}", 6);
+    edn_result_t result = edn_read(input, length);
+    free(input);
+
+    assert_int_eq(result.error, EDN_ERROR_UNMATCHED_DELIMITER);
+    assert(result.value == NULL);
+    assert_uint_eq(result.error_start.offset, 0);
+    assert_uint_eq(result.error_start.line, 1);
+    assert_uint_eq(result.error_start.column, 1);
+    assert_uint_eq(result.error_end.offset, 6);
+    assert_uint_eq(result.error_end.line, 2);
+    assert_uint_eq(result.error_end.column, 4);
+}
+
 int main(void) {
     printf("Running EDN error position tests...\n\n");
 
@@ -236,6 +314,9 @@ int main(void) {
     RUN_TEST(error_position_large_document);
     RUN_TEST(error_column_position_accuracy);
     RUN_TEST(error_position_after_comment);
+    RUN_TEST(error_positions_match_newline_index);
+    RUN_TEST(error_positions_with_truncated_character);
+    RUN_TEST(error_positions_with_large_unread_tail);
 
     TEST_SUMMARY("error_positions");
 }

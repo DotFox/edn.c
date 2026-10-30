@@ -31,6 +31,27 @@ static pthread_mutex_t g_external_registry_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static edn_value_t* edn_read_value_internal(edn_parser_t* parser, bool* reached_eof);
 
+static edn_error_position_t edn_error_position(const char* input, size_t length, size_t offset,
+                                               edn_error_position_t previous) {
+    size_t line = previous.line;
+    size_t line_start = previous.offset - (previous.column - 1);
+    size_t pos = previous.offset;
+    size_t limit = offset < length ? offset : length;
+    while (pos < limit) {
+        const char* newline = memchr(input + pos, '\n', limit - pos);
+        if (newline == NULL) {
+            break;
+        }
+        pos = (size_t) (newline - input);
+        do {
+            line++;
+            pos++;
+        } while (pos < limit && input[pos] == '\n');
+        line_start = pos;
+    }
+    return (edn_error_position_t) {offset, line, offset - line_start + 1};
+}
+
 edn_result_t edn_read(const char* input, size_t length) {
     return edn_read_with_options(input, length, NULL);
 }
@@ -92,34 +113,15 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
     result.error = parser.error;
     result.error_message = parser.error_message;
 
-    /* This needs refactoring? */
-    /* Calculate error positions if there was an error */
     if (result.error != EDN_OK) {
-        edn_arena_t* temp_arena = edn_arena_create();
-        if (temp_arena) {
-            newline_positions_t* positions =
-                newline_find_all_ex(input, length, NEWLINE_MODE_LF, temp_arena);
-            if (positions) {
-                const char* start_ptr = parser.error_start ? parser.error_start : parser.current;
-                size_t start_offset = start_ptr - parser.input;
-                document_position_t start_pos;
-                if (newline_get_position(positions, start_offset, &start_pos)) {
-                    result.error_start.offset = start_offset;
-                    result.error_start.line = start_pos.line;
-                    result.error_start.column = start_pos.column;
-                }
-
-                const char* end_ptr = parser.error_end ? parser.error_end : parser.current;
-                size_t end_offset = end_ptr - parser.input;
-                document_position_t end_pos;
-                if (newline_get_position(positions, end_offset, &end_pos)) {
-                    result.error_end.offset = end_offset;
-                    result.error_end.line = end_pos.line;
-                    result.error_end.column = end_pos.column;
-                }
-            }
-            edn_arena_destroy(temp_arena);
-        }
+        const char* start_ptr = parser.error_start ? parser.error_start : parser.current;
+        const char* end_ptr = parser.error_end ? parser.error_end : parser.current;
+        size_t start_offset = (size_t) (start_ptr - input);
+        size_t end_offset = (size_t) (end_ptr - input);
+        edn_error_position_t initial = {0, 1, 1};
+        result.error_start = edn_error_position(input, length, start_offset, initial);
+        result.error_end = edn_error_position(
+            input, length, end_offset, end_offset >= start_offset ? result.error_start : initial);
     }
 
     /* Handle EOF error with eof_value option */
