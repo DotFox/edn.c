@@ -48,12 +48,12 @@ endif
 DEBUG ?= 0
 ifeq ($(DEBUG),1)
     CFLAGS += -g -O0 -DDEBUG
-    # Sanitizers added only to LDFLAGS to avoid static library linking issues.
     # leak sanitizer is bundled with asan on Linux but unavailable on macOS arm64.
     SANITIZERS = address,undefined
     ifeq ($(UNAME_S),Linux)
         SANITIZERS := $(SANITIZERS),leak
     endif
+    CFLAGS += -fsanitize=$(SANITIZERS)
     LDFLAGS += -fsanitize=$(SANITIZERS)
 else
     CFLAGS += -DNDEBUG
@@ -75,7 +75,7 @@ endif
 
 # Feature-flag fingerprint: force a rebuild when feature macros (or DEBUG)
 # change, so stale objects compiled with different -D flags are never reused.
-FLAG_SIGNATURE := CLOJURE=$(filter 1,$(CLOJURE_EXTENSION) $(ALL))|EXPERIMENTAL=$(filter 1,$(EXPERIMENTAL_EXTENSION) $(ALL))|DEBUG=$(DEBUG)
+FLAG_SIGNATURE := CLOJURE=$(filter 1,$(CLOJURE_EXTENSION) $(ALL))|EXPERIMENTAL=$(filter 1,$(EXPERIMENTAL_EXTENSION) $(ALL))|DEBUG=$(DEBUG)|SANITIZERS=$(SANITIZERS)
 .PHONY: FORCE
 FORCE:
 .build-flags: FORCE
