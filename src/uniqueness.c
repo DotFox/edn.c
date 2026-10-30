@@ -23,6 +23,23 @@ static bool edn_has_duplicates_linear(edn_value_t** elements, size_t count) {
 }
 
 static bool edn_has_duplicates_sorted(edn_value_t** elements, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        if (elements[i] == NULL) {
+            continue;
+        }
+        switch (elements[i]->type) {
+            case EDN_TYPE_LIST:
+            case EDN_TYPE_VECTOR:
+            case EDN_TYPE_MAP:
+            case EDN_TYPE_SET:
+            case EDN_TYPE_TAGGED:
+            case EDN_TYPE_EXTERNAL:
+                return edn_has_duplicates_linear(elements, count);
+            default:
+                break;
+        }
+    }
+
     if (count > SIZE_MAX / sizeof(edn_value_t*)) {
         return edn_has_duplicates_linear(elements, count);
     }

@@ -141,6 +141,65 @@ TEST(map_same_key_different_value_rejected) {
     assert(result.value == NULL);
 }
 
+TEST(collection_duplicates_at_sort_thresholds) {
+    const size_t counts[] = {16, 17, 1000};
+    const struct {
+        const char* format;
+        const char* duplicate;
+    } forms[] = {
+        {"[%zu]", "[0]"},
+        {"(%zu)", "(0)"},
+        {"[%zu]", "(0)"},
+        {"#{%zu -1}", "#{-1 0}"},
+        {"{:a %zu :b -1}", "{:b -1 :a 0}"},
+        {"#tag [%zu]", "#tag [0]"},
+    };
+    char input[32768];
+
+    for (size_t c = 0; c < sizeof(counts) / sizeof(counts[0]); c++) {
+        for (size_t f = 0; f < sizeof(forms) / sizeof(forms[0]); f++) {
+            for (int is_map = 0; is_map <= 1; is_map++) {
+                for (int duplicate = 0; duplicate <= 1; duplicate++) {
+                    size_t used =
+                        (size_t) snprintf(input, sizeof(input), "%s", is_map ? "{" : "#{");
+                    for (size_t i = 0; i < counts[c]; i++) {
+                        int written;
+                        if (duplicate && i == counts[c] - 1) {
+                            written = snprintf(input + used, sizeof(input) - used, "%s",
+                                               forms[f].duplicate);
+                        } else {
+                            written =
+                                snprintf(input + used, sizeof(input) - used, forms[f].format, i);
+                        }
+                        assert(written >= 0 && (size_t) written < sizeof(input) - used);
+                        used += (size_t) written;
+                        written = snprintf(input + used, sizeof(input) - used, "%s",
+                                           is_map ? " nil " : " ");
+                        assert(written >= 0 && (size_t) written < sizeof(input) - used);
+                        used += (size_t) written;
+                    }
+                    assert(used + 1 < sizeof(input));
+                    input[used++] = '}';
+                    input[used] = '\0';
+
+                    edn_result_t result = edn_read(input, used);
+                    size_t count =
+                        is_map ? edn_map_count(result.value) : edn_set_count(result.value);
+                    bool has_value = result.value != NULL;
+                    edn_free(result.value);
+                    assert_int_eq(result.error, duplicate ? (is_map ? EDN_ERROR_DUPLICATE_KEY
+                                                                    : EDN_ERROR_DUPLICATE_ELEMENT)
+                                                          : EDN_OK);
+                    assert(has_value == !duplicate);
+                    if (!duplicate) {
+                        assert_uint_eq(count, counts[c]);
+                    }
+                }
+            }
+        }
+    }
+}
+
 int main(void) {
     printf("Running duplicate detection tests...\n");
 
@@ -158,6 +217,7 @@ int main(void) {
     RUN_TEST(large_set_duplicate_at_end);
     RUN_TEST(set_mixed_types_no_duplicates);
     RUN_TEST(map_same_key_different_value_rejected);
+    RUN_TEST(collection_duplicates_at_sort_thresholds);
 
     TEST_SUMMARY("duplicate detection");
 }
