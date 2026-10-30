@@ -29,6 +29,8 @@ static pthread_mutex_t g_external_registry_lock = PTHREAD_MUTEX_INITIALIZER;
 #define EDN_EXT_UNLOCK_READ() ((void) 0)
 #endif
 
+static edn_value_t* edn_read_value_internal(edn_parser_t* parser, bool* reached_eof);
+
 edn_result_t edn_read(const char* input, size_t length) {
     return edn_read_with_options(input, length, NULL);
 }
@@ -85,7 +87,8 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
 
     parser.discard_mode = false;
 
-    result.value = edn_read_value(&parser);
+    bool reached_eof = false;
+    result.value = edn_read_value_internal(&parser, &reached_eof);
     result.error = parser.error;
     result.error_message = parser.error_message;
 
@@ -127,7 +130,7 @@ edn_result_t edn_read_with_options(const char* input, size_t length,
         options != NULL &&
         opts_size >= offsetof(edn_parse_options_t, eof_value) + sizeof(options->eof_value) &&
         options->eof_value != NULL;
-    if (result.error == EDN_ERROR_UNEXPECTED_EOF && eof_value_available) {
+    if (result.error == EDN_ERROR_UNEXPECTED_EOF && reached_eof && eof_value_available) {
         if (parser.arena != NULL) {
             edn_arena_destroy(parser.arena);
         }
@@ -472,18 +475,28 @@ static const char_dispatch_type_t char_dispatch_table[256] = {
 };
 
 edn_value_t* edn_read_value(edn_parser_t* parser) {
+    return edn_read_value_internal(parser, NULL);
+}
+
+static edn_value_t* edn_read_value_internal(edn_parser_t* parser, bool* reached_eof) {
     if (parser->current < parser->end) {
         unsigned char c = (unsigned char) *parser->current;
         /* Quick check for whitespace: 0x09-0x0D, 0x1C-0x1F, space, comma, semicolon */
         if (c == ' ' || c == ',' || c == ';' || (c >= 0x09 && c <= 0x0D) ||
             (c >= 0x1C && c <= 0x1F)) {
             if (!edn_skip_whitespace(parser)) {
+                if (reached_eof != NULL) {
+                    *reached_eof = true;
+                }
                 edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF, "Unexpected end of input",
                                      parser->current, parser->current);
                 return NULL;
             }
         }
     } else {
+        if (reached_eof != NULL) {
+            *reached_eof = true;
+        }
         edn_parser_set_error(parser, EDN_ERROR_UNEXPECTED_EOF, "Unexpected end of input",
                              parser->current, parser->current);
         return NULL;
@@ -531,7 +544,7 @@ edn_value_t* edn_read_value(edn_parser_t* parser) {
                     }
                     (void) discarded; /* Suppress unused variable warning */
                     /* Recursively parse the next value (which may itself be another discard) */
-                    edn_value_t* next_value = edn_read_value(parser);
+                    edn_value_t* next_value = edn_read_value_internal(parser, reached_eof);
                     edn_leave_depth(parser);
                     return next_value;
                 }

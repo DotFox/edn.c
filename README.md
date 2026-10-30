@@ -1260,7 +1260,11 @@ edn_result_t edn_read_with_options(const char *input, size_t length,
 
 **EOF Value Handling:**
 
-By default, when the parser encounters end-of-file (empty input, whitespace-only input, or after `#_` discard), it returns `EDN_ERROR_UNEXPECTED_EOF`. You can customize this behavior by providing an `eof_value` in the parse options:
+By default, when the parser encounters end-of-file (empty input, whitespace-only input, or after `#_` discard), it returns `EDN_ERROR_UNEXPECTED_EOF`.
+
+The sentinel applies only when no next form remains, including after complete discarded forms. Incomplete forms such as `#tag` or `#_` still return their parse errors.
+
+You can customize EOF handling by providing an `eof_value` in the parse options:
 
 ```c
 // First, create an EOF sentinel value
