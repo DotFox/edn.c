@@ -384,6 +384,66 @@ TEST(decode_string_invalid_unicode) {
     edn_arena_destroy(arena);
 }
 
+TEST(string_get_cached_byte_length) {
+    const struct {
+        const char* input;
+        const char* expected;
+        size_t length;
+    } cases[] = {
+        {"\"\"", "", 0},
+        {"\"plain\"", "plain", 5},
+        {"\"a\\nb\\t\"", "a\nb\t", 4},
+        {"\"\\\"\\\\\"", "\"\\", 2},
+        {"\"\xc3\xa9\\n\"", "\xc3\xa9\n", 3},
+#ifdef EDN_ENABLE_CLOJURE_EXTENSION
+        {"\"\\u00e9\\u4e2d\"", "\xc3\xa9\xe4\xb8\xad", 5},
+        {"\"a\\u0000b\"", "a\0b", 3},
+        {"\"\\0xyz\"", "\0xyz", 4},
+        {"\"\\000\"", "\0", 1},
+#endif
+#ifdef EDN_ENABLE_EXPERIMENTAL_EXTENSION
+        {"\"\"\"\nhello\n\"\"\"", "hello\n", 6},
+        {"\"\"\"\na\\tb\n\"\"\"", "a\\tb\n", 5},
+        {"\"\"\"\na\\\"\"\"b\n\"\"\"", "a\"\"\"b\n", 6},
+#endif
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        for (int request_length = 0; request_length <= 1; request_length++) {
+            edn_result_t result = edn_read(cases[i].input, 0);
+            assert_int_eq(result.error, EDN_OK);
+            size_t raw_length = edn_string_get_length(result.value);
+            size_t first_length = SIZE_MAX;
+            const char* first = edn_string_get(result.value, request_length ? &first_length : NULL);
+            assert(first != NULL);
+            if (request_length) {
+                assert_uint_eq(first_length, cases[i].length);
+            }
+            for (int repeat = 0; repeat < 3; repeat++) {
+                size_t length = SIZE_MAX;
+                const char* cached = edn_string_get(result.value, &length);
+                assert_ptr_eq(cached, first);
+                assert_uint_eq(length, cases[i].length);
+                assert(memcmp(cached, cases[i].expected, length) == 0);
+                assert(cached[length] == '\0');
+                assert_uint_eq(edn_string_get_length(result.value), raw_length);
+            }
+            edn_free(result.value);
+        }
+    }
+}
+
+TEST(string_get_failed_decode_length) {
+    edn_result_t result = edn_read("\"bad\\q\"", 0);
+    assert_int_eq(result.error, EDN_OK);
+    for (int repeat = 0; repeat < 2; repeat++) {
+        size_t length = SIZE_MAX;
+        assert(edn_string_get(result.value, &length) == NULL);
+        assert_uint_eq(length, 0);
+    }
+    edn_free(result.value);
+}
+
 int main(void) {
     printf("Running string parsing tests...\n");
 
@@ -424,6 +484,8 @@ int main(void) {
 #endif
     run_test_decode_string_invalid_escape();
     run_test_decode_string_invalid_unicode();
+    RUN_TEST(string_get_cached_byte_length);
+    RUN_TEST(string_get_failed_decode_length);
 
     TEST_SUMMARY("string parsing");
 }

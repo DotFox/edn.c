@@ -376,7 +376,7 @@ const char *edn_string_get(const edn_value_t *value, size_t *length);
 
 Get UTF-8 string data. Returns NULL if value is not a string.
 
-**Lazy decoding:** For strings without escapes, returns a pointer into the original input (zero-copy). For strings with escapes (`\n`, `\t`, `\"`, etc.), decodes and caches the result on first call.
+**Lazy decoding:** For strings without escapes, creates and caches a null-terminated copy on first access. For strings with escapes (`\n`, `\t`, `\"`, etc.), decodes and caches both the result and its byte length on first call. The reported length includes embedded NUL bytes but excludes the final terminator.
 
 **Example:**
 ```c

@@ -210,6 +210,14 @@ static bool decode_escape_sequence(const char** ptr, const char* end, char** out
  * Returns: Null-terminated decoded string, or NULL on invalid escape.
  */
 char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length) {
+    return edn_decode_string_with_length(arena, data, length, NULL);
+}
+
+char* edn_decode_string_with_length(edn_arena_t* arena, const char* data, size_t length,
+                                    size_t* decoded_length) {
+    if (decoded_length) {
+        *decoded_length = 0;
+    }
     char* decoded = edn_arena_alloc(arena, length + 1);
     if (!decoded) {
         return NULL;
@@ -231,6 +239,9 @@ char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length) {
     }
 
     *out = '\0';
+    if (decoded_length) {
+        *decoded_length = (size_t) (out - decoded);
+    }
     return decoded;
 }
 
@@ -278,6 +289,7 @@ edn_value_t* edn_read_string(edn_parser_t* parser) {
     edn_string_set_length(value, closing_quote - start);
     edn_string_set_has_escapes(value, has_escapes);
     value->as.string.decoded = NULL;
+    value->as.string.decoded_length = 0;
     value->arena = parser->arena;
     value->source_start = value_start - parser->input;
     value->source_end = (closing_quote + 1) - parser->input;
@@ -779,6 +791,7 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
     edn_string_set_length(value, total_len);
     edn_string_set_has_escapes(value, any_escapes);
     value->as.string.decoded = result; /* Text blocks are already decoded */
+    value->as.string.decoded_length = (size_t) (dst - result);
     value->arena = parser->arena;
 
     return value;

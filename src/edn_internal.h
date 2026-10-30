@@ -254,6 +254,7 @@ struct edn_value {
             /* bit 62: is_decoded - True if decoded pointer is set */
             /* bits 61-0: actual length (supports up to 2 PB strings) */
             char* decoded; /* Lazy-decoded string (NULL until needed) */
+            size_t decoded_length;
         } string;
         struct {
             const char* namespace; /* NULL if no namespace, points into input (zero-copy) */
@@ -495,6 +496,8 @@ const char* edn_simd_find_quote(const char* ptr, const char* end, bool* out_has_
 
 /* String parsing functions */
 char* edn_decode_string(edn_arena_t* arena, const char* data, size_t length);
+char* edn_decode_string_with_length(edn_arena_t* arena, const char* data, size_t length,
+                                    size_t* decoded_length);
 edn_value_t* edn_read_string(edn_parser_t* parser);
 
 /* Number parsing functions */

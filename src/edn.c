@@ -623,6 +623,7 @@ const char* edn_string_get(const edn_value_t* value, size_t* length) {
                 copy[str_length] = '\0';
                 /* Cast away const - we're modifying cached field */
                 ((edn_value_t*) value)->as.string.decoded = copy;
+                ((edn_value_t*) value)->as.string.decoded_length = str_length;
             }
         }
         return value->as.string.decoded;
@@ -631,7 +632,9 @@ const char* edn_string_get(const edn_value_t* value, size_t* length) {
     /* Slow path: has escapes, decode if not already cached */
     if (!value->as.string.decoded) {
         size_t str_length = edn_string_get_length(value);
-        char* decoded = edn_decode_string(value->arena, value->as.string.data, str_length);
+        size_t decoded_length;
+        char* decoded = edn_decode_string_with_length(value->arena, value->as.string.data,
+                                                      str_length, &decoded_length);
         if (!decoded) {
             if (length)
                 *length = 0;
@@ -639,10 +642,11 @@ const char* edn_string_get(const edn_value_t* value, size_t* length) {
         }
         /* Cast away const - we're modifying cached field */
         ((edn_value_t*) value)->as.string.decoded = decoded;
+        ((edn_value_t*) value)->as.string.decoded_length = decoded_length;
     }
 
     if (length) {
-        *length = strlen(value->as.string.decoded);
+        *length = value->as.string.decoded_length;
     }
     return value->as.string.decoded;
 }
