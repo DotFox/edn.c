@@ -141,8 +141,8 @@ TEST(map_same_key_different_value_rejected) {
     assert(result.value == NULL);
 }
 
-TEST(collection_duplicates_at_sort_thresholds) {
-    const size_t counts[] = {16, 17, 1000};
+TEST(collection_duplicates_at_algorithm_thresholds) {
+    const size_t counts[] = {16, 17, 1000, 1001};
     const struct {
         const char* format;
         const char* duplicate;
@@ -217,7 +217,7 @@ int main(void) {
     RUN_TEST(large_set_duplicate_at_end);
     RUN_TEST(set_mixed_types_no_duplicates);
     RUN_TEST(map_same_key_different_value_rejected);
-    RUN_TEST(collection_duplicates_at_sort_thresholds);
+    RUN_TEST(collection_duplicates_at_algorithm_thresholds);
 
     TEST_SUMMARY("duplicate detection");
 }

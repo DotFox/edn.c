@@ -541,7 +541,8 @@ static uint64_t edn_value_hash_internal(const edn_value_t* value) {
 
     uint64_t hash = FNV_OFFSET_BASIS;
 
-    hash ^= (uint64_t) value->type;
+    edn_type_t hash_type = value->type == EDN_TYPE_VECTOR ? EDN_TYPE_LIST : value->type;
+    hash ^= (uint64_t) hash_type;
     hash *= FNV_PRIME;
 
     switch (value->type) {

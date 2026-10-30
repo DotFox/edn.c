@@ -420,6 +420,65 @@ TEST(compare_strings) {
 }
 
 /* Hash function tests */
+TEST(sequence_equality_after_hashing) {
+    const char* pairs[][2] = {
+        {"(1)", "[1]"},
+        {"()", "[]"},
+        {"([1] (2 3))", "[(1) [2 3]]"},
+        {"#{(1) (2)}", "#{[2] [1]}"},
+        {"{(1) (2)}", "{[1] [2]}"},
+        {"#tag (1)", "#tag [1]"},
+    };
+
+    for (size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
+        edn_value_t* a = parse_helper(pairs[i][0]);
+        edn_value_t* b = parse_helper(pairs[i][1]);
+        assert(a != NULL && b != NULL);
+
+        bool equal_before = edn_value_equal(a, b) && edn_value_equal(b, a);
+        uint64_t hash_a = edn_value_hash(a);
+        bool equal_one_cached = edn_value_equal(a, b) && edn_value_equal(b, a);
+        uint64_t hash_b = edn_value_hash(b);
+        bool equal_both_cached = edn_value_equal(a, b) && edn_value_equal(b, a);
+        bool hashes_stable = edn_value_hash(a) == hash_a && edn_value_hash(b) == hash_b;
+        edn_free(a);
+        edn_free(b);
+
+        assert(equal_before);
+        assert(equal_one_cached);
+        assert(equal_both_cached);
+        assert_uint_eq(hash_a, hash_b);
+        assert(hashes_stable);
+    }
+}
+
+TEST(sequence_lookup_after_hashing) {
+    const char* sets[] = {"#{(1)}", "#{[1]}"};
+    const char* maps[] = {"{(1) :found}", "{[1] :found}"};
+    const char* keys[] = {"[1]", "(1)"};
+
+    for (size_t i = 0; i < 2; i++) {
+        edn_value_t* set = parse_helper(sets[i]);
+        edn_value_t* map = parse_helper(maps[i]);
+        edn_value_t* key = parse_helper(keys[i]);
+        assert(set != NULL && map != NULL && key != NULL);
+
+        edn_value_hash(edn_set_get(set, 0));
+        edn_value_hash(edn_map_get_key(map, 0));
+        edn_value_hash(key);
+        bool set_contains = edn_set_contains(set, key);
+        bool map_contains = edn_map_contains_key(map, key);
+        bool map_lookup = edn_map_lookup(map, key) == edn_map_get_value(map, 0);
+        edn_free(set);
+        edn_free(map);
+        edn_free(key);
+
+        assert(set_contains);
+        assert(map_contains);
+        assert(map_lookup);
+    }
+}
+
 TEST(hash_equal_values_same_hash) {
     edn_value_t* a = parse_helper("42");
     edn_value_t* b = parse_helper("42");
@@ -1180,6 +1239,8 @@ int main(void) {
 
     /* Hash */
     RUN_TEST(hash_equal_values_same_hash);
+    RUN_TEST(sequence_equality_after_hashing);
+    RUN_TEST(sequence_lookup_after_hashing);
     RUN_TEST(hash_different_values_different_hash);
     RUN_TEST(hash_nan_deterministic);
     RUN_TEST(hash_null);
