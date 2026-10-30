@@ -2251,7 +2251,7 @@ EDN.C is designed for high performance with several optimizations:
 - **Zero-copy strings**: String values without escapes point directly into input buffer
 - **Lazy decoding**: Escape sequences decoded only when accessed via `edn_string_get()`
 - **Arena allocation**: Single bulk allocation and deallocation eliminates malloc overhead
-- **Efficient collections**: Maps and sets use sorted arrays with binary search
+- **Efficient collections**: Maps and sets with more than 16 entries lazily build arena-owned hash indexes for lookups and equality, preserving iteration order. Small collections, collections with external keys or elements (including nested ones), and allocation failures use linear scans. The decoded-string convenience lookup `edn_map_get_string_key()` also uses a linear scan.
 
 **Typical performance on Apple M1** (from microbenchmarks):
 - Whitespace skipping: 1-5 ns per operation
@@ -2308,7 +2308,7 @@ See `bench/` directory for detailed benchmarking tools and results.
 
 - `edn_value_t` trees, `edn_emitter_t` instances, and `edn_reader_registry_t` instances are **not** thread-safe. Use one per thread, or guard with external synchronization.
 - The process-global external-type registry (`edn_external_register_type` / `edn_external_unregister_type`) serializes its internal mutations, but callers must still order registration relative to any concurrent parsing — a reader cannot see a type registered mid-parse.
-- The pure accessor functions (`edn_type`, `edn_*_get`, `edn_*_count`, etc.) are safe to call from multiple threads against the same value tree, provided no other thread is mutating the tree (which the public API never does — `edn_free` is the only mutator and trees are immutable in between).
+- Direct type, count, and positional accessors can be shared across threads while the tree remains alive and unchanged. String decoding, associative lookups, equality, and hashing can populate internal caches; synchronize these operations when sharing a tree.
 
 ### Symbol visibility (`EDN_API`)
 

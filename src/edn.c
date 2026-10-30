@@ -1102,13 +1102,7 @@ bool edn_set_contains(const edn_value_t* value, const edn_value_t* element) {
         return false;
     }
 
-    for (size_t i = 0; i < value->as.set.count; i++) {
-        if (edn_value_equal(value->as.set.elements[i], element)) {
-            return true;
-        }
-    }
-
-    return false;
+    return edn_collection_find(value, element) != SIZE_MAX;
 }
 
 size_t edn_map_count(const edn_value_t* value) {
@@ -1143,13 +1137,8 @@ edn_value_t* edn_map_lookup(const edn_value_t* value, const edn_value_t* key) {
         return NULL;
     }
 
-    for (size_t i = 0; i < value->as.map.count; i++) {
-        if (edn_value_equal(value->as.map.keys[i], key)) {
-            return value->as.map.values[i];
-        }
-    }
-
-    return NULL;
+    size_t i = edn_collection_find(value, key);
+    return i == SIZE_MAX ? NULL : value->as.map.values[i];
 }
 
 bool edn_map_contains_key(const edn_value_t* value, const edn_value_t* key) {
@@ -1157,13 +1146,7 @@ bool edn_map_contains_key(const edn_value_t* value, const edn_value_t* key) {
         return false;
     }
 
-    for (size_t i = 0; i < value->as.map.count; i++) {
-        if (edn_value_equal(value->as.map.keys[i], key)) {
-            return true;
-        }
-    }
-
-    return false;
+    return edn_collection_find(value, key) != SIZE_MAX;
 }
 
 /* Map Convenience Functions */

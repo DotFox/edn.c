@@ -555,6 +555,59 @@ TEST(external_duplicate_detection_with_optional_hash) {
     edn_external_unregister_type(POINT_TYPE_ID);
 }
 
+TEST(external_collection_lookup_and_equality) {
+    edn_reader_registry_t* registry = edn_reader_registry_create();
+    assert(registry != NULL);
+    assert(edn_reader_register(registry, "point", point_reader));
+    edn_parse_options_t opts = {0};
+    opts.struct_size = sizeof(opts);
+    opts.reader_registry = registry;
+    char input[2048], reversed[2048];
+
+    for (int with_hash = 0; with_hash <= 1; with_hash++) {
+        assert(
+            edn_external_register_type(POINT_TYPE_ID, point_equal, with_hash ? point_hash : NULL));
+        for (int nested = 0; nested <= 1; nested++) {
+            for (int is_map = 0; is_map <= 1; is_map++) {
+                size_t used = (size_t) snprintf(input, sizeof(input), "%s", is_map ? "{" : "#{");
+                size_t rev_used =
+                    (size_t) snprintf(reversed, sizeof(reversed), "%s", is_map ? "{" : "#{");
+                for (size_t i = 0; i < 17; i++) {
+                    used += (size_t) snprintf(input + used, sizeof(input) - used,
+                                              "%s#point [%zu 1]%s%s", nested ? "[" : "", i,
+                                              nested ? "]" : "", is_map ? " nil " : " ");
+                    rev_used += (size_t) snprintf(reversed + rev_used, sizeof(reversed) - rev_used,
+                                                  "%s#point [%zu 1]%s%s", nested ? "[" : "", 16 - i,
+                                                  nested ? "]" : "", is_map ? " nil " : " ");
+                }
+                input[used++] = '}';
+                reversed[rev_used++] = '}';
+                edn_result_t a = edn_read_with_options(input, used, &opts);
+                edn_result_t b = edn_read_with_options(reversed, rev_used, &opts);
+                edn_result_t key =
+                    edn_read_with_options(nested ? "[#point [16 1]]" : "#point [16 1]", 0, &opts);
+                assert_int_eq(a.error, EDN_OK);
+                assert_int_eq(b.error, EDN_OK);
+                assert_int_eq(key.error, EDN_OK);
+                if (is_map) {
+                    assert(edn_map_contains_key(a.value, key.value));
+                    assert_ptr_eq(edn_map_lookup(a.value, key.value),
+                                  edn_map_get_value(a.value, 16));
+                } else {
+                    assert(edn_set_contains(a.value, key.value));
+                }
+                assert(edn_value_equal(a.value, b.value));
+                assert(edn_value_equal(b.value, a.value));
+                edn_free(a.value);
+                edn_free(b.value);
+                edn_free(key.value);
+            }
+        }
+    }
+    edn_reader_registry_destroy(registry);
+    edn_external_unregister_type(POINT_TYPE_ID);
+}
+
 int main(void) {
     printf("Running external value tests...\n\n");
 
@@ -577,6 +630,7 @@ int main(void) {
     RUN_TEST(external_register_null_equal);
     RUN_TEST(external_register_update);
     RUN_TEST(external_duplicate_detection_with_optional_hash);
+    RUN_TEST(external_collection_lookup_and_equality);
 
     TEST_SUMMARY("external value");
 }

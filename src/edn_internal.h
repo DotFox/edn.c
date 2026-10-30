@@ -205,6 +205,8 @@ typedef struct {
     edn_value_t* value;
 } edn_map_entry_t;
 
+typedef struct edn_collection_index edn_collection_index_t;
+
 /* Internal value structure */
 struct edn_value {
     edn_type_t type;
@@ -280,10 +282,12 @@ struct edn_value {
             edn_value_t** keys;
             edn_value_t** values;
             size_t count;
+            edn_collection_index_t* index;
         } map;
         struct {
             edn_value_t** elements;
             size_t count;
+            edn_collection_index_t* index;
         } set;
         struct {
             const char* tag;
@@ -396,6 +400,8 @@ static inline edn_value_t* edn_arena_alloc_value(edn_arena_t* arena) {
     edn_value_t* value = (edn_value_t*) edn_arena_alloc(arena, sizeof(edn_value_t));
     if (value) {
         value->cached_hash = 0;
+        value->as.map.index = NULL;
+        value->as.set.index = NULL;
         value->source_start = 0;
         value->source_end = 0;
 #ifdef EDN_ENABLE_CLOJURE_EXTENSION
@@ -545,6 +551,7 @@ edn_value_t* edn_read_symbolic_value(edn_parser_t* parser);
 bool edn_value_equal(const edn_value_t* a, const edn_value_t* b);
 int edn_value_compare(const void* a, const void* b);
 uint64_t edn_value_hash(const edn_value_t* value);
+size_t edn_collection_find(const edn_value_t* collection, const edn_value_t* key);
 
 /* Uniqueness checking (for sets and maps) */
 bool edn_has_duplicates(edn_value_t** elements, size_t count);

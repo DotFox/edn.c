@@ -198,6 +198,7 @@ edn_value_t* edn_read_metadata(edn_parser_t* parser) {
         existing_meta->as.map.keys = merged_keys;
         existing_meta->as.map.values = merged_values;
         existing_meta->as.map.count = merged_count;
+        existing_meta->as.map.index = NULL;
     } else {
         /* No existing metadata - create new metadata map */
         edn_value_t* meta_map = edn_arena_alloc_value(parser->arena);

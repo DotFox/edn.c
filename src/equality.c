@@ -16,6 +16,121 @@
 static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b, int depth);
 static uint64_t edn_value_hash_internal(const edn_value_t* value);
 
+struct edn_collection_index {
+    size_t capacity;
+    size_t* slots;
+};
+
+static edn_collection_index_t edn_unindexed_collection = {0};
+
+static bool edn_value_can_index(const edn_value_t* value, int depth) {
+    if (value == NULL || depth >= MAX_RECURSION_DEPTH) {
+        return false;
+    }
+    switch (value->type) {
+        case EDN_TYPE_EXTERNAL:
+            return false;
+        case EDN_TYPE_LIST:
+        case EDN_TYPE_VECTOR:
+        case EDN_TYPE_SET:
+            for (size_t i = 0; i < value->as.list.count; i++) {
+                if (!edn_value_can_index(value->as.list.elements[i], depth + 1)) {
+                    return false;
+                }
+            }
+            return true;
+        case EDN_TYPE_MAP:
+            for (size_t i = 0; i < value->as.map.count; i++) {
+                if (!edn_value_can_index(value->as.map.keys[i], depth + 1) ||
+                    !edn_value_can_index(value->as.map.values[i], depth + 1)) {
+                    return false;
+                }
+            }
+            return true;
+        case EDN_TYPE_TAGGED:
+            return edn_value_can_index(value->as.tagged.value, depth + 1);
+        default:
+            return true;
+    }
+}
+
+static edn_collection_index_t* edn_collection_build_index(const edn_value_t* collection,
+                                                          edn_value_t* const* keys, size_t count) {
+    if (count > SIZE_MAX / 2) {
+        return &edn_unindexed_collection;
+    }
+    size_t capacity = 32;
+    while (capacity < count * 2) {
+        if (capacity > SIZE_MAX / 2) {
+            return &edn_unindexed_collection;
+        }
+        capacity *= 2;
+    }
+    if (capacity > (SIZE_MAX - sizeof(edn_collection_index_t)) / sizeof(size_t)) {
+        return &edn_unindexed_collection;
+    }
+    for (size_t i = 0; i < count; i++) {
+        if (!edn_value_can_index(keys[i], 0)) {
+            return &edn_unindexed_collection;
+        }
+    }
+    edn_collection_index_t* index =
+        edn_arena_alloc(collection->arena, sizeof(*index) + capacity * sizeof(size_t));
+    if (index == NULL) {
+        return &edn_unindexed_collection;
+    }
+    index->capacity = capacity;
+    index->slots = (size_t*) (index + 1);
+    memset(index->slots, 0, capacity * sizeof(size_t));
+    for (size_t i = 0; i < count; i++) {
+        size_t slot = edn_value_hash(keys[i]) & (capacity - 1);
+        while (index->slots[slot] != 0) {
+            slot = (slot + 1) & (capacity - 1);
+        }
+        index->slots[slot] = i + 1;
+    }
+    return index;
+}
+
+static size_t edn_collection_find_internal(const edn_value_t* collection, const edn_value_t* key,
+                                           int depth) {
+    bool is_map = collection->type == EDN_TYPE_MAP;
+    size_t count = is_map ? collection->as.map.count : collection->as.set.count;
+    edn_value_t* const* keys = is_map ? collection->as.map.keys : collection->as.set.elements;
+    if (count > 16 && collection->arena != NULL) {
+        edn_value_t* mutable_collection = (edn_value_t*) collection;
+        edn_collection_index_t** cache =
+            is_map ? &mutable_collection->as.map.index : &mutable_collection->as.set.index;
+        if (*cache == NULL) {
+            *cache = edn_collection_build_index(collection, keys, count);
+        }
+        edn_collection_index_t* index = *cache;
+        if (index->capacity != 0 && edn_value_can_index(key, 0)) {
+            uint64_t hash = edn_value_hash(key);
+            size_t slot = hash & (index->capacity - 1);
+            while (index->slots[slot] != 0) {
+                size_t i = index->slots[slot] - 1;
+                if (edn_value_hash(keys[i]) == hash &&
+                    edn_value_equal_internal(keys[i], key, depth)) {
+                    return i;
+                }
+                slot = (slot + 1) & (index->capacity - 1);
+            }
+            return SIZE_MAX;
+        }
+    }
+    for (size_t i = 0; i < count; i++) {
+        if (edn_value_equal_internal(keys[i], key, depth)) {
+            return i;
+        }
+    }
+    return SIZE_MAX;
+}
+
+size_t edn_collection_find(const edn_value_t* collection, const edn_value_t* key) {
+    return edn_collection_find_internal(collection, key, 0);
+}
+
 /**
  * Deep structural equality comparison.
  * 
@@ -249,15 +364,7 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
             for (size_t i = 0; i < count; i++) {
                 edn_value_t* elem_a = a->as.set.elements[i];
 
-                bool found = false;
-                for (size_t j = 0; j < count; j++) {
-                    if (edn_value_equal_internal(elem_a, b->as.set.elements[j], depth + 1)) {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
+                if (edn_collection_find_internal(b, elem_a, depth + 1) == SIZE_MAX) {
                     return false;
                 }
             }
@@ -276,18 +383,9 @@ static bool edn_value_equal_internal(const edn_value_t* a, const edn_value_t* b,
                 edn_value_t* key_a = a->as.map.keys[i];
                 edn_value_t* val_a = a->as.map.values[i];
 
-                bool found = false;
-                for (size_t j = 0; j < count; j++) {
-                    if (edn_value_equal_internal(key_a, b->as.map.keys[j], depth + 1)) {
-                        if (!edn_value_equal_internal(val_a, b->as.map.values[j], depth + 1)) {
-                            return false;
-                        }
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
+                size_t j = edn_collection_find_internal(b, key_a, depth + 1);
+                if (j == SIZE_MAX ||
+                    !edn_value_equal_internal(val_a, b->as.map.values[j], depth + 1)) {
                     return false;
                 }
             }
