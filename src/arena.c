@@ -5,17 +5,12 @@
 #include "edn_internal.h"
 
 edn_arena_t* edn_arena_create(void) {
-    edn_arena_t* arena = malloc(sizeof(edn_arena_t));
+    edn_arena_t* arena = malloc(sizeof(edn_arena_t) + sizeof(arena_block_t) + ARENA_INITIAL_SIZE);
     if (!arena) {
         return NULL;
     }
 
-    /* Start with small block for small documents */
-    arena_block_t* block = malloc(sizeof(arena_block_t) + ARENA_INITIAL_SIZE);
-    if (!block) {
-        free(arena);
-        return NULL;
-    }
+    arena_block_t* block = (arena_block_t*) (arena + 1);
 
     block->next = NULL;
     block->used = 0;
@@ -34,7 +29,7 @@ void edn_arena_destroy(edn_arena_t* arena) {
         return;
     }
 
-    arena_block_t* block = arena->first;
+    arena_block_t* block = arena->first->next;
     while (block) {
         arena_block_t* next = block->next;
         free(block);

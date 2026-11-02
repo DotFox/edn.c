@@ -399,7 +399,7 @@ static inline const char* simd_scan_line_content(const char* ptr, const char* en
 
 #endif
 
-static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
+static bool edn_parse_text_block_line(edn_parser_t* parser, text_block_line_t* line) {
     const char* scan = parser->current;
     const char* end = parser->end;
     const char* line_start = scan;
@@ -494,13 +494,6 @@ static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
             if (c == '"' && p + 3 <= end && p[1] == '"' && p[2] == '"') {
                 /* Closing delimiter found - this is the last "line" before text block ends.
                  * It may contain only whitespace (if """ is on its own line) or content. */
-                text_block_line_t* line = malloc(sizeof(text_block_line_t));
-                if (!line) {
-                    edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
-                                         "Out of memory allocating line", line_start,
-                                         parser->current);
-                    return NULL;
-                }
                 line->line_start = line_start;
                 line->line_length = p - line_start;
                 /* If no content before """, content_start will equal p, so set to NULL */
@@ -510,19 +503,11 @@ static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
                 line->needs_escaping = needs_escaping;
                 line->terminal = true;
                 parser->current = p + 3; /* Move past closing delimiter */
-                return line;
+                return true;
             }
 
             /* Detect newline: \n (normal line ending) */
             if (c == '\n') {
-                /* Normal line ending - allocate and return line structure */
-                text_block_line_t* line = malloc(sizeof(text_block_line_t));
-                if (!line) {
-                    edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
-                                         "Out of memory allocating line", line_start,
-                                         parser->current);
-                    return NULL;
-                }
                 line->line_start = line_start;
                 line->line_length = p - line_start;
                 /* Blank lines have content_start == p, so we set content_start to NULL */
@@ -532,7 +517,7 @@ static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
                 line->needs_escaping = needs_escaping;
                 line->terminal = false;
                 parser->current = p + 1; /* Move past newline character */
-                return line;
+                return true;
             }
 
             p++;
@@ -543,7 +528,7 @@ static text_block_line_t* edn_parse_text_block_line(edn_parser_t* parser) {
     edn_parser_set_error(parser, EDN_ERROR_INVALID_STRING,
                          "Unterminated text block (EOF during line parsing)", line_start,
                          parser->end);
-    return NULL;
+    return false;
 }
 
 edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
@@ -554,7 +539,7 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
 
     /* Allocate initial line buffer (grows exponentially as needed) */
     size_t lines_capacity = 16; /* Initial capacity: 16 lines */
-    text_block_line_t** lines = malloc(lines_capacity * sizeof(text_block_line_t*));
+    text_block_line_t* lines = malloc(lines_capacity * sizeof(text_block_line_t));
     if (!lines) {
         edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
                              "Out of memory allocating line buffer", value_start, parser->current);
@@ -568,9 +553,6 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
         /* Hard cap on line count: prevents heap exhaustion from attacker input
          * that supplies a multi-megabyte text block of empty lines. */
         if (line_count >= EDN_TEXT_BLOCK_MAX_LINES) {
-            for (size_t j = 0; j < line_count; j++) {
-                free(lines[j]);
-            }
             free(lines);
             edn_parser_set_error(parser, EDN_ERROR_INVALID_STRING,
                                  "Text block exceeds maximum line count", value_start,
@@ -583,23 +565,15 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
             size_t new_capacity = lines_capacity * 2;
             /* Guard against capacity overflow */
             if (new_capacity < lines_capacity ||
-                new_capacity > SIZE_MAX / sizeof(text_block_line_t*)) {
-                for (size_t j = 0; j < line_count; j++) {
-                    free(lines[j]);
-                }
+                new_capacity > SIZE_MAX / sizeof(text_block_line_t)) {
                 free(lines);
                 edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
                                      "Text block line capacity overflow", value_start,
                                      parser->current);
                 return NULL;
             }
-            text_block_line_t** new_lines =
-                realloc(lines, new_capacity * sizeof(text_block_line_t*));
+            text_block_line_t* new_lines = realloc(lines, new_capacity * sizeof(text_block_line_t));
             if (!new_lines) {
-                /* Free already allocated lines */
-                for (size_t j = 0; j < line_count; j++) {
-                    free(lines[j]);
-                }
                 free(lines);
                 edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
                                      "Out of memory growing line buffer", value_start,
@@ -610,20 +584,13 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
             lines_capacity = new_capacity;
         }
 
-        text_block_line_t* parsed = edn_parse_text_block_line(parser);
+        text_block_line_t* parsed = &lines[line_count];
+        bool parsed_ok = edn_parse_text_block_line(parser, parsed);
 
-        /* Check for parser error (OOM or EOF during line parsing) */
-        if (parser->error != EDN_OK) {
-            /* Free any already allocated lines */
-            for (size_t j = 0; j < line_count; j++) {
-                free(lines[j]);
-            }
+        if (!parsed_ok) {
             free(lines);
             return NULL;
         }
-
-        /* Store the parsed line in our buffer */
-        lines[line_count] = parsed;
 
         /* Calculate leading whitespace for this line:
          * - If line has content: distance from line_start to content_start
@@ -649,7 +616,7 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
     bool any_escapes = false;
 
     for (size_t i = 0; i < line_count; i++) {
-        text_block_line_t* line = lines[i];
+        text_block_line_t* line = &lines[i];
 
         size_t trimmed_content_length = 0;
         size_t ws_prefix = 0;
@@ -690,10 +657,6 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
 
     char* result = edn_arena_alloc(parser->arena, total_len + 1); /* +1 for null terminator */
     if (!result) {
-        /* Free allocated lines before returning */
-        for (size_t j = 0; j < line_count; j++) {
-            free(lines[j]);
-        }
         free(lines);
         edn_parser_set_error(parser, EDN_ERROR_OUT_OF_MEMORY,
                              "Out of memory allocating result string", value_start,
@@ -704,7 +667,7 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
     char* dst = result;
 
     for (size_t i = 0; i < line_count; i++) {
-        text_block_line_t* line = lines[i];
+        text_block_line_t* line = &lines[i];
 
         size_t trimmed_content_length = 0;
         size_t ws_prefix = 0;
@@ -771,10 +734,6 @@ edn_value_t* edn_parse_text_block(edn_parser_t* parser) {
 
     *dst = '\0'; /* Null terminate the result string */
 
-    /* Clean up: free all line structures */
-    for (size_t j = 0; j < line_count; j++) {
-        free(lines[j]);
-    }
     free(lines);
 
     /* Create and populate EDN string value */
